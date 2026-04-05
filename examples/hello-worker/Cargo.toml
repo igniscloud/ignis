@@ -1,0 +1,15 @@
+[package]
+name = "hello-worker"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+http-body-util = "0.1.3"
+ember-sdk = { path = "../../crates/ember-sdk" }
+wstd = "0.6"

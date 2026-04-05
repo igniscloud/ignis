@@ -1,0 +1,39 @@
+[workspace]
+members = [
+    "crates/ember-cli",
+    "crates/ember-host-abi",
+    "crates/ember-manifest",
+    "crates/ember-platform-host",
+    "crates/ember-runtime",
+    "crates/ember-sdk",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+license = "Apache-2.0"
+version = "0.1.0"
+
+[workspace.dependencies]
+anyhow = "1.0.100"
+base64 = "0.22.1"
+clap = { version = "4.5.39", features = ["derive", "env"] }
+dirs = "6.0.0"
+ed25519-dalek = "2.2.0"
+hex = "0.4.3"
+http = "1.3.1"
+http-body-util = "0.1.3"
+hyper = { version = "1.7.0", features = ["http1", "server"] }
+matchit = "0.9.0"
+reqwest = { version = "0.12.24", default-features = false, features = ["charset", "http2", "json", "multipart", "rustls-tls"] }
+rusqlite = { version = "0.39.0", features = ["bundled"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+tokio = { version = "1.48.0", features = ["macros", "net", "rt-multi-thread"] }
+toml = "0.9.8"
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter", "fmt"] }
+wasmtime = { version = "43.0.0", default-features = false, features = ["async", "component-model", "component-model-async", "cranelift", "pooling-allocator", "runtime", "std"] }
+wasmtime-wasi = { version = "43.0.0", default-features = false, features = ["p2"] }
+wasmtime-wasi-http = { version = "43.0.0", default-features = false, features = ["component-model-async", "default-send-request", "p2"] }
+wit-bindgen = "0.51.0"

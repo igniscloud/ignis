@@ -1,0 +1,12 @@
+[package]
+name = "ember-host-abi"
+description = "Shared host ABI definitions for Ember guest SDKs and runtimes"
+edition.workspace = true
+keywords = ["wasm", "wit", "abi", "component-model"]
+license.workspace = true
+categories = ["api-bindings", "wasm"]
+readme = "../../README.md"
+version.workspace = true
+
+[lib]
+path = "src/lib.rs"

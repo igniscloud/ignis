@@ -1,0 +1,11 @@
+name = "sqlite-worker"
+component = "target/wasm32-wasip2/release/sqlite_worker.wasm"
+base_path = "/"
+
+[env]
+
+[secrets]
+
+[sqlite]
+enabled = true
+

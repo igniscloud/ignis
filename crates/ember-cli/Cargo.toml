@@ -1,0 +1,28 @@
+[package]
+name = "ember-cli"
+description = "CLI for Ember workers: scaffolding, local development, and compatible control-plane APIs"
+edition.workspace = true
+license.workspace = true
+readme = "../../README.md"
+version.workspace = true
+publish = false
+default-run = "ember"
+
+[[bin]]
+name = "ember"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+base64.workspace = true
+clap.workspace = true
+dirs.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["process"] }
+toml.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+ember-manifest = { path = "../ember-manifest" }
+ember-runtime = { path = "../ember-runtime" }
