@@ -1,0 +1,18 @@
+name = "test"
+component = "target/wasm32-wasip2/release/hello_world_test.wasm"
+base_path = "/"
+
+[env]
+
+[secrets]
+
+[sqlite]
+enabled = false
+
+[resources]
+cpu_time_limit_ms = 5000
+memory_limit_bytes = 134217728
+
+[network]
+mode = "deny_all"
+allow = []

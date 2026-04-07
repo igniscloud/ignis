@@ -386,12 +386,14 @@ async fn deploy(app: &str, version: &str, token: Option<String>) -> Result<()> {
 async fn status(app: &str, token: Option<String>) -> Result<()> {
     let client = api::ApiClient::new(config::CliConfig::resolve(token)?);
     let response = client.status(app).await?;
+    print_status_summary(&response);
     print_json(&response)
 }
 
 async fn list_apps(token: Option<String>) -> Result<()> {
     let client = api::ApiClient::new(config::CliConfig::resolve(token)?);
     let response = client.apps().await?;
+    print_app_list_summary(&response);
     print_json(&response)
 }
 
@@ -499,6 +501,48 @@ async fn build_metadata(loaded: &LoadedManifest) -> Result<BTreeMap<String, Stri
 fn print_json(value: &Value) -> Result<()> {
     println!("{}", serde_json::to_string_pretty(value)?);
     Ok(())
+}
+
+fn print_status_summary(value: &Value) {
+    let Some(data) = value.get("data") else {
+        return;
+    };
+    if let Some(url) = json_string(data, "access_url") {
+        eprintln!("URL: {url}");
+    } else if let Some(host) = json_string(data, "access_host") {
+        eprintln!("Host: {host}");
+    }
+}
+
+fn print_app_list_summary(value: &Value) {
+    let Some(items) = value.get("data").and_then(Value::as_array) else {
+        return;
+    };
+    let summaries = items
+        .iter()
+        .filter_map(|item| {
+            let app = json_string(item, "app")?;
+            if let Some(url) = json_string(item, "access_url") {
+                Some(format!("{app}: {url}"))
+            } else {
+                json_string(item, "access_host").map(|host| format!("{app}: {host}"))
+            }
+        })
+        .collect::<Vec<_>>();
+    if summaries.is_empty() {
+        return;
+    }
+    eprintln!("Access URLs:");
+    for summary in summaries {
+        eprintln!("  {summary}");
+    }
+}
+
+fn json_string<'a>(value: &'a Value, key: &str) -> Option<&'a str> {
+    value
+        .get(key)
+        .and_then(Value::as_str)
+        .filter(|item| !item.is_empty())
 }
 
 fn load_component_signature(artifact_path: &Path) -> Result<Option<ComponentSignature>> {

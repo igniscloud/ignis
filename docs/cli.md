@@ -202,6 +202,26 @@ ember status hello-worker
 ember logs hello-worker --limit 50
 ```
 
+说明：
+
+- `ember status <app>` 会先直接显示该应用的访问地址，再输出完整 JSON
+- `ember apps` 会先列出每个 app 的访问地址，再输出完整 JSON
+- 当前公网访问地址格式默认是 `https://<app_id>.transairobot.fun`
+
+示例输出：
+
+```text
+$ ember status test
+URL: https://app-010c8fa84161fd8d.transairobot.fun
+{
+  "data": {
+    "app": "test",
+    "app_id": "app-010c8fa84161fd8d",
+    "access_url": "https://app-010c8fa84161fd8d.transairobot.fun"
+  }
+}
+```
+
 ### 5.10 回滚和删除
 
 回滚：

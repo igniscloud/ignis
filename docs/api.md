@@ -374,11 +374,27 @@ CLI 会读取响应中的：
 
 - `ember apps`
 
+返回的每个 app 条目会包含：
+
+- `app_id`
+- `access_host`
+- `access_url`
+
+当前公网访问地址格式默认是：
+
+- `https://<app_id>.transairobot.fun`
+
 #### `GET /v1/apps/{app}`
 
 用途：
 
 - `ember status <app>`
+
+返回里会包含：
+
+- `app_id`
+- `access_host`
+- `access_url`
 
 #### `GET /v1/nodes`
 
