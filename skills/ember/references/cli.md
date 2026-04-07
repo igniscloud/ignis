@@ -98,6 +98,8 @@ ember dev --skip-build --addr 127.0.0.1:3000
 ember login
 ```
 
+CLI 会启动一个临时 localhost 回调地址，打开 embercloud 浏览器登录页，并在授权完成后把 CLI token 写入本地 config。
+
 ### `ember whoami`
 
 ```bash

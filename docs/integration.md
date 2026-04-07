@@ -197,10 +197,13 @@ mode = "deny_all"
 `ember` 仓库不带公开控制面，但 `ember-cli` 当前默认会调用托管的 `embercloud` 控制面：
 
 ```bash
-ember --token <api-token> publish
-ember --token <api-token> deploy hello-worker <version>
-ember --token <api-token> status hello-worker
+ember login
+ember publish
+ember deploy hello-worker <version>
+ember status hello-worker
 ```
+
+这里的 `ember login` 会打开浏览器，走 embercloud 登录页，并通过本地 localhost 回调保存 CLI token。
 
 如果平台支持这些接口，你还可以使用：
 

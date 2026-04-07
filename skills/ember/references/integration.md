@@ -158,6 +158,8 @@ ember deploy hello-worker <version>
 ember status hello-worker
 ```
 
+这里的 `ember login` 默认会打开浏览器，走 embercloud 的 OAuth 登录页，并通过本地 localhost 回调把 CLI token 保存到当前用户配置目录。
+
 控制面兼容接口约定见 `api.md`。
 
 ## 4. 作为平台开发者接入

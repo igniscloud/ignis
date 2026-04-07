@@ -766,14 +766,18 @@ fn handle_loopback_login_request(
 ) -> Result<LoopbackLoginPayload> {
     let request = read_http_request(stream)?;
     let (method, path) = parse_request_line(&request.headers)?;
-    if method != "POST" {
+    let form = if method == "GET" {
+        parse_query_string(&path)?
+    } else if method == "POST" {
+        parse_form_body(&request.body)?
+    } else {
         write_http_html_response(
             stream,
             "405 Method Not Allowed",
-            "<h1>Method Not Allowed</h1><p>Ember CLI expects a POST callback.</p>",
+            "<h1>Method Not Allowed</h1><p>Ember CLI expects a browser redirect to localhost.</p>",
         )?;
         bail!("unexpected callback method `{method}`");
-    }
+    };
     if !path.starts_with("/callback") {
         write_http_html_response(
             stream,
@@ -782,8 +786,6 @@ fn handle_loopback_login_request(
         )?;
         bail!("unexpected callback path `{path}`");
     }
-
-    let form = parse_form_body(&request.body)?;
     let state = form
         .get("state")
         .ok_or_else(|| anyhow!("login callback is missing state"))?;
@@ -804,7 +806,7 @@ fn handle_loopback_login_request(
     write_http_html_response(
         stream,
         "200 OK",
-        "<h1>Login successful</h1><p>You can close this window and return to Ember CLI.</p>",
+        "<!doctype html><html><body><h1>Login successful</h1><p>You can close this window and return to Ember CLI.</p><script>window.close();</script></body></html>",
     )?;
 
     Ok(LoopbackLoginPayload {
@@ -898,6 +900,17 @@ fn find_header_end(buffer: &[u8]) -> Option<usize> {
 
 fn parse_form_body(body: &[u8]) -> Result<BTreeMap<String, String>> {
     let text = String::from_utf8(body.to_vec()).context("callback form body is not valid UTF-8")?;
+    parse_form_encoded_values(&text)
+}
+
+fn parse_query_string(path: &str) -> Result<BTreeMap<String, String>> {
+    let Some((_, query)) = path.split_once('?') else {
+        return Ok(BTreeMap::new());
+    };
+    parse_form_encoded_values(query)
+}
+
+fn parse_form_encoded_values(text: &str) -> Result<BTreeMap<String, String>> {
     let mut values = BTreeMap::new();
     for pair in text.split('&') {
         if pair.is_empty() {

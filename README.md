@@ -133,10 +133,16 @@ ember build
 ember dev --addr 127.0.0.1:3000
 ```
 
-If you need to publish to embercloud, pass an API token directly:
+If you need to publish to embercloud, log in once from the browser and let the CLI keep the
+returned token locally:
 
 ```bash
-ember --token <api-token> whoami
-ember --token <api-token> publish
-ember --token <api-token> deploy hello-worker <version>
+ember login
+ember whoami
+ember publish
+ember deploy <version>
 ```
+
+`ember login` starts a temporary localhost callback, opens the embercloud sign-in page in your
+browser, and stores the returned CLI token in the local config. You can still override that saved
+session with `--token` or `EMBER_TOKEN` when needed.

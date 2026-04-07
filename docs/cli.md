@@ -406,9 +406,10 @@ ember dev --addr 127.0.0.1:3000
 ### 9.2 发布到控制面
 
 ```bash
-ember --token <api-token> publish
-ember --token <api-token> deploy hello-worker <version>
-ember --token <api-token> status hello-worker
+ember login
+ember publish
+ember deploy hello-worker <version>
+ember status hello-worker
 ```
 
 ### 9.3 管理一个已上线服务

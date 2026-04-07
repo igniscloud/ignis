@@ -276,7 +276,7 @@ CLI 当前使用：
 
 - `Authorization: Bearer <token>`
 
-CLI 默认通过浏览器登录拿到一个可持久化的 CLI token；如果用户显式传入 `--token`，也仍然会直接把它当作 Bearer token 使用。
+CLI 默认通过浏览器登录拿到一个可持久化的 CLI token。登录时，CLI 会启动临时 localhost 回调、打开 embercloud 登录页，并在授权完成后保存返回的 token；如果用户显式传入 `--token`，也仍然会直接把它当作 Bearer token 使用。
 
 ### 2.2 基础 URL
 
