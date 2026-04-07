@@ -1,17 +1,17 @@
 # API 文档
 
-本文描述 `ember` 当前公开可用的 API 面。这里的 API 分成两类：
+本文描述 `ignis` 当前公开可用的 API 面。这里的 API 分成两类：
 
 - Rust crate API
-- `ember-cli` 兼容控制面所依赖的 HTTP API
+- `ignis-cli` 兼容控制面所依赖的 HTTP API
 
-`ember` 当前不实现公开控制面，因此这里的 HTTP API 文档描述的是“CLI 期望的接口契约”，而不是本仓库内置服务。
+`ignis` 当前不实现公开控制面，因此这里的 HTTP API 文档描述的是“CLI 期望的接口契约”，而不是本仓库内置服务。
 
 ## 1. Rust crate API
 
-### 1.1 `ember-manifest`
+### 1.1 `ignis-manifest`
 
-`ember-manifest` 负责 `worker.toml` 的读取、校验、渲染和组件签名。
+`ignis-manifest` 负责 `worker.toml` 的读取、校验、渲染和组件签名。
 
 #### 常量
 
@@ -47,13 +47,13 @@
 
 `worker.toml` 的完整字段说明、默认值、校验规则和示例配置见 [worker.toml 文档](./worker-toml.md)。
 
-### 1.2 `ember-sdk`
+### 1.2 `ignis-sdk`
 
-`ember-sdk` 是 guest 侧 Rust SDK，当前主要分为 `http` 和 `sqlite` 两块。
+`ignis-sdk` 是 guest 侧 Rust SDK，当前主要分为 `http` 和 `sqlite` 两块。
 
-完整自动生成参考见 [ember-sdk Markdown 文档](./ember-sdk/index.md)。
+完整自动生成参考见 [ignis-sdk Markdown 文档](./ignis-sdk/index.md)。
 
-#### `ember_sdk::http`
+#### `ignis_sdk::http`
 
 主要类型：
 
@@ -100,7 +100,7 @@
 示例：
 
 ```rust
-use ember_sdk::http::{Context, Router, middleware, text_response};
+use ignis_sdk::http::{Context, Router, middleware, text_response};
 use wstd::http::{Body, Request, Response, Result, StatusCode};
 
 #[wstd::http_server]
@@ -125,7 +125,7 @@ fn build_router() -> Router {
 }
 ```
 
-#### `ember_sdk::sqlite`
+#### `ignis_sdk::sqlite`
 
 主要类型：
 
@@ -152,7 +152,7 @@ fn build_router() -> Router {
 示例：
 
 ```rust
-use ember_sdk::sqlite::{self, SqliteValue};
+use ignis_sdk::sqlite::{self, SqliteValue};
 
 fn ensure_schema() -> Result<(), String> {
     sqlite::migrations::apply(&[
@@ -177,9 +177,9 @@ fn read_counter() -> Result<i64, String> {
 }
 ```
 
-### 1.3 `ember-runtime`
+### 1.3 `ignis-runtime`
 
-`ember-runtime` 负责组件装载、WASI / `wasi:http` 链接、请求分发、资源限制和出站网络控制。
+`ignis-runtime` 负责组件装载、WASI / `wasi:http` 链接、请求分发、资源限制和出站网络控制。
 
 主要类型：
 
@@ -204,9 +204,9 @@ fn read_counter() -> Result<i64, String> {
 - 出站 HTTP 请求受 `network` 策略控制
 - `base_path` 会在请求进入 guest 前被重写
 
-### 1.4 `ember-platform-host`
+### 1.4 `ignis-platform-host`
 
-`ember-platform-host` 是平台侧宿主扩展层。当前只包含 SQLite 实现。
+`ignis-platform-host` 是平台侧宿主扩展层。当前只包含 SQLite 实现。
 
 主要类型：
 
@@ -224,9 +224,9 @@ fn read_counter() -> Result<i64, String> {
 - 实现 WIT 中约定的 SQLite host functions
 - 把 SQLite 功能按 manifest 配置暴露给 guest
 
-## 2. `ember-cli` 兼容控制面 HTTP API
+## 2. `ignis-cli` 兼容控制面 HTTP API
 
-本节描述 `ember-cli` 期待的平台接口。只要你的控制面实现这些接口，CLI 就可以工作。
+本节描述 `ignis-cli` 期待的平台接口。只要你的控制面实现这些接口，CLI 就可以工作。
 
 ### 2.1 认证方式
 
@@ -234,20 +234,20 @@ CLI 当前使用：
 
 - `Authorization: Bearer <token>`
 
-CLI 默认通过浏览器登录拿到一个可持久化的 CLI token。登录时，CLI 会启动临时 localhost 回调、打开 embercloud 登录页，并在授权完成后保存返回的 token；如果用户显式传入 `--token`，也仍然会直接把它当作 Bearer token 使用。
+CLI 默认通过浏览器登录拿到一个可持久化的 CLI token。登录时，CLI 会启动临时 localhost 回调、打开 igniscloud 登录页，并在授权完成后保存返回的 token；如果用户显式传入 `--token`，也仍然会直接把它当作 Bearer token 使用。
 
 ### 2.2 基础 URL
 
 CLI 当前固定访问：
 
 ```text
-https://embercloud.transairobot.com/api
+https://igniscloud.transairobot.com/api
 ```
 
 例如应用列表接口是：
 
 ```text
-https://embercloud.transairobot.com/api/v1/apps
+https://igniscloud.transairobot.com/api/v1/apps
 ```
 
 ### 2.3 身份接口
@@ -257,7 +257,7 @@ https://embercloud.transairobot.com/api/v1/apps
 用途：
 
 - 校验传入的 token
-- `ember whoami`
+- `ignis whoami`
 
 CLI 会读取响应中的：
 
@@ -271,7 +271,7 @@ CLI 会读取响应中的：
 
 用途：
 
-- `ember app publish`
+- `ignis app publish`
 
 请求格式：
 
@@ -292,7 +292,7 @@ CLI 会读取响应中的：
 
 用途：
 
-- `ember app deploy <app> <version>`
+- `ignis app deploy <app> <version>`
 
 请求 JSON：
 
@@ -304,7 +304,7 @@ CLI 会读取响应中的：
 
 用途：
 
-- `ember app rollback <app> <version>`
+- `ignis app rollback <app> <version>`
 
 请求 JSON：
 
@@ -316,13 +316,13 @@ CLI 会读取响应中的：
 
 用途：
 
-- `ember app delete-version <app> <version>`
+- `ignis app delete-version <app> <version>`
 
 #### `DELETE /v1/apps/{app}`
 
 用途：
 
-- `ember app delete <app>`
+- `ignis app delete <app>`
 
 ### 2.5 查询接口
 
@@ -330,7 +330,7 @@ CLI 会读取响应中的：
 
 用途：
 
-- `ember app list`
+- `ignis app list`
 
 返回的每个 app 条目会包含：
 
@@ -346,7 +346,7 @@ CLI 会读取响应中的：
 
 用途：
 
-- `ember app status <app>`
+- `ignis app status <app>`
 
 返回里会包含：
 
@@ -358,19 +358,19 @@ CLI 会读取响应中的：
 
 用途：
 
-- `ember app deployments <app> --limit <n>`
+- `ignis app deployments <app> --limit <n>`
 
 #### `GET /v1/apps/{app}/events?limit={n}`
 
 用途：
 
-- `ember app events <app> --limit <n>`
+- `ignis app events <app> --limit <n>`
 
 #### `GET /v1/apps/{app}/logs?limit={n}`
 
 用途：
 
-- `ember app logs <app> --limit <n>`
+- `ignis app logs <app> --limit <n>`
 
 ### 2.6 环境变量接口
 
@@ -378,13 +378,13 @@ CLI 会读取响应中的：
 
 用途：
 
-- `ember app env list <app>`
+- `ignis app env list <app>`
 
 #### `POST /v1/apps/{app}/env`
 
 用途：
 
-- `ember app env set <app> <name> <value>`
+- `ignis app env set <app> <name> <value>`
 
 请求 JSON：
 
@@ -396,7 +396,7 @@ CLI 会读取响应中的：
 
 用途：
 
-- `ember app env delete <app> <name>`
+- `ignis app env delete <app> <name>`
 
 ### 2.7 Secret 接口
 
@@ -404,13 +404,13 @@ CLI 会读取响应中的：
 
 用途：
 
-- `ember app secrets list <app>`
+- `ignis app secrets list <app>`
 
 #### `POST /v1/apps/{app}/secrets`
 
 用途：
 
-- `ember app secrets set <app> <name> <value>`
+- `ignis app secrets set <app> <name> <value>`
 
 请求 JSON：
 
@@ -422,7 +422,7 @@ CLI 会读取响应中的：
 
 用途：
 
-- `ember app secrets delete <app> <name>`
+- `ignis app secrets delete <app> <name>`
 
 ### 2.8 SQLite 备份与恢复接口
 
@@ -430,7 +430,7 @@ CLI 会读取响应中的：
 
 用途：
 
-- `ember app sqlite backup <app> <out>`
+- `ignis app sqlite backup <app> <out>`
 
 CLI 期望响应 JSON 中存在：
 
@@ -444,7 +444,7 @@ CLI 期望响应 JSON 中存在：
 
 用途：
 
-- `ember app sqlite restore <app> <input>`
+- `ignis app sqlite restore <app> <input>`
 
 请求 JSON：
 
@@ -465,17 +465,12 @@ CLI 当前对响应的处理相对宽松：
 
 ## 3. 组件签名约定
 
-`ember app publish` 支持对组件签名。
+`ignis app publish` 支持对组件签名。
 
 环境变量：
 
-- `EMBER_SIGNING_KEY_ID`
-- `EMBER_SIGNING_KEY_BASE64`
-
-为了兼容旧链路，CLI 当前也会接受：
-
-- `WKR_SIGNING_KEY_ID`
-- `WKR_SIGNING_KEY_BASE64`
+- `IGNIS_SIGNING_KEY_ID`
+- `IGNIS_SIGNING_KEY_BASE64`
 
 签名算法：
 
@@ -489,9 +484,9 @@ CLI 当前对响应的处理相对宽松：
 
 如果你需要确认本文是否与实现一致，优先查看：
 
-- `crates/ember-manifest/src/lib.rs`
-- `crates/ember-sdk/src/lib.rs`
-- `crates/ember-runtime/src/lib.rs`
-- `crates/ember-platform-host/src/lib.rs`
-- `crates/ember-cli/src/api.rs`
-- `crates/ember-cli/src/main.rs`
+- `crates/ignis-manifest/src/lib.rs`
+- `crates/ignis-sdk/src/lib.rs`
+- `crates/ignis-runtime/src/lib.rs`
+- `crates/ignis-platform-host/src/lib.rs`
+- `crates/ignis-cli/src/api.rs`
+- `crates/ignis-cli/src/main.rs`

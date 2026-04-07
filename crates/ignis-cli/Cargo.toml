@@ -1,0 +1,30 @@
+[package]
+name = "ignis-cli"
+description = "CLI for Ignis workers: scaffolding, local development, and compatible control-plane APIs"
+edition.workspace = true
+license.workspace = true
+readme = "../../README.md"
+version.workspace = true
+publish = false
+default-run = "ignis"
+
+[[bin]]
+name = "ignis"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+base64.workspace = true
+clap.workspace = true
+dirs.workspace = true
+hex.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio = { workspace = true, features = ["process"] }
+toml.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+ignis-manifest = { path = "../ignis-manifest" }
+ignis-runtime = { path = "../ignis-runtime" }

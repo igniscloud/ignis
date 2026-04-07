@@ -1,11 +1,11 @@
 # CLI 工具文档
 
-本文说明如何使用 `ember-cli` 创建、构建、调试、发布和维护 Wasm HTTP worker。
+本文说明如何使用 `ignis-cli` 创建、构建、调试、发布和维护 Wasm HTTP worker。
 
-`ember-cli` 当前的二进制名是：
+`ignis-cli` 当前的二进制名是：
 
 ```text
-ember
+ignis
 ```
 
 ## 1. CLI 能做什么
@@ -22,20 +22,20 @@ ember
 ## 2. 安装与运行
 
 ```bash
-cargo install --git https://github.com/pleasewhy/ember ember-cli
+cargo install --git https://github.com/igniscloud/ignis ignis-cli
 ```
 
 安装后即可直接执行：
 
 ```bash
-ember --help
+ignis --help
 ```
 
 如果你还需要查看源码或 examples：
 
 ```bash
-git clone https://github.com/pleasewhy/ember.git
-cd ember
+git clone https://github.com/igniscloud/ignis.git
+cd ignis
 ```
 
 ## 3. 最小工作流
@@ -43,11 +43,11 @@ cd ember
 开发一个新 worker，最小链路通常是：
 
 ```bash
-ember init hello-worker
+ignis init hello-worker
 cd hello-worker
 rustup target add wasm32-wasip2
-ember build
-ember dev --addr 127.0.0.1:3000
+ignis build
+ignis dev --addr 127.0.0.1:3000
 ```
 
 然后访问：
@@ -61,58 +61,56 @@ curl http://127.0.0.1:3000/
 云端命令默认访问：
 
 ```text
-https://embercloud.transairobot.com/api
+https://igniscloud.transairobot.com/api
 ```
 
 CLI 现在支持两种认证方式：
 
-1. 先执行 `ember login`，走浏览器授权并把 CLI token 持久化到本地 config
+1. 先执行 `ignis login`，走浏览器授权并把 CLI token 持久化到本地 config
 2. 每次命令显式传 `--token`，或者通过环境变量注入
 
 登录示例：
 
 ```bash
-ember login
-ember whoami
+ignis login
+ignis whoami
 ```
 
 登录时 CLI 会：
 
 - 在本机启动一个临时 localhost 回调地址
-- 自动打开浏览器，跳到 embercloud 的登录授权页面
+- 自动打开浏览器，跳到 igniscloud 的登录授权页面
 - 用户在浏览器完成 Google/OAuth 登录后，CLI 自动接管返回的 token
 
 退出登录：
 
 ```bash
-ember logout
+ignis logout
 ```
 
 临时 token 示例：
 
 ```bash
-ember --token <api-token> whoami
-EMBER_TOKEN=<api-token> ember whoami
+ignis --token <api-token> whoami
+IGNIS_TOKEN=<api-token> ignis whoami
 ```
 
-为了兼容旧链路，CLI 仍会回退读取：
+CLI 读取：
 
-- `EMBERCLOUD_TOKEN`
-- `WKR_API_TOKEN`
-- `$XDG_CONFIG_HOME/ember/config.toml`
-- `$XDG_CONFIG_HOME/embercloud/config.toml`
-- `$XDG_CONFIG_HOME/wkr/config.toml`
+- `IGNIS_TOKEN`
+- `IGNISCLOUD_TOKEN`
+- `$XDG_CONFIG_HOME/ignis/config.toml`
 
 ## 5. 命令说明
 
-### 5.1 `ember init <path>`
+### 5.1 `ignis init <path>`
 
 初始化一个新的 worker 项目。
 
 示例：
 
 ```bash
-ember init hello-worker
+ignis init hello-worker
 ```
 
 默认生成：
@@ -126,10 +124,10 @@ ember init hello-worker
 如果目录已存在且非空：
 
 ```bash
-ember init hello-worker --force
+ignis init hello-worker --force
 ```
 
-### 5.2 `ember build`
+### 5.2 `ignis build`
 
 构建当前 worker 的 Wasm 产物。
 
@@ -142,77 +140,77 @@ ember init hello-worker --force
 示例：
 
 ```bash
-ember build
+ignis build
 ```
 
 指定 manifest：
 
 ```bash
-ember build --manifest ./worker.toml
+ignis build --manifest ./worker.toml
 ```
 
-### 5.3 `ember dev`
+### 5.3 `ignis dev`
 
 本地启动一个 HTTP 调试服务，直接加载 Wasm 组件。
 
 示例：
 
 ```bash
-ember dev --addr 127.0.0.1:3000
+ignis dev --addr 127.0.0.1:3000
 ```
 
 如果刚刚已经构建过，也可以跳过构建：
 
 ```bash
-ember dev --skip-build --addr 127.0.0.1:3000
+ignis dev --skip-build --addr 127.0.0.1:3000
 ```
 
-### 5.4 `ember whoami`
+### 5.4 `ignis whoami`
 
 查看当前 CLI 使用的身份：
 
 ```bash
-ember whoami
+ignis whoami
 ```
 
-### 5.5 `ember app`
+### 5.5 `ignis app`
 
-所有云端 app 维度操作现在统一收敛到 `ember app ...`：
+所有云端 app 维度操作现在统一收敛到 `ignis app ...`：
 
-- `ember app list`
-- `ember app create`
-- `ember app status`
-- `ember app publish`
-- `ember app deploy`
-- `ember app deployments`
-- `ember app events`
-- `ember app logs`
-- `ember app rollback`
-- `ember app delete-version`
-- `ember app delete`
-- `ember app env ...`
-- `ember app secrets ...`
-- `ember app sqlite ...`
+- `ignis app list`
+- `ignis app create`
+- `ignis app status`
+- `ignis app publish`
+- `ignis app deploy`
+- `ignis app deployments`
+- `ignis app events`
+- `ignis app logs`
+- `ignis app rollback`
+- `ignis app delete-version`
+- `ignis app delete`
+- `ignis app env ...`
+- `ignis app secrets ...`
+- `ignis app sqlite ...`
 
-### 5.6 `ember app create`
+### 5.6 `ignis app create`
 
 创建云端 app：
 
 ```bash
-ember app create --app hello-worker
+ignis app create --app hello-worker
 ```
 
 如果当前目录有 `worker.toml` 并且已经填写：
 
 ```toml
-[embercloud]
+[igniscloud]
 app = "hello-worker"
 ```
 
 也可以直接：
 
 ```bash
-ember app create
+ignis app create
 ```
 
 app 名当前限制为：
@@ -220,77 +218,77 @@ app 名当前限制为：
 - 仅允许字母、数字、`-`、`_`
 - 最长 48 个字符
 
-### 5.7 `ember app publish`
+### 5.7 `ignis app publish`
 
 上传当前 worker 的 Wasm 产物和 manifest，创建一个新版本。
 
 发布前需要先在 `worker.toml` 里声明目标云端 app：
 
 ```toml
-[embercloud]
+[igniscloud]
 app = "hello-worker"
 ```
 
 如果目标 app 不存在，CLI 会提示你创建：
 
 ```bash
-ember app publish
+ignis app publish
 ```
 
 或者指定 manifest：
 
 ```bash
-ember app publish --manifest ./worker.toml
+ignis app publish --manifest ./worker.toml
 ```
 
-### 5.8 `ember app deploy`
+### 5.8 `ignis app deploy`
 
 把某个版本切换成当前运行版本。
 
-新写法会优先从 `worker.toml` 读取 `[embercloud].app`：
+新写法会优先从 `worker.toml` 读取 `[igniscloud].app`：
 
 ```bash
-ember app deploy <version>
+ignis app deploy <version>
 ```
 
 兼容旧写法：
 
 ```bash
-ember app deploy hello-worker <version>
+ignis app deploy hello-worker <version>
 ```
 
 也可以显式指定：
 
 ```bash
-ember app deploy --app hello-worker <version>
+ignis app deploy --app hello-worker <version>
 ```
 
-### 5.9 `ember app` 查询命令
+### 5.9 `ignis app` 查询命令
 
-- `ember app list`
-- `ember app status <app>`
-- `ember app deployments <app> --limit <n>`
-- `ember app events <app> --limit <n>`
-- `ember app logs <app> --limit <n>`
+- `ignis app list`
+- `ignis app status <app>`
+- `ignis app deployments <app> --limit <n>`
+- `ignis app events <app> --limit <n>`
+- `ignis app logs <app> --limit <n>`
 
 示例：
 
 ```bash
-ember app list
-ember app status hello-worker
-ember app logs hello-worker --limit 50
+ignis app list
+ignis app status hello-worker
+ignis app logs hello-worker --limit 50
 ```
 
 说明：
 
-- `ember app status <app>` 会先直接显示该应用的访问地址，再输出完整 JSON
-- `ember app list` 会先列出每个 app 的访问地址，再输出完整 JSON
+- `ignis app status <app>` 会先直接显示该应用的访问地址，再输出完整 JSON
+- `ignis app list` 会先列出每个 app 的访问地址，再输出完整 JSON
 - 当前公网访问地址格式默认是 `https://<app_id>.transairobot.fun`
 
 示例输出：
 
 ```text
-$ ember app status test
+$ ignis app status test
 URL: https://app-010c8fa84161fd8d.transairobot.fun
 {
   "data": {
@@ -306,19 +304,19 @@ URL: https://app-010c8fa84161fd8d.transairobot.fun
 回滚：
 
 ```bash
-ember app rollback hello-worker <old-version>
+ignis app rollback hello-worker <old-version>
 ```
 
 删除版本：
 
 ```bash
-ember app delete-version hello-worker <version>
+ignis app delete-version hello-worker <version>
 ```
 
 删除应用：
 
 ```bash
-ember app delete hello-worker
+ignis app delete hello-worker
 ```
 
 ## 6. 环境变量和 Secret
@@ -328,19 +326,19 @@ ember app delete hello-worker
 查看：
 
 ```bash
-ember app env list hello-worker
+ignis app env list hello-worker
 ```
 
 设置：
 
 ```bash
-ember app env set hello-worker APP_ENV production
+ignis app env set hello-worker APP_ENV production
 ```
 
 删除：
 
 ```bash
-ember app env delete hello-worker APP_ENV
+ignis app env delete hello-worker APP_ENV
 ```
 
 ### 6.2 Secret
@@ -348,19 +346,19 @@ ember app env delete hello-worker APP_ENV
 查看：
 
 ```bash
-ember app secrets list hello-worker
+ignis app secrets list hello-worker
 ```
 
 设置：
 
 ```bash
-ember app secrets set hello-worker openai-api-key <secret-value>
+ignis app secrets set hello-worker openai-api-key <secret-value>
 ```
 
 删除：
 
 ```bash
-ember app secrets delete hello-worker openai-api-key
+ignis app secrets delete hello-worker openai-api-key
 ```
 
 在代码里，secret 通常通过 `worker.toml` 映射成环境变量：
@@ -377,31 +375,26 @@ OPENAI_API_KEY = "secret://openai-api-key"
 备份：
 
 ```bash
-ember app sqlite backup hello-worker ./backup.sqlite3
+ignis app sqlite backup hello-worker ./backup.sqlite3
 ```
 
 恢复：
 
 ```bash
-ember app sqlite restore hello-worker ./backup.sqlite3
+ignis app sqlite restore hello-worker ./backup.sqlite3
 ```
 
 ## 8. 组件签名发布
 
-如果你的平台要求组件签名，在执行 `ember app publish` 之前设置：
+如果你的平台要求组件签名，在执行 `ignis app publish` 之前设置：
 
-- `EMBER_SIGNING_KEY_ID`
-- `EMBER_SIGNING_KEY_BASE64`
-
-为了兼容旧链路，CLI 当前也接受：
-
-- `WKR_SIGNING_KEY_ID`
-- `WKR_SIGNING_KEY_BASE64`
+- `IGNIS_SIGNING_KEY_ID`
+- `IGNIS_SIGNING_KEY_BASE64`
 
 然后正常执行：
 
 ```bash
-ember app publish
+ignis app publish
 ```
 
 ## 9. 最常用的三条链路
@@ -409,33 +402,33 @@ ember app publish
 ### 9.1 写一个本地 HTTP 服务
 
 ```bash
-ember init hello-worker
+ignis init hello-worker
 cd hello-worker
 rustup target add wasm32-wasip2
-ember build
-ember dev --addr 127.0.0.1:3000
+ignis build
+ignis dev --addr 127.0.0.1:3000
 ```
 
 ### 9.2 发布到控制面
 
 ```bash
-ember login
-ember app publish
-ember app deploy hello-worker <version>
-ember app status hello-worker
+ignis login
+ignis app publish
+ignis app deploy hello-worker <version>
+ignis app status hello-worker
 ```
 
 ### 9.3 管理一个已上线服务
 
 ```bash
-ember app logs hello-worker --limit 100
-ember app env set hello-worker APP_ENV production
-ember app rollback hello-worker <old-version>
+ignis app logs hello-worker --limit 100
+ignis app env set hello-worker APP_ENV production
+ignis app rollback hello-worker <old-version>
 ```
 
 ## 10. 常见问题
 
-### `ember build` 提示缺少 `wasm32-wasip2`
+### `ignis build` 提示缺少 `wasm32-wasip2`
 
 执行：
 
@@ -443,17 +436,17 @@ ember app rollback hello-worker <old-version>
 rustup target add wasm32-wasip2
 ```
 
-### `ember app publish` 提示找不到 artifact
+### `ignis app publish` 提示找不到 artifact
 
 先执行：
 
 ```bash
-ember build
+ignis build
 ```
 
 并检查 `worker.toml` 里的 `component` 路径是否正确。
 
-### `ember dev` 启动了但访问不到接口
+### `ignis dev` 启动了但访问不到接口
 
 先确认：
 
@@ -466,6 +459,6 @@ ember build
 
 如果你需要确认 CLI 文档是否与实现一致，优先查看：
 
-- `crates/ember-cli/src/main.rs`
-- `crates/ember-cli/src/api.rs`
-- `crates/ember-cli/src/config.rs`
+- `crates/ignis-cli/src/main.rs`
+- `crates/ignis-cli/src/api.rs`
+- `crates/ignis-cli/src/config.rs`

@@ -1,0 +1,16 @@
+[package]
+name = "ignis-platform-host"
+description = "Platform-specific host implementations layered on top of ignis-runtime"
+edition.workspace = true
+keywords = ["wasm", "host", "sqlite", "runtime"]
+license.workspace = true
+categories = ["api-bindings", "database", "wasm"]
+readme = "../../README.md"
+version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+ignis-manifest = { path = "../ignis-manifest" }
+hex.workspace = true
+rusqlite.workspace = true
+wasmtime.workspace = true

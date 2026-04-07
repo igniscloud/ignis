@@ -1,13 +1,13 @@
 # Examples
 
-This directory contains the smallest public examples for the `ember` workspace.
+This directory contains the smallest public examples for the `ignis` workspace.
 
 ## `hello-worker`
 
 A minimal HTTP worker showing:
 
 - `wasi:http` entrypoint setup
-- routing through `ember-sdk::http::Router`
+- routing through `ignis-sdk::http::Router`
 - middleware usage
 - request body and header access
 
@@ -15,7 +15,7 @@ A minimal HTTP worker showing:
 
 A minimal SQLite-backed worker showing:
 
-- schema initialization through `ember-sdk::sqlite::migrations`
+- schema initialization through `ignis-sdk::sqlite::migrations`
 - typed SQLite reads
 - state mutation through simple HTTP handlers
 
@@ -31,7 +31,7 @@ A minimal secret-backed worker showing:
 
 A fuller SQLite-backed worker showing:
 
-- CRUD routes through `ember-sdk::http::Router`
+- CRUD routes through `ignis-sdk::http::Router`
 - request body parsing and JSON responses
 - persistent task storage on the built-in SQLite host API
 - a realistic API shape that can back a small frontend
@@ -39,8 +39,8 @@ A fuller SQLite-backed worker showing:
 ## Validation
 
 ```bash
-git clone https://github.com/pleasewhy/ember.git
-cd ember
+git clone https://github.com/igniscloud/ignis.git
+cd ignis
 cargo check --manifest-path examples/hello-worker/Cargo.toml
 cargo check --manifest-path examples/sqlite-worker/Cargo.toml
 cargo check --manifest-path examples/secret-worker/Cargo.toml

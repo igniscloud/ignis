@@ -1,0 +1,16 @@
+[package]
+name = "ignis-manifest"
+description = "Worker manifest parsing, validation, and component signing helpers for Ignis"
+edition.workspace = true
+keywords = ["wasm", "manifest", "wasi", "component-model"]
+license.workspace = true
+categories = ["config", "wasm"]
+readme = "../../README.md"
+version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+base64.workspace = true
+ed25519-dalek.workspace = true
+serde.workspace = true
+toml.workspace = true

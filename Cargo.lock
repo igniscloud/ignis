@@ -627,80 +627,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
 
 [[package]]
-name = "ember-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "base64",
- "clap",
- "dirs",
- "ember-manifest",
- "ember-runtime",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
- "toml",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "ember-host-abi"
-version = "0.1.0"
-
-[[package]]
-name = "ember-manifest"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "base64",
- "ed25519-dalek",
- "serde",
- "toml",
-]
-
-[[package]]
-name = "ember-platform-host"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "ember-manifest",
- "hex",
- "rusqlite",
- "wasmtime",
-]
-
-[[package]]
-name = "ember-runtime"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "ember-manifest",
- "ember-platform-host",
- "http",
- "http-body-util",
- "hyper",
- "tokio",
- "tracing",
- "wasmtime",
- "wasmtime-wasi",
- "wasmtime-wasi-http",
-]
-
-[[package]]
-name = "ember-sdk"
-version = "0.1.0"
-dependencies = [
- "http",
- "matchit",
- "serde",
- "tokio",
- "wit-bindgen",
- "wstd",
-]
-
-[[package]]
 name = "encoding_rs"
 version = "0.8.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1233,6 +1159,82 @@ checksum = "3acae9609540aa318d1bc588455225fb2085b9ed0c4f6bd0d9d5bcd86f1a0344"
 dependencies = [
  "icu_normalizer",
  "icu_properties",
+]
+
+[[package]]
+name = "ignis-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64",
+ "clap",
+ "dirs",
+ "hex",
+ "ignis-manifest",
+ "ignis-runtime",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "toml",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "ignis-host-abi"
+version = "0.1.0"
+
+[[package]]
+name = "ignis-manifest"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64",
+ "ed25519-dalek",
+ "serde",
+ "toml",
+]
+
+[[package]]
+name = "ignis-platform-host"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "hex",
+ "ignis-manifest",
+ "rusqlite",
+ "wasmtime",
+]
+
+[[package]]
+name = "ignis-runtime"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "http",
+ "http-body-util",
+ "hyper",
+ "ignis-manifest",
+ "ignis-platform-host",
+ "tokio",
+ "tracing",
+ "wasmtime",
+ "wasmtime-wasi",
+ "wasmtime-wasi-http",
+]
+
+[[package]]
+name = "ignis-sdk"
+version = "0.1.0"
+dependencies = [
+ "http",
+ "matchit",
+ "serde",
+ "tokio",
+ "wit-bindgen",
+ "wstd",
 ]
 
 [[package]]

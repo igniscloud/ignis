@@ -1,0 +1,19 @@
+[package]
+name = "ignis-sdk"
+description = "Guest-side Rust SDK for Ignis Wasm HTTP workers"
+edition.workspace = true
+keywords = ["wasm", "wasi", "http", "sdk"]
+license.workspace = true
+categories = ["api-bindings", "wasm", "web-programming"]
+readme = "../../README.md"
+version.workspace = true
+
+[dependencies]
+http.workspace = true
+matchit.workspace = true
+serde.workspace = true
+wit-bindgen.workspace = true
+wstd = "0.6"
+
+[dev-dependencies]
+tokio.workspace = true

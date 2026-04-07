@@ -1,11 +1,11 @@
 # 接入文档
 
-本文说明如何接入 `ember`。这里的“接入”分成两类：
+本文说明如何接入 `ignis`。这里的“接入”分成两类：
 
-- 作为 worker 开发者，使用 `ember-cli`、`ember-sdk`、`worker.toml` 开发一个 Wasm HTTP 服务
-- 作为平台开发者，把 `ember-manifest`、`ember-runtime`、`ember-platform-host` 组装进你自己的宿主或控制面
+- 作为 worker 开发者，使用 `ignis-cli`、`ignis-sdk`、`worker.toml` 开发一个 Wasm HTTP 服务
+- 作为平台开发者，把 `ignis-manifest`、`ignis-runtime`、`ignis-platform-host` 组装进你自己的宿主或控制面
 
-`ember` 当前不包含公开的控制面实现或节点编排系统，但已经包含本地开发所需的 CLI、manifest、运行时和第一个平台宿主模块。
+`ignis` 当前不包含公开的控制面实现或节点编排系统，但已经包含本地开发所需的 CLI、manifest、运行时和第一个平台宿主模块。
 
 ## 1. 适用场景
 
@@ -16,7 +16,7 @@
 - 在你自己的平台里嵌入 Wasm 运行时
 - 复用 `worker.toml`、签名、SQLite host import、路由 SDK
 
-那么 `ember` 已经可以作为基础。
+那么 `ignis` 已经可以作为基础。
 
 如果你的目标是：
 
@@ -27,17 +27,17 @@
 
 ## 2. 工作区组成
 
-`ember` 当前主要由这些 crate 组成：
+`ignis` 当前主要由这些 crate 组成：
 
-- `ember-cli`
+- `ignis-cli`
   用于初始化项目、本地构建/调试，以及调用兼容的外部控制面 API
-- `ember-manifest`
+- `ignis-manifest`
   负责 `worker.toml` 解析、校验、渲染和组件签名
-- `ember-sdk`
+- `ignis-sdk`
   提供 guest 侧 Rust SDK，包括 HTTP Router 和 SQLite helper
-- `ember-runtime`
+- `ignis-runtime`
   提供基于 Wasmtime 的运行时，用于装载和执行 `wasi:http` 组件
-- `ember-platform-host`
+- `ignis-platform-host`
   提供第一个平台宿主实现，目前是 SQLite host import
 
 ## 3. 作为 worker 开发者接入
@@ -55,12 +55,12 @@
 rustup target add wasm32-wasip2
 ```
 
-如果你希望优先用 `cargo component build`，还可以自行安装 `cargo-component`。`ember build` 在检测不到它时会自动回退到标准 `cargo build --target wasm32-wasip2`。
+如果你希望优先用 `cargo component build`，还可以自行安装 `cargo-component`。`ignis build` 在检测不到它时会自动回退到标准 `cargo build --target wasm32-wasip2`。
 
 安装 CLI：
 
 ```bash
-cargo install --git https://github.com/pleasewhy/ember ember-cli
+cargo install --git https://github.com/igniscloud/ignis ignis-cli
 ```
 
 ### 3.2 初始化一个 worker
@@ -68,9 +68,9 @@ cargo install --git https://github.com/pleasewhy/ember ember-cli
 如果你还没有源码仓库，可以先克隆公开仓库：
 
 ```bash
-git clone https://github.com/pleasewhy/ember.git
-cd ember
-ember init hello-worker
+git clone https://github.com/igniscloud/ignis.git
+cd ignis
+ignis init hello-worker
 cd hello-worker
 ```
 
@@ -82,20 +82,20 @@ cd hello-worker
 - `worker.toml`
 - `.gitignore`
 
-初始化模板是一个最小 `wasi:http/proxy` worker，不强依赖 `ember-sdk`。这样你可以先跑通最小链路，再决定是否引入 SDK。
+初始化模板是一个最小 `wasi:http/proxy` worker，不强依赖 `ignis-sdk`。这样你可以先跑通最小链路，再决定是否引入 SDK。
 
 ### 3.3 本地构建与调试
 
 构建：
 
 ```bash
-ember build
+ignis build
 ```
 
 本地运行：
 
 ```bash
-ember dev --addr 127.0.0.1:3000
+ignis dev --addr 127.0.0.1:3000
 ```
 
 访问：
@@ -107,16 +107,16 @@ curl http://127.0.0.1:3000/
 如果刚刚已经构建过，也可以跳过构建步骤：
 
 ```bash
-ember dev --skip-build --addr 127.0.0.1:3000
+ignis dev --skip-build --addr 127.0.0.1:3000
 ```
 
-### 3.4 引入 `ember-sdk`
+### 3.4 引入 `ignis-sdk`
 
-当你的接口不再是单一路径时，推荐引入 `ember-sdk`：
+当你的接口不再是单一路径时，推荐引入 `ignis-sdk`：
 
 ```toml
 [dependencies]
-ember-sdk = "<ember-version>"
+ignis-sdk = "<ignis-version>"
 http-body-util = "0.1.3"
 wstd = "0.6"
 ```
@@ -124,7 +124,7 @@ wstd = "0.6"
 一个最小 Router 写法：
 
 ```rust
-use ember_sdk::http::{Context, Router, middleware, text_response};
+use ignis_sdk::http::{Context, Router, middleware, text_response};
 use wstd::http::{Body, Request, Response, Result, StatusCode};
 
 #[wstd::http_server]
@@ -140,7 +140,7 @@ fn build_router() -> Router {
 
     router
         .get("/", |_context: Context| async move {
-            text_response(StatusCode::OK, "hello from ember\n")
+            text_response(StatusCode::OK, "hello from ignis\n")
         })
         .expect("register GET /");
 
@@ -157,7 +157,7 @@ fn build_router() -> Router {
 
 ### 3.5 使用 `worker.toml`
 
-`worker.toml` 是 Ember worker 的描述文件。最常见的一份配置如下：
+`worker.toml` 是 Ignis worker 的描述文件。最常见的一份配置如下：
 
 ```toml
 name = "hello-worker"
@@ -196,25 +196,25 @@ mode = "deny_all"
 
 ### 3.6 发布到兼容控制面
 
-`ember` 仓库不带公开控制面，但 `ember-cli` 当前默认会调用托管的 `embercloud` 控制面：
+`ignis` 仓库不带公开控制面，但 `ignis-cli` 当前默认会调用托管的 `igniscloud` 控制面：
 
 ```bash
-ember login
-ember app publish
-ember app deploy hello-worker <version>
-ember app status hello-worker
+ignis login
+ignis app publish
+ignis app deploy hello-worker <version>
+ignis app status hello-worker
 ```
 
-这里的 `ember login` 会打开浏览器，走 embercloud 登录页，并通过本地 localhost 回调保存 CLI token。
+这里的 `ignis login` 会打开浏览器，走 igniscloud 登录页，并通过本地 localhost 回调保存 CLI token。
 
 如果平台支持这些接口，你还可以使用：
 
-- `ember app logs`
-- `ember app env`
-- `ember app secrets`
-- `ember app rollback`
-- `ember app sqlite backup`
-- `ember app sqlite restore`
+- `ignis app logs`
+- `ignis app env`
+- `ignis app secrets`
+- `ignis app rollback`
+- `ignis app sqlite backup`
+- `ignis app sqlite restore`
 
 控制面兼容接口约定见 [API 文档](./api.md)。
 
@@ -222,17 +222,17 @@ ember app status hello-worker
 
 ### 4.1 最小集成边界
 
-如果你要把 Ember 嵌进自己的平台，最小接入通常是：
+如果你要把 Ignis 嵌进自己的平台，最小接入通常是：
 
-1. 使用 `ember-manifest` 读取并校验 `worker.toml`
-2. 使用 `ember-runtime` 装载组件并转发 HTTP 请求
-3. 使用 `ember-platform-host` 提供当前的 SQLite host imports
+1. 使用 `ignis-manifest` 读取并校验 `worker.toml`
+2. 使用 `ignis-runtime` 装载组件并转发 HTTP 请求
+3. 使用 `ignis-platform-host` 提供当前的 SQLite host imports
 4. 自己实现控制面、认证、发布、版本管理、部署和多节点能力
 
 ### 4.2 加载 manifest
 
 ```rust
-use ember_manifest::LoadedManifest;
+use ignis_manifest::LoadedManifest;
 
 let loaded = LoadedManifest::load("./worker.toml")?;
 ```
@@ -251,8 +251,8 @@ let loaded = LoadedManifest::load("./worker.toml")?;
 ```rust
 use std::net::SocketAddr;
 
-use ember_manifest::LoadedManifest;
-use ember_runtime::{DevServerConfig, serve};
+use ignis_manifest::LoadedManifest;
+use ignis_runtime::{DevServerConfig, serve};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -274,8 +274,8 @@ async fn main() -> anyhow::Result<()> {
 ```rust
 use std::sync::Arc;
 
-use ember_manifest::LoadedManifest;
-use ember_runtime::WorkerRuntime;
+use ignis_manifest::LoadedManifest;
+use ignis_runtime::WorkerRuntime;
 
 let manifest = LoadedManifest::load("./worker.toml")?;
 let runtime = Arc::new(WorkerRuntime::load(manifest)?);
@@ -290,7 +290,7 @@ runtime.warm().await?;
 
 ### 4.5 平台宿主扩展点
 
-`ember-platform-host` 当前暴露了：
+`ignis-platform-host` 当前暴露了：
 
 - `SqliteHost`
 - `HostBindings`
@@ -300,12 +300,12 @@ runtime.warm().await?;
 当前 SQLite host 的行为是：
 
 - `worker.toml` 中 `[sqlite].enabled = true` 时允许访问数据库
-- 数据库默认落在 worker 项目目录下的 `.wkr/sqlite/default.sqlite3`
+- 数据库默认落在 worker 项目目录下的 `.ignis/sqlite/default.sqlite3`
 - 宿主会把 WIT 中定义的 SQLite imports 链接到 Wasmtime 组件里
 
 ### 4.6 平台需要自己负责的部分
 
-`ember` 当前不替你实现：
+`ignis` 当前不替你实现：
 
 - 租户、用户、权限模型
 - API token、OIDC、OAuth2
@@ -321,11 +321,11 @@ runtime.warm().await?;
 如果你是 worker 开发者：
 
 1. 先看 [CLI 文档](./cli.md)
-2. 再看 [API 文档](./api.md) 中的 `ember-sdk` 和 `worker.toml`
+2. 再看 [API 文档](./api.md) 中的 `ignis-sdk` 和 `worker.toml`
 3. 最后参考 `examples/`
 
 如果你是平台开发者：
 
 1. 先看 [API 文档](./api.md)
-2. 再看 `ember-runtime`、`ember-platform-host` crate
-3. 最后决定自己的控制面接口如何兼容 `ember-cli`
+2. 再看 `ignis-runtime`、`ignis-platform-host` crate
+3. 最后决定自己的控制面接口如何兼容 `ignis-cli`

@@ -1,5 +1,5 @@
-use ember_sdk::sqlite::{self, SqliteValue};
-use ember_sdk::http::{Context, Router, middleware, text_response};
+use ignis_sdk::sqlite::{self, SqliteValue};
+use ignis_sdk::http::{Context, Router, middleware, text_response};
 use wstd::http::{Body, Request, Response, Result, StatusCode};
 
 #[wstd::http_server]

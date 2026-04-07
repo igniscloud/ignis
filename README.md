@@ -1,15 +1,15 @@
-# Ember
+# Ignis
 
-`ember` is a small Rust workspace for building and hosting Wasm HTTP workers.
+`ignis` is a small Rust workspace for building and hosting Wasm HTTP workers.
 
 It currently extracts the reusable parts of a larger private platform:
 
-- `ember-cli`: project scaffolding, local build/dev flows, and optional control-plane client commands
-- `ember-host-abi`: the WIT contract shared by guest SDKs and host runtimes
-- `ember-manifest`: worker manifest parsing, validation, and component signing helpers
-- `ember-sdk`: guest-side Rust helpers for HTTP routing and SQLite access
-- `ember-runtime`: the reusable Wasmtime-based execution core for `wasi:http` workers
-- `ember-platform-host`: the first platform host crate, currently providing SQLite host imports
+- `ignis-cli`: project scaffolding, local build/dev flows, and optional control-plane client commands
+- `ignis-host-abi`: the WIT contract shared by guest SDKs and host runtimes
+- `ignis-manifest`: worker manifest parsing, validation, and component signing helpers
+- `ignis-sdk`: guest-side Rust helpers for HTTP routing and SQLite access
+- `ignis-runtime`: the reusable Wasmtime-based execution core for `wasi:http` workers
+- `ignis-platform-host`: the first platform host crate, currently providing SQLite host imports
 
 This repository does not currently include a public control plane or node manager. The CLI is part
 of this workspace and can talk to any compatible external control plane.
@@ -24,12 +24,12 @@ is separated from the first platform host crate, but the host integration model 
 
 ```text
 crates/
-  ember-cli/
-  ember-host-abi/
-  ember-manifest/
-  ember-platform-host/
-  ember-runtime/
-  ember-sdk/
+  ignis-cli/
+  ignis-host-abi/
+  ignis-manifest/
+  ignis-platform-host/
+  ignis-runtime/
+  ignis-sdk/
 examples/
   hello-worker/
   pocket-tasks-worker/
@@ -40,16 +40,16 @@ examples/
 ## Getting Started
 
 ```bash
-git clone https://github.com/pleasewhy/ember.git
-cd ember
-cargo install --git https://github.com/pleasewhy/ember ember-cli
+git clone https://github.com/igniscloud/ignis.git
+cd ignis
+cargo install --git https://github.com/igniscloud/ignis ignis-cli
 ```
 
 ## Quick Validation
 
 ```bash
 cargo check --workspace
-cargo check -p ember-cli
+cargo check -p ignis-cli
 cargo check --manifest-path examples/hello-worker/Cargo.toml
 cargo check --manifest-path examples/sqlite-worker/Cargo.toml
 cargo check --manifest-path examples/secret-worker/Cargo.toml
@@ -62,19 +62,19 @@ cargo check --manifest-path examples/pocket-tasks-worker/Cargo.toml
 - [API Reference](./docs/api.md)
 - [CLI Guide](./docs/cli.md)
 - [worker.toml Guide](./docs/worker-toml.md)
-- [Ember SDK Markdown Reference](./docs/ember-sdk/index.md)
+- [Ignis SDK Markdown Reference](./docs/ignis-sdk/index.md)
 
 ## What Each Crate Does
 
-### `ember-cli`
+### `ignis-cli`
 
 CLI for:
 
-- `ember init` to scaffold a minimal worker project
-- `ember build` and `ember dev` for local iteration
-- `ember whoami` and `ember app ...` for the hosted embercloud control plane
+- `ignis init` to scaffold a minimal worker project
+- `ignis build` and `ignis dev` for local iteration
+- `ignis whoami` and `ignis app ...` for the hosted igniscloud control plane
 
-### `ember-sdk`
+### `ignis-sdk`
 
 Guest-side Rust helpers for:
 
@@ -83,7 +83,7 @@ Guest-side Rust helpers for:
 - SQLite calls through the host ABI
 - lightweight migrations
 
-### `ember-runtime`
+### `ignis-runtime`
 
 Runtime execution core built on Wasmtime:
 
@@ -94,12 +94,12 @@ Runtime execution core built on Wasmtime:
 - CPU time control through epoch interruption
 - outbound HTTP policy enforcement
 
-### `ember-platform-host`
+### `ignis-platform-host`
 
 Platform host implementations that are not part of the runtime core.
 
 Right now this crate contains the SQLite host implementation and the linker hook used by
-`ember-runtime`.
+`ignis-runtime`.
 
 ## Current Boundaries
 
@@ -127,24 +127,24 @@ Not included here:
 ## CLI Quickstart
 
 ```bash
-git clone https://github.com/pleasewhy/ember.git
-cd ember
-ember init hello-worker
+git clone https://github.com/igniscloud/ignis.git
+cd ignis
+ignis init hello-worker
 cd hello-worker
-ember build
-ember dev --addr 127.0.0.1:3000
+ignis build
+ignis dev --addr 127.0.0.1:3000
 ```
 
-If you need to publish to embercloud, log in once from the browser and let the CLI keep the
+If you need to publish to igniscloud, log in once from the browser and let the CLI keep the
 returned token locally:
 
 ```bash
-ember login
-ember whoami
-ember app publish
-ember app deploy <version>
+ignis login
+ignis whoami
+ignis app publish
+ignis app deploy <version>
 ```
 
-`ember login` starts a temporary localhost callback, opens the embercloud sign-in page in your
+`ignis login` starts a temporary localhost callback, opens the igniscloud sign-in page in your
 browser, and stores the returned CLI token in the local config. You can still override that saved
-session with `--token` or `EMBER_TOKEN` when needed.
+session with `--token` or `IGNIS_TOKEN` when needed.

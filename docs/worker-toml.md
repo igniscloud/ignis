@@ -1,8 +1,8 @@
 # `worker.toml` 配置文档
 
-`worker.toml` 是 Ember worker 的描述文件。它定义了 worker 名称、Wasm 构件路径、请求基础路径，以及运行时需要的环境变量、secret、SQLite、资源限制、出站网络策略和 embercloud 发布配置。
+`worker.toml` 是 Ignis worker 的描述文件。它定义了 worker 名称、Wasm 构件路径、请求基础路径，以及运行时需要的环境变量、secret、SQLite、资源限制、出站网络策略和 igniscloud 发布配置。
 
-当前字段由 `ember-manifest` 解析和校验，真实配置模型以 [ember-manifest](../crates/ember-manifest/src/lib.rs) 为准。
+当前字段由 `ignis-manifest` 解析和校验，真实配置模型以 [ignis-manifest](../crates/ignis-manifest/src/lib.rs) 为准。
 
 ## 1. 最小示例
 
@@ -12,7 +12,7 @@ component = "target/wasm32-wasip2/release/hello_worker.wasm"
 base_path = "/"
 ```
 
-这个配置适合本地 `ember build` 和 `ember dev` 的最小链路。
+这个配置适合本地 `ignis build` 和 `ignis dev` 的最小链路。
 
 ## 2. 完整示例
 
@@ -39,7 +39,7 @@ memory_limit_bytes = 134217728
 mode = "allow_list"
 allow = ["api.openai.com:443", ".example.com"]
 
-[embercloud]
+[igniscloud]
 app = "pocket-tasks"
 ```
 
@@ -114,7 +114,7 @@ OPENAI_API_KEY = "secret://openai-api-key"
 - key 约束：
   - 只能使用 `A-Z`、`0-9`、`_`
 - 说明：
-  - 在 embercloud 或兼容控制面里，通常写成 `secret://<secret-name>`
+  - 在 igniscloud 或兼容控制面里，通常写成 `secret://<secret-name>`
   - manifest 自身只校验 key，不强制 value 格式；具体如何解析由外部平台决定
   - 常见用法是把平台 secret 映射成 worker 里的环境变量名
 
@@ -136,7 +136,7 @@ enabled = false
 ```
 
 - 说明：
-  - 设为 `true` 后，worker 可以通过 `ember_sdk::sqlite` 访问默认数据库
+  - 设为 `true` 后，worker 可以通过 `ignis_sdk::sqlite` 访问默认数据库
   - 设为 `false` 时，不应该假设运行时会提供 SQLite 能力
 
 ### 3.5 `[resources]`
@@ -221,10 +221,10 @@ allow = []
   - 只允许命中白名单规则的目标
   - `.example.com` 会匹配 `example.com` 和其子域名
 
-### 3.7 `[embercloud]`
+### 3.7 `[igniscloud]`
 
 ```toml
-[embercloud]
+[igniscloud]
 app = "hello-worker"
 ```
 
@@ -232,9 +232,9 @@ app = "hello-worker"
 - 必填：否。
 - 类型：table
 
-#### `embercloud.app`
+#### `igniscloud.app`
 
-- 作用：指定发布和部署时使用的 embercloud app 名称。
+- 作用：指定发布和部署时使用的 igniscloud app 名称。
 - 类型：`string`
 - 默认值：未设置
 - 约束：
@@ -242,7 +242,7 @@ app = "hello-worker"
   - 最长 48 个字符
   - 只允许字母、数字、`-`、`_`
 - 说明：
-  - `ember app publish` / `ember app deploy` 会优先使用这里的 app
+  - `ignis app publish` / `ignis app deploy` 会优先使用这里的 app
   - 如果没有填写，CLI 通常需要你在命令行显式指定 app，或者直接报错提示补充配置
 
 ## 4. 默认值汇总
@@ -264,11 +264,11 @@ mode = "deny_all"
 allow = []
 ```
 
-`[embercloud]` 默认不写入；只有配置了 `app` 时才会出现在渲染结果里。
+`[igniscloud]` 默认不写入；只有配置了 `app` 时才会出现在渲染结果里。
 
 ## 5. 校验规则汇总
 
-- `name` 和 `embercloud.app`
+- `name` 和 `igniscloud.app`
   - 不能为空
   - 最长 48 个字符
   - 只允许字母、数字、`-`、`_`
@@ -307,7 +307,7 @@ base_path = "/"
 enabled = true
 ```
 
-### 6.3 带 secret 和 embercloud 发布配置的 worker
+### 6.3 带 secret 和 igniscloud 发布配置的 worker
 
 ```toml
 name = "secret-worker"
@@ -317,7 +317,7 @@ base_path = "/"
 [secrets]
 GREETING = "secret://greeting"
 
-[embercloud]
+[igniscloud]
 app = "secret-worker"
 ```
 
@@ -326,7 +326,7 @@ app = "secret-worker"
 - 本地开发先保留最小配置，只加当前需要的能力
 - 敏感值不要写进 `[env]`，优先通过 `[secrets]` 绑定
 - 如果 worker 需要访问外网，优先使用 `allow_list`，不要默认 `allow_all`
-- 如果准备发布到 embercloud，建议始终填写 `[embercloud].app`
+- 如果准备发布到 igniscloud，建议始终填写 `[igniscloud].app`
 - 如果修改了 `component` 路径，确认它仍然指向实际构建产物
 
 ## 8. 相关文档

@@ -1,0 +1,44 @@
+package ignis:platform;
+
+interface sqlite {
+    record statement {
+        sql: string,
+        params: list<string>,
+    }
+
+    record row {
+        values: list<string>,
+    }
+
+    record query-result {
+        columns: list<string>,
+        rows: list<row>,
+    }
+
+    variant sqlite-value {
+        null,
+        integer(s64),
+        real(f64),
+        text(string),
+        blob(list<u8>),
+    }
+
+    record typed-row {
+        values: list<sqlite-value>,
+    }
+
+    record typed-query-result {
+        columns: list<string>,
+        rows: list<typed-row>,
+    }
+
+    execute: func(sql: string, params: list<string>) -> result<u64, string>;
+    execute-batch: func(sql: string) -> result<u64, string>;
+    transaction: func(statements: list<statement>) -> result<u64, string>;
+    query: func(sql: string, params: list<string>) -> result<query-result, string>;
+    query-typed: func(sql: string, params: list<string>) -> result<typed-query-result, string>;
+}
+
+world imports {
+    import sqlite;
+}
