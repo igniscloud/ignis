@@ -35,7 +35,7 @@ impl CliConfig {
             .unwrap_or_else(config_path);
         if !path.exists() {
             bail!(
-                "missing API token; pass `--token`, set EMBER_TOKEN, or keep a legacy CLI config at {}",
+                "missing API token or app token; pass `--token`, set EMBER_TOKEN, or keep a legacy CLI config at {}",
                 config_path().display()
             );
         }

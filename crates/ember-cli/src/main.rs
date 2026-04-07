@@ -23,7 +23,12 @@ use tracing_subscriber::EnvFilter;
 #[derive(Debug, Parser)]
 #[command(name = "ember", version, about = "Ember worker CLI")]
 struct Cli {
-    #[arg(long, global = true, value_name = "TOKEN", help = "API token for embercloud; also supports EMBER_TOKEN, EMBERCLOUD_TOKEN, or WKR_API_TOKEN")]
+    #[arg(
+        long,
+        global = true,
+        value_name = "TOKEN",
+        help = "API token or app token for embercloud; also supports EMBER_TOKEN, EMBERCLOUD_TOKEN, or WKR_API_TOKEN"
+    )]
     token: Option<String>,
     #[command(subcommand)]
     command: Commands,
