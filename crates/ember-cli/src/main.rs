@@ -4,21 +4,27 @@ mod template;
 
 use std::collections::BTreeMap;
 use std::fs;
+use std::io::{self, IsTerminal, Read, Write};
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::mpsc;
+use std::thread;
+use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
 use clap::{Parser, Subcommand};
 use ember_manifest::{
-    ComponentSignature, LoadedManifest, MANIFEST_FILE, NetworkConfig, ResourceConfig, SqliteConfig,
-    WorkerManifest, sign_component_with_seed,
+    ComponentSignature, EmberCloudConfig, LoadedManifest, MANIFEST_FILE, NetworkConfig,
+    ResourceConfig, SqliteConfig, WorkerManifest, sign_component_with_seed,
 };
 use ember_runtime::DevServerConfig;
 use serde_json::Value;
 use tokio::process::Command;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
+
+const LOGIN_TIMEOUT: Duration = Duration::from_secs(300);
 
 #[derive(Debug, Parser)]
 #[command(name = "ember", version, about = "Ember worker CLI")]
@@ -27,7 +33,7 @@ struct Cli {
         long,
         global = true,
         value_name = "TOKEN",
-        help = "API token or app token for embercloud; also supports EMBER_TOKEN, EMBERCLOUD_TOKEN, or WKR_API_TOKEN"
+        help = "Login access token, API token, or app token for embercloud; also supports EMBER_TOKEN, EMBERCLOUD_TOKEN, or WKR_API_TOKEN"
     )]
     token: Option<String>,
     #[command(subcommand)]
@@ -41,12 +47,19 @@ enum Commands {
         #[arg(long)]
         force: bool,
     },
+    Login,
+    Logout,
     Whoami,
     Build {
         #[arg(long)]
         manifest: Option<PathBuf>,
         #[arg(long, default_value_t = true)]
         release: bool,
+    },
+    CreateApp {
+        app: Option<String>,
+        #[arg(long)]
+        manifest: Option<PathBuf>,
     },
     Dev {
         #[arg(long)]
@@ -61,8 +74,12 @@ enum Commands {
         manifest: Option<PathBuf>,
     },
     Deploy {
-        app: String,
-        version: String,
+        #[arg(long)]
+        app: Option<String>,
+        #[arg(long)]
+        manifest: Option<PathBuf>,
+        #[arg(value_name = "APP_OR_VERSION", num_args = 1..=2)]
+        args: Vec<String>,
     },
     Status {
         app: String,
@@ -159,11 +176,14 @@ async fn main() -> Result<()> {
     let Cli { token, command } = Cli::parse();
     match command {
         Commands::Init { path, force } => init_project(&path, force),
+        Commands::Login => login(token).await,
+        Commands::Logout => logout(),
         Commands::Whoami => whoami(token).await,
         Commands::Build { manifest, release } => {
             let loaded = load_manifest(manifest)?;
             build_project(&loaded, release).await
         }
+        Commands::CreateApp { app, manifest } => create_app_command(app, manifest, token).await,
         Commands::Dev {
             manifest,
             addr,
@@ -179,7 +199,14 @@ async fn main() -> Result<()> {
             let loaded = load_manifest(manifest)?;
             publish(&loaded, token).await
         }
-        Commands::Deploy { app, version } => deploy(&app, &version, token).await,
+        Commands::Deploy {
+            app,
+            manifest,
+            args,
+        } => {
+            let (app, version) = parse_deploy_args(app, args)?;
+            deploy(app, manifest, &version, token).await
+        }
         Commands::Status { app } => status(&app, token).await,
         Commands::Apps => list_apps(token).await,
         Commands::Nodes => list_nodes(token).await,
@@ -234,6 +261,9 @@ fn init_project(path: &Path, force: bool) -> Result<()> {
             memory_limit_bytes: Some(128 * 1024 * 1024),
         },
         network: NetworkConfig::default(),
+        embercloud: EmberCloudConfig {
+            app: Some(display_name.to_owned()),
+        },
     };
 
     fs::write(path.join("Cargo.toml"), template::cargo_toml(display_name))
@@ -252,6 +282,63 @@ fn init_project(path: &Path, force: bool) -> Result<()> {
 
     info!(path = %path.display(), "initialized worker project");
     Ok(())
+}
+
+async fn login(token: Option<String>) -> Result<()> {
+    if token.is_some() {
+        bail!("`ember login` now uses browser sign-in; do not pass `--token`");
+    }
+
+    let state = new_login_state();
+    let (redirect_uri, receiver, handle) = start_loopback_login_listener(state.clone())?;
+    let login_url = build_browser_login_url(&redirect_uri, &state)?;
+
+    eprintln!("Opening browser for embercloud login...");
+    if !open_browser(&login_url) {
+        eprintln!("Open this URL in your browser:\n{login_url}");
+    }
+
+    let payload = tokio::task::spawn_blocking(move || receiver.recv_timeout(LOGIN_TIMEOUT))
+        .await
+        .context("waiting for browser login task failed")?
+        .map_err(|error| anyhow!("timed out waiting for browser login: {error}"))??;
+
+    handle
+        .join()
+        .map_err(|_| anyhow!("loopback login listener thread panicked"))?;
+
+    let mut config = config::CliConfig::load()?.unwrap_or(config::CliConfig {
+        server: config::DEFAULT_SERVER.to_owned(),
+        token: String::new(),
+        user_sub: None,
+        user_aud: None,
+        user_display_name: None,
+    });
+    config.server = config::DEFAULT_SERVER.to_owned();
+    config.token = payload.token;
+    config.user_sub = payload.user_sub;
+    config.user_aud = payload.user_aud;
+    config.user_display_name = payload.user_display_name;
+    let path = config.save()?;
+    eprintln!("Saved login to {}", path.display());
+    println!("Login successful");
+    Ok(())
+}
+
+fn logout() -> Result<()> {
+    match config::CliConfig::clear()? {
+        Some(path) => {
+            eprintln!("Removed login at {}", path.display());
+            Ok(())
+        }
+        None => {
+            eprintln!(
+                "No saved login found at {}",
+                config::default_config_path().display()
+            );
+            Ok(())
+        }
+    }
 }
 
 async fn whoami(token: Option<String>) -> Result<()> {
@@ -355,9 +442,26 @@ async fn ensure_rust_target(target: &str) -> Result<()> {
     Ok(())
 }
 
+async fn create_app_command(
+    app: Option<String>,
+    manifest: Option<PathBuf>,
+    token: Option<String>,
+) -> Result<()> {
+    let loaded = if app.is_some() {
+        load_manifest_optional(manifest)?
+    } else {
+        Some(load_manifest(manifest)?)
+    };
+    let app_name = resolve_target_app(app, loaded.as_ref())?;
+    let client = api::ApiClient::new(config::CliConfig::resolve(token)?);
+    let response = client.create_app(&app_name).await?;
+    print_json(&response)
+}
+
 async fn publish(loaded: &LoadedManifest, token: Option<String>) -> Result<()> {
     let config = config::CliConfig::resolve(token)?;
     let client = api::ApiClient::new(config);
+    let app = required_manifest_app(loaded)?;
     let artifact_path = loaded.component_path();
     if !artifact_path.exists() {
         bail!(
@@ -365,9 +469,11 @@ async fn publish(loaded: &LoadedManifest, token: Option<String>) -> Result<()> {
             artifact_path.display()
         );
     }
+    ensure_app_exists(&client, app, true).await?;
     let component_signature = load_component_signature(&artifact_path)?;
     let response = client
         .publish(
+            app,
             loaded,
             &artifact_path,
             component_signature,
@@ -377,9 +483,21 @@ async fn publish(loaded: &LoadedManifest, token: Option<String>) -> Result<()> {
     print_json(&response)
 }
 
-async fn deploy(app: &str, version: &str, token: Option<String>) -> Result<()> {
+async fn deploy(
+    app: Option<String>,
+    manifest: Option<PathBuf>,
+    version: &str,
+    token: Option<String>,
+) -> Result<()> {
+    let loaded = if manifest.is_some() || app.is_none() {
+        Some(load_manifest(manifest)?)
+    } else {
+        None
+    };
+    let app = resolve_target_app(app, loaded.as_ref())?;
     let client = api::ApiClient::new(config::CliConfig::resolve(token)?);
-    let response = client.deploy(app, version).await?;
+    ensure_app_exists(&client, &app, true).await?;
+    let response = client.deploy(&app, version).await?;
     print_json(&response)
 }
 
@@ -496,6 +614,369 @@ async fn build_metadata(loaded: &LoadedManifest) -> Result<BTreeMap<String, Stri
         },
     );
     Ok(metadata)
+}
+
+fn parse_deploy_args(app: Option<String>, args: Vec<String>) -> Result<(Option<String>, String)> {
+    match args.as_slice() {
+        [version] => Ok((app, version.clone())),
+        [legacy_app, version] => {
+            if app.is_some() {
+                bail!("pass the app name either as `--app` or as the first positional argument");
+            }
+            Ok((Some(legacy_app.clone()), version.clone()))
+        }
+        _ => bail!("deploy expects `<version>` or `<app> <version>`"),
+    }
+}
+
+fn load_manifest_optional(path: Option<PathBuf>) -> Result<Option<LoadedManifest>> {
+    let Some(path) = path else {
+        let default_path = PathBuf::from(MANIFEST_FILE);
+        if !default_path.exists() {
+            return Ok(None);
+        }
+        return LoadedManifest::load(default_path).map(Some);
+    };
+    LoadedManifest::load(path).map(Some)
+}
+
+fn resolve_target_app(app: Option<String>, loaded: Option<&LoadedManifest>) -> Result<String> {
+    let cli_app = app
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty());
+    let manifest_app = loaded.and_then(LoadedManifest::embercloud_app);
+    if let (Some(cli_app), Some(manifest_app)) = (cli_app.as_deref(), manifest_app) {
+        if cli_app != manifest_app {
+            bail!("CLI app `{cli_app}` does not match worker.toml embercloud.app `{manifest_app}`");
+        }
+    }
+    if let Some(cli_app) = cli_app {
+        return Ok(cli_app);
+    }
+    if let Some(manifest_app) = manifest_app {
+        return Ok(manifest_app.to_owned());
+    }
+    bail!("missing cloud app; set `[embercloud] app = \"your-app\"` in worker.toml or pass `--app`")
+}
+
+fn required_manifest_app(loaded: &LoadedManifest) -> Result<&str> {
+    loaded.embercloud_app().ok_or_else(|| {
+        anyhow!(
+            "missing `[embercloud] app` in {}",
+            loaded.manifest_path.display()
+        )
+    })
+}
+
+async fn ensure_app_exists(client: &api::ApiClient, app: &str, interactive: bool) -> Result<()> {
+    if app_list_contains(&client.apps().await?, app) {
+        return Ok(());
+    }
+    if !interactive || !io::stdin().is_terminal() {
+        bail!(
+            "cloud app `{app}` does not exist; create it with `ember create-app --app {app}` or update worker.toml"
+        );
+    }
+    if !prompt_yes_no(&format!(
+        "Cloud app `{app}` does not exist. Create it now? [y/N]: "
+    ))? {
+        bail!("cloud app `{app}` does not exist");
+    }
+    let response = client.create_app(app).await?;
+    let created_app = response
+        .get("data")
+        .and_then(|data| data.get("app"))
+        .and_then(Value::as_str)
+        .unwrap_or(app);
+    eprintln!("Created cloud app {created_app}");
+    Ok(())
+}
+
+fn app_list_contains(value: &Value, app: &str) -> bool {
+    value
+        .get("data")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items.iter().any(|item| {
+                item.get("app")
+                    .and_then(Value::as_str)
+                    .is_some_and(|value| value == app)
+            })
+        })
+        .unwrap_or(false)
+}
+
+fn prompt_yes_no(message: &str) -> Result<bool> {
+    let mut stderr = io::stderr();
+    stderr.write_all(message.as_bytes())?;
+    stderr.flush()?;
+    let mut answer = String::new();
+    io::stdin().read_line(&mut answer)?;
+    let answer = answer.trim().to_ascii_lowercase();
+    Ok(matches!(answer.as_str(), "y" | "yes"))
+}
+
+#[derive(Debug)]
+struct LoopbackLoginPayload {
+    token: String,
+    user_sub: Option<String>,
+    user_aud: Option<String>,
+    user_display_name: Option<String>,
+}
+
+fn build_browser_login_url(redirect_uri: &str, state: &str) -> Result<String> {
+    let mut url = reqwest::Url::parse(&format!(
+        "{}/v1/cli/auth/start",
+        config::DEFAULT_SERVER.trim_end_matches('/')
+    ))?;
+    url.query_pairs_mut()
+        .append_pair("redirect_uri", redirect_uri)
+        .append_pair("state", state);
+    Ok(url.to_string())
+}
+
+fn start_loopback_login_listener(
+    expected_state: String,
+) -> Result<(
+    String,
+    mpsc::Receiver<Result<LoopbackLoginPayload>>,
+    thread::JoinHandle<()>,
+)> {
+    let listener = std::net::TcpListener::bind(("127.0.0.1", 0))
+        .context("binding localhost callback server failed")?;
+    let port = listener
+        .local_addr()
+        .context("reading localhost callback address failed")?
+        .port();
+    let redirect_uri = format!("http://127.0.0.1:{port}/callback");
+    let (sender, receiver) = mpsc::channel();
+    let handle = thread::spawn(move || {
+        let result = match listener.accept() {
+            Ok((mut stream, _)) => handle_loopback_login_request(&mut stream, &expected_state),
+            Err(error) => Err(anyhow!("accepting localhost callback failed: {error}")),
+        };
+        let _ = sender.send(result);
+    });
+    Ok((redirect_uri, receiver, handle))
+}
+
+fn handle_loopback_login_request(
+    stream: &mut std::net::TcpStream,
+    expected_state: &str,
+) -> Result<LoopbackLoginPayload> {
+    let request = read_http_request(stream)?;
+    let (method, path) = parse_request_line(&request.headers)?;
+    if method != "POST" {
+        write_http_html_response(
+            stream,
+            "405 Method Not Allowed",
+            "<h1>Method Not Allowed</h1><p>Ember CLI expects a POST callback.</p>",
+        )?;
+        bail!("unexpected callback method `{method}`");
+    }
+    if !path.starts_with("/callback") {
+        write_http_html_response(
+            stream,
+            "404 Not Found",
+            "<h1>Not Found</h1><p>Unknown Ember CLI callback path.</p>",
+        )?;
+        bail!("unexpected callback path `{path}`");
+    }
+
+    let form = parse_form_body(&request.body)?;
+    let state = form
+        .get("state")
+        .ok_or_else(|| anyhow!("login callback is missing state"))?;
+    if state != expected_state {
+        write_http_html_response(
+            stream,
+            "400 Bad Request",
+            "<h1>Login Failed</h1><p>State verification failed. Return to the terminal and retry.</p>",
+        )?;
+        bail!("login callback state mismatch");
+    }
+    let token = form
+        .get("token")
+        .cloned()
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| anyhow!("login callback is missing token"))?;
+
+    write_http_html_response(
+        stream,
+        "200 OK",
+        "<h1>Login successful</h1><p>You can close this window and return to Ember CLI.</p>",
+    )?;
+
+    Ok(LoopbackLoginPayload {
+        token,
+        user_sub: form
+            .get("user_sub")
+            .cloned()
+            .filter(|value| !value.is_empty()),
+        user_aud: form
+            .get("user_aud")
+            .cloned()
+            .filter(|value| !value.is_empty()),
+        user_display_name: form
+            .get("user_display_name")
+            .cloned()
+            .filter(|value| !value.is_empty()),
+    })
+}
+
+struct HttpRequest {
+    headers: String,
+    body: Vec<u8>,
+}
+
+fn read_http_request(stream: &mut std::net::TcpStream) -> Result<HttpRequest> {
+    let mut buffer = Vec::new();
+    let mut chunk = [0u8; 1024];
+    let header_end = loop {
+        let read = stream
+            .read(&mut chunk)
+            .context("reading localhost callback failed")?;
+        if read == 0 {
+            bail!("localhost callback closed before sending headers");
+        }
+        buffer.extend_from_slice(&chunk[..read]);
+        if let Some(index) = find_header_end(&buffer) {
+            break index;
+        }
+    };
+    let headers = String::from_utf8(buffer[..header_end].to_vec())
+        .context("localhost callback headers are not valid UTF-8")?;
+    let content_length = parse_content_length(&headers)?;
+    let body_start = header_end + 4;
+    while buffer.len() < body_start + content_length {
+        let read = stream
+            .read(&mut chunk)
+            .context("reading localhost callback body failed")?;
+        if read == 0 {
+            bail!("localhost callback closed before sending full body");
+        }
+        buffer.extend_from_slice(&chunk[..read]);
+    }
+    Ok(HttpRequest {
+        headers,
+        body: buffer[body_start..body_start + content_length].to_vec(),
+    })
+}
+
+fn parse_request_line(headers: &str) -> Result<(String, String)> {
+    let line = headers
+        .lines()
+        .next()
+        .ok_or_else(|| anyhow!("localhost callback request line is missing"))?;
+    let mut parts = line.split_whitespace();
+    let method = parts
+        .next()
+        .ok_or_else(|| anyhow!("localhost callback method is missing"))?;
+    let path = parts
+        .next()
+        .ok_or_else(|| anyhow!("localhost callback path is missing"))?;
+    Ok((method.to_owned(), path.to_owned()))
+}
+
+fn parse_content_length(headers: &str) -> Result<usize> {
+    for line in headers.lines() {
+        if let Some((name, value)) = line.split_once(':')
+            && name.eq_ignore_ascii_case("content-length")
+        {
+            return value
+                .trim()
+                .parse::<usize>()
+                .context("invalid callback content-length");
+        }
+    }
+    Ok(0)
+}
+
+fn find_header_end(buffer: &[u8]) -> Option<usize> {
+    buffer.windows(4).position(|window| window == b"\r\n\r\n")
+}
+
+fn parse_form_body(body: &[u8]) -> Result<BTreeMap<String, String>> {
+    let text = String::from_utf8(body.to_vec()).context("callback form body is not valid UTF-8")?;
+    let mut values = BTreeMap::new();
+    for pair in text.split('&') {
+        if pair.is_empty() {
+            continue;
+        }
+        let (name, value) = pair.split_once('=').unwrap_or((pair, ""));
+        values.insert(percent_decode(name)?, percent_decode(value)?);
+    }
+    Ok(values)
+}
+
+fn percent_decode(value: &str) -> Result<String> {
+    let mut output = Vec::with_capacity(value.len());
+    let bytes = value.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'+' => {
+                output.push(b' ');
+                index += 1;
+            }
+            b'%' => {
+                if index + 2 >= bytes.len() {
+                    bail!("invalid percent-encoded callback data");
+                }
+                let hex = std::str::from_utf8(&bytes[index + 1..index + 3])
+                    .context("callback form contains invalid percent-encoding")?;
+                let byte = u8::from_str_radix(hex, 16)
+                    .context("callback form contains invalid percent-encoding")?;
+                output.push(byte);
+                index += 3;
+            }
+            byte => {
+                output.push(byte);
+                index += 1;
+            }
+        }
+    }
+    String::from_utf8(output)
+        .context("callback form contains invalid UTF-8")
+        .map_err(Into::into)
+}
+
+fn write_http_html_response(
+    stream: &mut std::net::TcpStream,
+    status: &str,
+    body: &str,
+) -> Result<()> {
+    let response = format!(
+        "HTTP/1.1 {status}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    );
+    stream
+        .write_all(response.as_bytes())
+        .context("writing localhost callback response failed")
+}
+
+fn new_login_state() -> String {
+    format!(
+        "ember-login-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|value| value.as_nanos())
+            .unwrap_or_default()
+    )
+}
+
+fn open_browser(url: &str) -> bool {
+    let result = if cfg!(target_os = "macos") {
+        std::process::Command::new("open").arg(url).status()
+    } else if cfg!(target_os = "windows") {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", url])
+            .status()
+    } else {
+        std::process::Command::new("xdg-open").arg(url).status()
+    };
+    result.map(|status| status.success()).unwrap_or(false)
 }
 
 fn print_json(value: &Value) -> Result<()> {

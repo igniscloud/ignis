@@ -152,7 +152,7 @@ mode = "deny_all"
 `ember` 仓库不带公开控制面，但 `ember-cli` 可以调用兼容 API 的外部平台：
 
 ```bash
-ember login --server https://your-platform.example.com --token <api-token>
+ember login
 ember publish
 ember deploy hello-worker <version>
 ember status hello-worker

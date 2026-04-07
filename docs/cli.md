@@ -58,23 +58,40 @@ curl http://127.0.0.1:3000/
 
 ## 4. 云端认证
 
-云端命令现在固定访问：
+云端命令默认访问：
 
 ```text
 https://embercloud.transairobot.com/api
 ```
 
-你不需要再手动输入 `--server`，也不需要先 `login`。
+CLI 现在支持两种认证方式：
 
-只需要提供 API token：
+1. 先执行 `ember login`，走浏览器授权并把 CLI token 持久化到本地 config
+2. 每次命令显式传 `--token`，或者通过环境变量注入
+
+登录示例：
+
+```bash
+ember login
+ember whoami
+```
+
+登录时 CLI 会：
+
+- 在本机启动一个临时 localhost 回调地址
+- 自动打开浏览器，跳到 embercloud 的登录授权页面
+- 用户在浏览器完成 Google/OAuth 登录后，CLI 自动接管返回的 token
+
+退出登录：
+
+```bash
+ember logout
+```
+
+临时 token 示例：
 
 ```bash
 ember --token <api-token> whoami
-```
-
-或者用环境变量：
-
-```bash
 EMBER_TOKEN=<api-token> ember whoami
 ```
 
@@ -155,32 +172,81 @@ ember dev --skip-build --addr 127.0.0.1:3000
 查看当前 CLI 使用的身份：
 
 ```bash
-ember --token <api-token> whoami
+ember whoami
 ```
 
-### 5.5 `ember publish`
+### 5.5 `ember create-app`
 
-上传当前 worker 的 Wasm 产物和 manifest，创建一个新版本：
+创建云端 app：
 
 ```bash
-ember --token <api-token> publish
+ember create-app --app hello-worker
+```
+
+如果当前目录有 `worker.toml` 并且已经填写：
+
+```toml
+[embercloud]
+app = "hello-worker"
+```
+
+也可以直接：
+
+```bash
+ember create-app
+```
+
+app 名当前限制为：
+
+- 仅允许字母、数字、`-`、`_`
+- 最长 48 个字符
+
+### 5.6 `ember publish`
+
+上传当前 worker 的 Wasm 产物和 manifest，创建一个新版本。
+
+发布前需要先在 `worker.toml` 里声明目标云端 app：
+
+```toml
+[embercloud]
+app = "hello-worker"
+```
+
+如果目标 app 不存在，CLI 会提示你创建：
+
+```bash
+ember publish
 ```
 
 或者指定 manifest：
 
 ```bash
-ember --token <api-token> publish --manifest ./worker.toml
+ember publish --manifest ./worker.toml
 ```
 
-### 5.6 `ember deploy <app> <version>`
+### 5.7 `ember deploy`
 
-把某个版本切换成当前运行版本：
+把某个版本切换成当前运行版本。
+
+新写法会优先从 `worker.toml` 读取 `[embercloud].app`：
 
 ```bash
-ember --token <api-token> deploy hello-worker <version>
+ember deploy <version>
 ```
 
-### 5.7 查询命令
+兼容旧写法：
+
+```bash
+ember deploy hello-worker <version>
+```
+
+也可以显式指定：
+
+```bash
+ember deploy --app hello-worker <version>
+```
+
+### 5.8 查询命令
 
 平台级查询：
 

@@ -276,7 +276,7 @@ CLI 当前使用：
 
 - `Authorization: Bearer <token>`
 
-CLI 不再做单独的 login 交换；直接接收一个已签发的 API token，并用 `GET /v1/whoami` 验证该 token 是否可用。
+CLI 默认通过浏览器登录拿到一个可持久化的 CLI token；如果用户显式传入 `--token`，也仍然会直接把它当作 Bearer token 使用。
 
 ### 2.2 基础 URL
 

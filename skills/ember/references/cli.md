@@ -95,7 +95,7 @@ ember dev --skip-build --addr 127.0.0.1:3000
 ### `ember login`
 
 ```bash
-ember login --server https://your-platform.example.com --token <api-token>
+ember login
 ```
 
 ### `ember whoami`

@@ -25,6 +25,7 @@ impl ApiClient {
 
     pub async fn publish(
         &self,
+        app: &str,
         loaded: &LoadedManifest,
         artifact_path: &Path,
         component_signature: Option<ComponentSignature>,
@@ -66,7 +67,7 @@ impl ApiClient {
         }
         self.request(
             self.http
-                .post(self.url(&format!("/v1/apps/{}/versions", loaded.manifest.name)))
+                .post(self.url(&format!("/v1/apps/{app}/versions")))
                 .bearer_auth(&self.config.token)
                 .multipart(form),
         )
@@ -97,6 +98,16 @@ impl ApiClient {
             self.http
                 .get(self.url("/v1/apps"))
                 .bearer_auth(&self.config.token),
+        )
+        .await
+    }
+
+    pub async fn create_app(&self, app: &str) -> Result<Value> {
+        self.request(
+            self.http
+                .post(self.url("/v1/apps"))
+                .bearer_auth(&self.config.token)
+                .json(&json!({ "app_name": app })),
         )
         .await
     }

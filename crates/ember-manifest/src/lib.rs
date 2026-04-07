@@ -15,6 +15,7 @@ use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 
 pub const MANIFEST_FILE: &str = "worker.toml";
+pub const MAX_APP_NAME_LEN: usize = 48;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct WorkerManifest {
@@ -32,6 +33,8 @@ pub struct WorkerManifest {
     pub resources: ResourceConfig,
     #[serde(default)]
     pub network: NetworkConfig,
+    #[serde(default, skip_serializing_if = "EmberCloudConfig::is_empty")]
+    pub embercloud: EmberCloudConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -56,12 +59,27 @@ pub struct NetworkConfig {
     pub allow: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct EmberCloudConfig {
+    #[serde(default)]
+    pub app: Option<String>,
+}
+
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
             mode: NetworkMode::DenyAll,
             allow: Vec::new(),
         }
+    }
+}
+
+impl EmberCloudConfig {
+    fn is_empty(&self) -> bool {
+        self.app
+            .as_deref()
+            .map(|value| value.trim().is_empty())
+            .unwrap_or(true)
     }
 }
 
@@ -99,21 +117,15 @@ fn default_base_path() -> String {
 
 impl WorkerManifest {
     pub fn validate(&self) -> Result<()> {
-        if self.name.trim().is_empty() {
-            bail!("manifest field `name` cannot be empty");
-        }
-        if !self
-            .name
-            .chars()
-            .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
-        {
-            bail!("manifest field `name` must contain only letters, numbers, '-' or '_'");
-        }
+        validate_app_name(&self.name, "manifest field `name`")?;
         if self.base_path.is_empty() || !self.base_path.starts_with('/') {
             bail!("manifest field `base_path` must start with '/'");
         }
         if self.component.as_os_str().is_empty() {
             bail!("manifest field `component` cannot be empty");
+        }
+        if let Some(app) = &self.embercloud.app {
+            validate_app_name(app, "manifest field `embercloud.app`")?;
         }
         validate_binding_names(self.env.keys(), "env")?;
         validate_binding_names(self.secrets.keys(), "secrets")?;
@@ -153,6 +165,15 @@ impl LoadedManifest {
 
     pub fn component_path(&self) -> PathBuf {
         self.project_dir.join(&self.manifest.component)
+    }
+
+    pub fn embercloud_app(&self) -> Option<&str> {
+        self.manifest
+            .embercloud
+            .app
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
     }
 }
 
@@ -293,6 +314,23 @@ fn validate_binding_names<'a>(
     Ok(())
 }
 
+fn validate_app_name(name: &str, field_name: &str) -> Result<()> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        bail!("{field_name} cannot be empty");
+    }
+    if trimmed.len() > MAX_APP_NAME_LEN {
+        bail!("{field_name} must be at most {MAX_APP_NAME_LEN} characters long");
+    }
+    if !trimmed
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+    {
+        bail!("{field_name} must contain only letters, numbers, '-' or '_'");
+    }
+    Ok(())
+}
+
 fn validate_network_allow_entry(entry: &str) -> Result<()> {
     let trimmed = entry.trim();
     if trimmed.is_empty() {
@@ -360,6 +398,9 @@ mod tests {
                 mode: NetworkMode::AllowList,
                 allow: vec!["api.example.com:443".to_owned()],
             },
+            embercloud: EmberCloudConfig {
+                app: Some("hello-worker".to_owned()),
+            },
         };
 
         manifest.validate().unwrap();
@@ -380,6 +421,7 @@ mod tests {
             sqlite: SqliteConfig::default(),
             resources: ResourceConfig::default(),
             network: NetworkConfig::default(),
+            embercloud: EmberCloudConfig::default(),
         };
 
         assert!(manifest.validate().is_err());
@@ -398,6 +440,26 @@ mod tests {
             network: NetworkConfig {
                 mode: NetworkMode::AllowList,
                 allow: Vec::new(),
+            },
+            embercloud: EmberCloudConfig::default(),
+        };
+
+        assert!(manifest.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_overlong_embercloud_app_name() {
+        let manifest = WorkerManifest {
+            name: "hello_worker".to_owned(),
+            component: PathBuf::from("app.wasm"),
+            base_path: "/".to_owned(),
+            env: BTreeMap::new(),
+            secrets: BTreeMap::new(),
+            sqlite: SqliteConfig::default(),
+            resources: ResourceConfig::default(),
+            network: NetworkConfig::default(),
+            embercloud: EmberCloudConfig {
+                app: Some("a".repeat(MAX_APP_NAME_LEN + 1)),
             },
         };
 
