@@ -6,7 +6,7 @@ It currently extracts the reusable parts of a larger private platform:
 
 - `ignis-cli`: project scaffolding, local build/dev flows, and optional control-plane client commands
 - `ignis-host-abi`: the WIT contract shared by guest SDKs and host runtimes
-- `ignis-manifest`: worker manifest parsing, validation, and component signing helpers
+- `ignis-manifest`: project/service manifest parsing, validation, and component signing helpers
 - `ignis-sdk`: guest-side Rust helpers for HTTP routing and SQLite access
 - `ignis-runtime`: the reusable Wasmtime-based execution core for `wasi:http` workers
 - `ignis-platform-host`: the first platform host crate, currently providing SQLite host imports
@@ -61,7 +61,7 @@ cargo check --manifest-path examples/pocket-tasks-worker/Cargo.toml
 - [Integration Guide](./docs/integration.md)
 - [API Reference](./docs/api.md)
 - [CLI Guide](./docs/cli.md)
-- [worker.toml Guide](./docs/worker-toml.md)
+- [ignis.toml Guide](./docs/ignis-toml.md)
 - [Ignis SDK Markdown Reference](./docs/ignis-sdk/index.md)
 
 ## What Each Crate Does
@@ -70,9 +70,10 @@ cargo check --manifest-path examples/pocket-tasks-worker/Cargo.toml
 
 CLI for:
 
-- `ignis init` to scaffold a minimal worker project
-- `ignis build` and `ignis dev` for local iteration
-- `ignis whoami` and `ignis app ...` for the hosted igniscloud control plane
+- `ignis project create` to initialize a project root
+- `ignis service new` to scaffold a service
+- `ignis service build` and `ignis service dev` for local iteration
+- `ignis whoami`, `ignis project ...`, and `ignis service ...` for the hosted igniscloud control plane
 
 ### `ignis-sdk`
 
@@ -114,7 +115,7 @@ Public in this workspace:
 
 Not included here:
 
-- app lifecycle APIs
+- project/service control plane implementation
 - control plane
 - multi-node orchestration
 
@@ -129,10 +130,12 @@ Not included here:
 ```bash
 git clone https://github.com/igniscloud/ignis.git
 cd ignis
-ignis init hello-worker
-cd hello-worker
-ignis build
-ignis dev --addr 127.0.0.1:3000
+ignis login
+ignis project create hello-project
+cd hello-project
+ignis service new --service api --kind http --path services/api
+ignis service build --service api
+ignis service dev --service api --addr 127.0.0.1:3000
 ```
 
 If you need to publish to igniscloud, log in once from the browser and let the CLI keep the
@@ -141,8 +144,8 @@ returned token locally:
 ```bash
 ignis login
 ignis whoami
-ignis app publish
-ignis app deploy <version>
+ignis service publish --service api
+ignis service deploy --service api <version>
 ```
 
 `ignis login` starts a temporary localhost callback, opens the igniscloud sign-in page in your

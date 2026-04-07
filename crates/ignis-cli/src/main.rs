@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::io::{Read, Write};
 use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process::Stdio;
 use std::sync::mpsc;
 use std::thread;
@@ -17,8 +17,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use ignis_manifest::{
     ComponentSignature, FrontendServiceConfig, HttpServiceConfig, LoadedManifest,
     LoadedProjectManifest, PROJECT_MANIFEST_FILE, ProjectConfig, ProjectManifest, ResourceConfig,
-    ServiceKind, ServiceManifest, SqliteConfig,
-    sign_component_with_seed,
+    ServiceKind, ServiceManifest, SqliteConfig, sign_component_with_seed,
 };
 use ignis_runtime::DevServerConfig;
 use serde_json::Value;
@@ -256,7 +255,9 @@ async fn main() -> Result<()> {
 
 async fn project_command(command: ProjectCommands, token: Option<String>) -> Result<()> {
     match command {
-        ProjectCommands::Create { name, dir, force } => create_project(name, dir, force, token).await,
+        ProjectCommands::Create { name, dir, force } => {
+            create_project(name, dir, force, token).await
+        }
         ProjectCommands::List => list_projects(token).await,
         ProjectCommands::Status { project } => project_status(&project, token).await,
         ProjectCommands::Delete { project } => delete_project(&project, token).await,
@@ -274,7 +275,9 @@ async fn service_command(command: ServiceCommands, token: Option<String>) -> Res
         } => new_service(&context, &service, kind, &path, token).await,
         ServiceCommands::List => list_services(&context),
         ServiceCommands::Status { service } => service_status(&context, &service, token).await,
-        ServiceCommands::Build { service, release } => build_service(&context, &service, release).await,
+        ServiceCommands::Build { service, release } => {
+            build_service(&context, &service, release).await
+        }
         ServiceCommands::Dev {
             service,
             addr,
@@ -287,7 +290,9 @@ async fn service_command(command: ServiceCommands, token: Option<String>) -> Res
         ServiceCommands::Deployments { service, limit } => {
             deployments(&context, &service, limit, token).await
         }
-        ServiceCommands::Events { service, limit } => events(&context, &service, limit, token).await,
+        ServiceCommands::Events { service, limit } => {
+            events(&context, &service, limit, token).await
+        }
         ServiceCommands::Logs { service, limit } => logs(&context, &service, limit, token).await,
         ServiceCommands::Rollback { service, version } => {
             rollback(&context, &service, &version, token).await
@@ -304,8 +309,13 @@ async fn service_command(command: ServiceCommands, token: Option<String>) -> Res
 async fn project_token_command(command: ProjectTokenCommands, token: Option<String>) -> Result<()> {
     let client = api::ApiClient::new(config::CliConfig::resolve(token)?);
     let response = match command {
-        ProjectTokenCommands::Create { project, issued_for } => {
-            client.create_project_token(&project, issued_for.as_deref()).await?
+        ProjectTokenCommands::Create {
+            project,
+            issued_for,
+        } => {
+            client
+                .create_project_token(&project, issued_for.as_deref())
+                .await?
         }
         ProjectTokenCommands::Revoke { project, token_id } => {
             client.revoke_project_token(&project, &token_id).await?
@@ -331,8 +341,12 @@ async fn create_project(
         project: ProjectConfig { name },
         services: Vec::new(),
     };
-    fs::write(target_dir.join(PROJECT_MANIFEST_FILE), manifest.render()?)
-        .with_context(|| format!("writing {}", target_dir.join(PROJECT_MANIFEST_FILE).display()))?;
+    fs::write(target_dir.join(PROJECT_MANIFEST_FILE), manifest.render()?).with_context(|| {
+        format!(
+            "writing {}",
+            target_dir.join(PROJECT_MANIFEST_FILE).display()
+        )
+    })?;
     info!(path = %target_dir.display(), "initialized project root");
     print_json(&response)
 }
@@ -378,11 +392,15 @@ async fn new_service(
     token: Option<String>,
 ) -> Result<()> {
     if context.loaded.find_service(service_name).is_some() {
-        bail!("service `{service_name}` already exists in {}", context.loaded.manifest_path.display());
+        bail!(
+            "service `{service_name}` already exists in {}",
+            context.loaded.manifest_path.display()
+        );
     }
 
     let service = build_new_service_manifest(service_name, kind, path);
     service.validate()?;
+    validate_new_service_path(context, &service)?;
 
     let client = api::ApiClient::new(config::CliConfig::resolve(token)?);
     let response = client
@@ -397,7 +415,11 @@ async fn new_service(
     print_json(&response)
 }
 
-fn build_new_service_manifest(service_name: &str, kind: CliServiceKind, path: &Path) -> ServiceManifest {
+fn build_new_service_manifest(
+    service_name: &str,
+    kind: CliServiceKind,
+    path: &Path,
+) -> ServiceManifest {
     match kind {
         CliServiceKind::Http => {
             let package_name = service_name.replace('-', "_");
@@ -458,8 +480,11 @@ fn create_local_service_files(project_dir: &Path, service: &ServiceManifest) -> 
                 .with_context(|| format!("creating {}", service_dir.join("src").display()))?;
             fs::create_dir_all(service_dir.join("wit"))
                 .with_context(|| format!("creating {}", service_dir.join("wit").display()))?;
-            fs::write(service_dir.join("Cargo.toml"), template::cargo_toml(&service.name))
-                .with_context(|| format!("writing {}", service_dir.join("Cargo.toml").display()))?;
+            fs::write(
+                service_dir.join("Cargo.toml"),
+                template::cargo_toml(&service.name),
+            )
+            .with_context(|| format!("writing {}", service_dir.join("Cargo.toml").display()))?;
             fs::write(service_dir.join("src/lib.rs"), template::lib_rs())
                 .with_context(|| format!("writing {}", service_dir.join("src/lib.rs").display()))?;
             fs::write(
@@ -478,11 +503,61 @@ fn create_local_service_files(project_dir: &Path, service: &ServiceManifest) -> 
                 template::frontend_src_index_html(&service.name),
             )
             .with_context(|| format!("writing {}", service_dir.join("src/index.html").display()))?;
-            fs::write(service_dir.join(".gitignore"), template::frontend_gitignore())
-                .with_context(|| format!("writing {}", service_dir.join(".gitignore").display()))?;
+            fs::write(
+                service_dir.join(".gitignore"),
+                template::frontend_gitignore(),
+            )
+            .with_context(|| format!("writing {}", service_dir.join(".gitignore").display()))?;
         }
     }
     Ok(())
+}
+
+fn validate_new_service_path(context: &ProjectContext, service: &ServiceManifest) -> Result<()> {
+    let new_path = normalized_relative_path(&service.path);
+    for existing in &context.loaded.manifest.services {
+        if normalized_relative_path(&existing.path) == new_path {
+            bail!(
+                "service path `{}` is already used by service `{}`",
+                service.path.display(),
+                existing.name
+            );
+        }
+    }
+
+    let service_dir = context.loaded.project_dir.join(&service.path);
+    if service_dir.exists() {
+        let metadata = fs::metadata(&service_dir)
+            .with_context(|| format!("reading {}", service_dir.display()))?;
+        if !metadata.is_dir() {
+            bail!(
+                "service path `{}` already exists and is not a directory",
+                service_dir.display()
+            );
+        }
+        let mut entries = service_dir
+            .read_dir()
+            .with_context(|| format!("reading {}", service_dir.display()))?;
+        if entries.next().is_some() {
+            bail!(
+                "service path `{}` already exists and is not empty",
+                service_dir.display()
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn normalized_relative_path(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            other => normalized.push(other.as_os_str()),
+        }
+    }
+    normalized
 }
 
 fn list_services(context: &ProjectContext) -> Result<()> {
@@ -511,7 +586,11 @@ fn list_services(context: &ProjectContext) -> Result<()> {
     }))
 }
 
-async fn service_status(context: &ProjectContext, service: &str, token: Option<String>) -> Result<()> {
+async fn service_status(
+    context: &ProjectContext,
+    service: &str,
+    token: Option<String>,
+) -> Result<()> {
     ensure_service_exists(&context.loaded, service)?;
     let client = api::ApiClient::new(config::CliConfig::resolve(token)?);
     let response = client
@@ -550,10 +629,12 @@ async fn dev_service(
             if !skip_build {
                 build_frontend_service(&context.loaded, service).await?;
             }
-            let frontend = service
-                .frontend
-                .as_ref()
-                .ok_or_else(|| anyhow!("frontend service `{}` is missing frontend config", service.name))?;
+            let frontend = service.frontend.as_ref().ok_or_else(|| {
+                anyhow!(
+                    "frontend service `{}` is missing frontend config",
+                    service.name
+                )
+            })?;
             let output_dir = context
                 .loaded
                 .service_dir(service)
@@ -577,7 +658,11 @@ async fn dev_service(
     }
 }
 
-async fn publish_service(context: &ProjectContext, service: &str, token: Option<String>) -> Result<()> {
+async fn publish_service(
+    context: &ProjectContext,
+    service: &str,
+    token: Option<String>,
+) -> Result<()> {
     let service = required_service(&context.loaded, service)?;
     let client = api::ApiClient::new(config::CliConfig::resolve(token)?);
     let response = match service.kind {
@@ -604,10 +689,12 @@ async fn publish_service(context: &ProjectContext, service: &str, token: Option<
                 .await?
         }
         ServiceKind::Frontend => {
-            let frontend = service
-                .frontend
-                .as_ref()
-                .ok_or_else(|| anyhow!("frontend service `{}` is missing frontend config", service.name))?;
+            let frontend = service.frontend.as_ref().ok_or_else(|| {
+                anyhow!(
+                    "frontend service `{}` is missing frontend config",
+                    service.name
+                )
+            })?;
             let service_dir = context.loaded.service_dir(service);
             let output_dir = service_dir.join(&frontend.output_dir);
             if !output_dir.exists() {
@@ -727,7 +814,9 @@ async fn env_command(
     let response = match command {
         ServiceEnvCommands::List { service } => {
             ensure_service_exists(&context.loaded, &service)?;
-            client.env_list(context.loaded.project_name(), &service).await?
+            client
+                .env_list(context.loaded.project_name(), &service)
+                .await?
         }
         ServiceEnvCommands::Set {
             service,
@@ -839,9 +928,12 @@ fn required_service<'a>(
     loaded: &'a LoadedProjectManifest,
     service_name: &str,
 ) -> Result<&'a ServiceManifest> {
-    loaded
-        .find_service(service_name)
-        .ok_or_else(|| anyhow!("service `{service_name}` not found in {}", loaded.manifest_path.display()))
+    loaded.find_service(service_name).ok_or_else(|| {
+        anyhow!(
+            "service `{service_name}` not found in {}",
+            loaded.manifest_path.display()
+        )
+    })
 }
 
 fn ensure_service_exists(loaded: &LoadedProjectManifest, service_name: &str) -> Result<()> {
@@ -884,15 +976,19 @@ async fn build_frontend_service(
     loaded: &LoadedProjectManifest,
     service: &ServiceManifest,
 ) -> Result<()> {
-    let frontend = service
-        .frontend
-        .as_ref()
-        .ok_or_else(|| anyhow!("frontend service `{}` is missing frontend config", service.name))?;
+    let frontend = service.frontend.as_ref().ok_or_else(|| {
+        anyhow!(
+            "frontend service `{}` is missing frontend config",
+            service.name
+        )
+    })?;
     let service_dir = loaded.service_dir(service);
-    let (program, args) = frontend
-        .build_command
-        .split_first()
-        .ok_or_else(|| anyhow!("frontend service `{}` build_command cannot be empty", service.name))?;
+    let (program, args) = frontend.build_command.split_first().ok_or_else(|| {
+        anyhow!(
+            "frontend service `{}` build_command cannot be empty",
+            service.name
+        )
+    })?;
     run_command(&service_dir, program, args.iter().map(String::as_str)).await?;
     let output_dir = service_dir.join(&frontend.output_dir);
     if !output_dir.exists() {

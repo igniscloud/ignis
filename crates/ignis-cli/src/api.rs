@@ -70,7 +70,11 @@ impl ApiClient {
         .await
     }
 
-    pub async fn create_project_token(&self, project: &str, issued_for: Option<&str>) -> Result<Value> {
+    pub async fn create_project_token(
+        &self,
+        project: &str,
+        issued_for: Option<&str>,
+    ) -> Result<Value> {
         self.request(
             self.http
                 .post(self.url(&format!("/v1/projects/{project}/tokens")))
@@ -89,20 +93,7 @@ impl ApiClient {
         .await
     }
 
-    pub async fn services(&self, project: &str) -> Result<Value> {
-        self.request(
-            self.http
-                .get(self.url(&format!("/v1/projects/{project}/services")))
-                .bearer_auth(&self.config.token),
-        )
-        .await
-    }
-
-    pub async fn create_service(
-        &self,
-        project: &str,
-        service: &ServiceManifest,
-    ) -> Result<Value> {
+    pub async fn create_service(&self, project: &str, service: &ServiceManifest) -> Result<Value> {
         self.request(
             self.http
                 .post(self.url(&format!("/v1/projects/{project}/services")))
@@ -133,8 +124,8 @@ impl ApiClient {
         let component = fs::read(artifact_path)
             .with_context(|| format!("reading {}", artifact_path.display()))?;
         let component_sha256 = hex::encode(sha2::Sha256::digest(&component));
-        let service_manifest = serde_json::to_vec(service_manifest)
-            .context("serializing service manifest")?;
+        let service_manifest =
+            serde_json::to_vec(service_manifest).context("serializing service manifest")?;
         let build_metadata =
             serde_json::to_vec(&build_metadata).context("serializing build metadata")?;
 
@@ -188,10 +179,10 @@ impl ApiClient {
         bundle_path: &Path,
         build_metadata: BTreeMap<String, String>,
     ) -> Result<Value> {
-        let bundle = fs::read(bundle_path)
-            .with_context(|| format!("reading {}", bundle_path.display()))?;
-        let service_manifest = serde_json::to_vec(service_manifest)
-            .context("serializing service manifest")?;
+        let bundle =
+            fs::read(bundle_path).with_context(|| format!("reading {}", bundle_path.display()))?;
+        let service_manifest =
+            serde_json::to_vec(service_manifest).context("serializing service manifest")?;
         let build_metadata =
             serde_json::to_vec(&build_metadata).context("serializing build metadata")?;
 
@@ -222,7 +213,12 @@ impl ApiClient {
         .await
     }
 
-    pub async fn deploy_service(&self, project: &str, service: &str, version: &str) -> Result<Value> {
+    pub async fn deploy_service(
+        &self,
+        project: &str,
+        service: &str,
+        version: &str,
+    ) -> Result<Value> {
         self.request(
             self.http
                 .post(self.url(&format!(
@@ -279,7 +275,12 @@ impl ApiClient {
         .await
     }
 
-    pub async fn delete_version(&self, project: &str, service: &str, version: &str) -> Result<Value> {
+    pub async fn delete_version(
+        &self,
+        project: &str,
+        service: &str,
+        version: &str,
+    ) -> Result<Value> {
         self.request(
             self.http
                 .delete(self.url(&format!(
@@ -293,20 +294,22 @@ impl ApiClient {
     pub async fn env_list(&self, project: &str, service: &str) -> Result<Value> {
         self.request(
             self.http
-                .get(self.url(&format!(
-                    "/v1/projects/{project}/services/{service}/env"
-                )))
+                .get(self.url(&format!("/v1/projects/{project}/services/{service}/env")))
                 .bearer_auth(&self.config.token),
         )
         .await
     }
 
-    pub async fn env_set(&self, project: &str, service: &str, name: &str, value: &str) -> Result<Value> {
+    pub async fn env_set(
+        &self,
+        project: &str,
+        service: &str,
+        name: &str,
+        value: &str,
+    ) -> Result<Value> {
         self.request(
             self.http
-                .post(self.url(&format!(
-                    "/v1/projects/{project}/services/{service}/env"
-                )))
+                .post(self.url(&format!("/v1/projects/{project}/services/{service}/env")))
                 .bearer_auth(&self.config.token)
                 .json(&json!({ "name": name, "value": value })),
         )
@@ -399,7 +402,12 @@ impl ApiClient {
             .context("decoding sqlite backup")
     }
 
-    pub async fn sqlite_restore(&self, project: &str, service: &str, bytes: &[u8]) -> Result<Value> {
+    pub async fn sqlite_restore(
+        &self,
+        project: &str,
+        service: &str,
+        bytes: &[u8],
+    ) -> Result<Value> {
         self.request(
             self.http
                 .post(self.url(&format!(

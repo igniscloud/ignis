@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 pub const MANIFEST_FILE: &str = "worker.toml";
 pub const PROJECT_MANIFEST_FILE: &str = "ignis.toml";
-pub const MAX_APP_NAME_LEN: usize = 48;
+pub const MAX_RESOURCE_NAME_LEN: usize = 48;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct WorkerManifest {
@@ -126,7 +126,7 @@ pub struct NetworkConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct IgnisCloudConfig {
     #[serde(default)]
-    pub app: Option<String>,
+    pub service: Option<String>,
 }
 
 impl Default for NetworkConfig {
@@ -140,7 +140,7 @@ impl Default for NetworkConfig {
 
 impl IgnisCloudConfig {
     fn is_empty(&self) -> bool {
-        self.app
+        self.service
             .as_deref()
             .map(|value| value.trim().is_empty())
             .unwrap_or(true)
@@ -188,15 +188,15 @@ fn default_base_path() -> String {
 
 impl WorkerManifest {
     pub fn validate(&self) -> Result<()> {
-        validate_app_name(&self.name, "manifest field `name`")?;
+        validate_resource_name(&self.name, "manifest field `name`")?;
         if self.base_path.is_empty() || !self.base_path.starts_with('/') {
             bail!("manifest field `base_path` must start with '/'");
         }
         if self.component.as_os_str().is_empty() {
             bail!("manifest field `component` cannot be empty");
         }
-        if let Some(app) = &self.igniscloud.app {
-            validate_app_name(app, "manifest field `igniscloud.app`")?;
+        if let Some(service) = &self.igniscloud.service {
+            validate_resource_name(service, "manifest field `igniscloud.service`")?;
         }
         validate_binding_names(self.env.keys(), "env")?;
         validate_binding_names(self.secrets.keys(), "secrets")?;
@@ -212,7 +212,7 @@ impl WorkerManifest {
 
 impl ProjectManifest {
     pub fn validate(&self) -> Result<()> {
-        validate_app_name(&self.project.name, "project field `name`")?;
+        validate_resource_name(&self.project.name, "project field `name`")?;
         let mut service_names = std::collections::BTreeSet::new();
         let mut binding_hosts = std::collections::BTreeMap::<String, String>::new();
         for service in &self.services {
@@ -267,10 +267,10 @@ impl LoadedManifest {
         self.project_dir.join(&self.manifest.component)
     }
 
-    pub fn igniscloud_app(&self) -> Option<&str> {
+    pub fn igniscloud_service(&self) -> Option<&str> {
         self.manifest
             .igniscloud
-            .app
+            .service
             .as_deref()
             .map(str::trim)
             .filter(|value| !value.is_empty())
@@ -320,7 +320,10 @@ impl LoadedProjectManifest {
 
     pub fn find_service(&self, name: &str) -> Option<&ServiceManifest> {
         let name = name.trim();
-        self.manifest.services.iter().find(|service| service.name == name)
+        self.manifest
+            .services
+            .iter()
+            .find(|service| service.name == name)
     }
 
     pub fn service_dir(&self, service: &ServiceManifest) -> PathBuf {
@@ -351,17 +354,16 @@ impl ResourceConfig {
 
 impl ServiceManifest {
     pub fn validate(&self) -> Result<()> {
-        validate_app_name(&self.name, "service field `name`")?;
+        validate_resource_name(&self.name, "service field `name`")?;
         validate_relative_service_path(&self.path)?;
         for binding in &self.bindings {
             validate_binding_host(&binding.host)?;
         }
         match self.kind {
             ServiceKind::Http => {
-                let http = self
-                    .http
-                    .as_ref()
-                    .ok_or_else(|| anyhow!("http service `{}` is missing `[services.http]`", self.name))?;
+                let http = self.http.as_ref().ok_or_else(|| {
+                    anyhow!("http service `{}` is missing `[services.http]`", self.name)
+                })?;
                 if self.frontend.is_some() {
                     bail!(
                         "http service `{}` cannot define `[services.frontend]`",
@@ -376,7 +378,10 @@ impl ServiceManifest {
             }
             ServiceKind::Frontend => {
                 let frontend = self.frontend.as_ref().ok_or_else(|| {
-                    anyhow!("frontend service `{}` is missing `[services.frontend]`", self.name)
+                    anyhow!(
+                        "frontend service `{}` is missing `[services.frontend]`",
+                        self.name
+                    )
                 })?;
                 if self.http.is_some() {
                     bail!(
@@ -385,7 +390,10 @@ impl ServiceManifest {
                     );
                 }
                 if !self.env.is_empty() {
-                    bail!("frontend service `{}` cannot define `[services.env]`", self.name);
+                    bail!(
+                        "frontend service `{}` cannot define `[services.env]`",
+                        self.name
+                    );
                 }
                 if !self.secrets.is_empty() {
                     bail!(
@@ -439,9 +447,7 @@ impl ServiceManifest {
 impl HttpServiceConfig {
     fn validate(&self, service_name: &str) -> Result<()> {
         if self.component.as_os_str().is_empty() {
-            bail!(
-                "http service `{service_name}` field `http.component` cannot be empty"
-            );
+            bail!("http service `{service_name}` field `http.component` cannot be empty");
         }
         if self.base_path.is_empty() || !self.base_path.starts_with('/') {
             bail!("http service `{service_name}` field `http.base_path` must start with '/'");
@@ -458,9 +464,7 @@ impl FrontendServiceConfig {
             );
         }
         if self.output_dir.as_os_str().is_empty() {
-            bail!(
-                "frontend service `{service_name}` field `frontend.output_dir` cannot be empty"
-            );
+            bail!("frontend service `{service_name}` field `frontend.output_dir` cannot be empty");
         }
         Ok(())
     }
@@ -591,13 +595,13 @@ fn validate_binding_names<'a>(
     Ok(())
 }
 
-fn validate_app_name(name: &str, field_name: &str) -> Result<()> {
+fn validate_resource_name(name: &str, field_name: &str) -> Result<()> {
     let trimmed = name.trim();
     if trimmed.is_empty() {
         bail!("{field_name} cannot be empty");
     }
-    if trimmed.len() > MAX_APP_NAME_LEN {
-        bail!("{field_name} must be at most {MAX_APP_NAME_LEN} characters long");
+    if trimmed.len() > MAX_RESOURCE_NAME_LEN {
+        bail!("{field_name} must be at most {MAX_RESOURCE_NAME_LEN} characters long");
     }
     if !trimmed
         .chars()
@@ -738,7 +742,7 @@ mod tests {
                 allow: vec!["api.example.com:443".to_owned()],
             },
             igniscloud: IgnisCloudConfig {
-                app: Some("hello-worker".to_owned()),
+                service: Some("hello-worker".to_owned()),
             },
         };
 
@@ -787,7 +791,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_overlong_igniscloud_app_name() {
+    fn rejects_overlong_igniscloud_service_name() {
         let manifest = WorkerManifest {
             name: "hello_worker".to_owned(),
             component: PathBuf::from("app.wasm"),
@@ -798,7 +802,7 @@ mod tests {
             resources: ResourceConfig::default(),
             network: NetworkConfig::default(),
             igniscloud: IgnisCloudConfig {
-                app: Some("a".repeat(MAX_APP_NAME_LEN + 1)),
+                service: Some("a".repeat(MAX_RESOURCE_NAME_LEN + 1)),
             },
         };
 

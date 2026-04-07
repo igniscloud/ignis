@@ -11,14 +11,27 @@
 
 ### 1.1 `ignis-manifest`
 
-`ignis-manifest` 负责 `worker.toml` 的读取、校验、渲染和组件签名。
+`ignis-manifest` 负责 `ignis.toml`、派生 worker manifest 和组件签名。
 
 #### 常量
 
 - `MANIFEST_FILE = "worker.toml"`
+- `PROJECT_MANIFEST_FILE = "ignis.toml"`
+
+说明：
+
+- `PROJECT_MANIFEST_FILE` 是当前主配置文件
+- `MANIFEST_FILE` 只用于内部派生的单 service worker manifest 兼容模型
 
 #### 主要类型
 
+- `ProjectManifest`
+- `ProjectConfig`
+- `ServiceManifest`
+- `ServiceKind`
+- `ServiceBinding`
+- `HttpServiceConfig`
+- `FrontendServiceConfig`
 - `WorkerManifest`
 - `SqliteConfig`
 - `ResourceConfig`
@@ -26,12 +39,21 @@
 - `NetworkMode`
 - `ComponentSignature`
 - `TrustedSigner`
+- `LoadedProjectManifest`
 - `LoadedManifest`
 
 #### 主要能力
 
+- `LoadedProjectManifest::load(path)`
+  从目录或显式文件路径读取 `ignis.toml`
+- `LoadedProjectManifest::find_service(name)`
+  查找 project 中的 service
+- `LoadedProjectManifest::service_dir(service)`
+  返回 service 的本地目录
+- `LoadedProjectManifest::http_service_manifest(name)`
+  把 `http` service 派生为运行时使用的 `WorkerManifest`
 - `LoadedManifest::load(path)`
-  从目录或显式文件路径读取 manifest
+  从目录或显式文件路径读取单个 worker manifest
 - `LoadedManifest::component_path()`
   返回构件的实际路径
 - `WorkerManifest::validate()`
@@ -43,9 +65,9 @@
 - `verify_component_signature(component, signature, trusted_signers)`
   验证组件签名
 
-#### `worker.toml` 字段
+#### `ignis.toml` 字段
 
-`worker.toml` 的完整字段说明、默认值、校验规则和示例配置见 [worker.toml 文档](./worker-toml.md)。
+`ignis.toml` 的完整字段说明、默认值、校验规则和示例配置见 [ignis.toml 文档](./ignis-toml.md)。
 
 ### 1.2 `ignis-sdk`
 
@@ -244,10 +266,10 @@ CLI 当前固定访问：
 https://igniscloud.transairobot.com/api
 ```
 
-例如应用列表接口是：
+例如 project 列表接口是：
 
 ```text
-https://igniscloud.transairobot.com/api/v1/apps
+https://igniscloud.transairobot.com/api/v1/projects
 ```
 
 ### 2.3 身份接口
@@ -265,34 +287,113 @@ CLI 会读取响应中的：
 - `data.aud`
 - `data.display_name`
 
-### 2.4 应用与版本接口
+### 2.4 Project 接口
 
-#### `POST /v1/apps/{app}/versions`
+#### `POST /v1/projects`
 
 用途：
 
-- `ignis app publish`
+- `ignis project create <name>`
+
+请求 JSON：
+
+```json
+{ "project_name": "<project>" }
+```
+
+#### `GET /v1/projects`
+
+用途：
+
+- `ignis project list`
+
+#### `GET /v1/projects/{project}`
+
+用途：
+
+- `ignis project status <project>`
+
+#### `DELETE /v1/projects/{project}`
+
+用途：
+
+- `ignis project delete <project>`
+
+### 2.5 Project Token 接口
+
+#### `POST /v1/projects/{project}/tokens`
+
+用途：
+
+- `ignis project token create <project>`
+
+请求 JSON：
+
+```json
+{ "issued_for": "<optional-label>" }
+```
+
+#### `DELETE /v1/projects/{project}/tokens/{token_id}`
+
+用途：
+
+- `ignis project token revoke <project> <token_id>`
+
+### 2.6 Service 与版本接口
+
+#### `POST /v1/projects/{project}/services`
+
+用途：
+
+- `ignis service new --service <name> --kind <kind> --path <path>`
+
+请求 JSON：
+
+- 内容为 `ignis.toml` 中单个 `ServiceManifest`
+
+#### `GET /v1/projects/{project}/services/{service}`
+
+用途：
+
+- `ignis service status --service <service>`
+
+#### `POST /v1/projects/{project}/services/{service}/versions`
+
+用途：
+
+- `ignis service publish --service <service>`
 
 请求格式：
 
 - `multipart/form-data`
 
-表单字段：
+`http` service 表单字段：
 
-- `manifest`
-  JSON，内容为 `worker.toml` 解析后的 manifest
+- `service_manifest`
+  JSON，内容为单个 service 的配置快照
 - `build_metadata`
-  JSON，包含 builder、manifest_path、component_path、build_mode
+  JSON，包含 builder、project_manifest_path、service_path、build_mode
+- `component_sha256`
+  组件内容摘要
 - `component`
   Wasm 二进制，`application/wasm`
 - `signature`
   可选 JSON，对应 `ComponentSignature`
 
-#### `POST /v1/apps/{app}/deployments`
+`frontend` service 表单字段：
+
+- `service_manifest`
+  JSON，内容为单个 service 的配置快照
+- `build_metadata`
+  JSON，包含 builder、project_manifest_path、service_path、build_mode
+- `site_bundle`
+  `tar.gz` 格式的静态站点产物
+
+#### `POST /v1/projects/{project}/services/{service}/deployments`
 
 用途：
 
-- `ignis app deploy <app> <version>`
+- `ignis service deploy --service <service> <version>`
 
 请求 JSON：
 
@@ -300,11 +401,11 @@ CLI 会读取响应中的：
 { "version": "<version>" }
 ```
 
-#### `POST /v1/apps/{app}/rollback`
+#### `POST /v1/projects/{project}/services/{service}/rollback`
 
 用途：
 
-- `ignis app rollback <app> <version>`
+- `ignis service rollback --service <service> <version>`
 
 请求 JSON：
 
@@ -312,79 +413,45 @@ CLI 会读取响应中的：
 { "version": "<version>" }
 ```
 
-#### `DELETE /v1/apps/{app}/versions/{version}`
+#### `DELETE /v1/projects/{project}/services/{service}/versions/{version}`
 
 用途：
 
-- `ignis app delete-version <app> <version>`
+- `ignis service delete-version --service <service> <version>`
 
-#### `DELETE /v1/apps/{app}`
+### 2.7 查询接口
 
-用途：
-
-- `ignis app delete <app>`
-
-### 2.5 查询接口
-
-#### `GET /v1/apps`
+#### `GET /v1/projects/{project}/services/{service}/deployments/history?limit={n}`
 
 用途：
 
-- `ignis app list`
+- `ignis service deployments --service <service> --limit <n>`
 
-返回的每个 app 条目会包含：
-
-- `app_id`
-- `access_host`
-- `access_url`
-
-当前公网访问地址格式默认是：
-
-- `https://<app_id>.transairobot.fun`
-
-#### `GET /v1/apps/{app}`
+#### `GET /v1/projects/{project}/services/{service}/events?limit={n}`
 
 用途：
 
-- `ignis app status <app>`
+- `ignis service events --service <service> --limit <n>`
 
-返回里会包含：
-
-- `app_id`
-- `access_host`
-- `access_url`
-
-#### `GET /v1/apps/{app}/deployments/history?limit={n}`
+#### `GET /v1/projects/{project}/services/{service}/logs?limit={n}`
 
 用途：
 
-- `ignis app deployments <app> --limit <n>`
+- `ignis service logs --service <service> --limit <n>`
 
-#### `GET /v1/apps/{app}/events?limit={n}`
+### 2.8 环境变量接口
 
-用途：
-
-- `ignis app events <app> --limit <n>`
-
-#### `GET /v1/apps/{app}/logs?limit={n}`
+#### `GET /v1/projects/{project}/services/{service}/env`
 
 用途：
 
-- `ignis app logs <app> --limit <n>`
+- `ignis service env list --service <service>`
 
-### 2.6 环境变量接口
-
-#### `GET /v1/apps/{app}/env`
+#### `POST /v1/projects/{project}/services/{service}/env`
 
 用途：
 
-- `ignis app env list <app>`
-
-#### `POST /v1/apps/{app}/env`
-
-用途：
-
-- `ignis app env set <app> <name> <value>`
+- `ignis service env set --service <service> <name> <value>`
 
 请求 JSON：
 
@@ -392,25 +459,25 @@ CLI 会读取响应中的：
 { "name": "<name>", "value": "<value>" }
 ```
 
-#### `DELETE /v1/apps/{app}/env/{name}`
+#### `DELETE /v1/projects/{project}/services/{service}/env/{name}`
 
 用途：
 
-- `ignis app env delete <app> <name>`
+- `ignis service env delete --service <service> <name>`
 
-### 2.7 Secret 接口
+### 2.9 Secret 接口
 
-#### `GET /v1/apps/{app}/secrets`
-
-用途：
-
-- `ignis app secrets list <app>`
-
-#### `POST /v1/apps/{app}/secrets`
+#### `GET /v1/projects/{project}/services/{service}/secrets`
 
 用途：
 
-- `ignis app secrets set <app> <name> <value>`
+- `ignis service secrets list --service <service>`
+
+#### `POST /v1/projects/{project}/services/{service}/secrets`
+
+用途：
+
+- `ignis service secrets set --service <service> <name> <value>`
 
 请求 JSON：
 
@@ -418,19 +485,19 @@ CLI 会读取响应中的：
 { "name": "<name>", "value": "<value>" }
 ```
 
-#### `DELETE /v1/apps/{app}/secrets/{name}`
+#### `DELETE /v1/projects/{project}/services/{service}/secrets/{name}`
 
 用途：
 
-- `ignis app secrets delete <app> <name>`
+- `ignis service secrets delete --service <service> <name>`
 
-### 2.8 SQLite 备份与恢复接口
+### 2.10 SQLite 备份与恢复接口
 
-#### `GET /v1/apps/{app}/sqlite/backup`
+#### `GET /v1/projects/{project}/services/{service}/sqlite/backup`
 
 用途：
 
-- `ignis app sqlite backup <app> <out>`
+- `ignis service sqlite backup --service <service> <out>`
 
 CLI 期望响应 JSON 中存在：
 
@@ -440,11 +507,11 @@ CLI 期望响应 JSON 中存在：
 
 - `data.data.sqlite_base64`
 
-#### `POST /v1/apps/{app}/sqlite/restore`
+#### `POST /v1/projects/{project}/services/{service}/sqlite/restore`
 
 用途：
 
-- `ignis app sqlite restore <app> <input>`
+- `ignis service sqlite restore --service <service> <input>`
 
 请求 JSON：
 
@@ -465,7 +532,7 @@ CLI 当前对响应的处理相对宽松：
 
 ## 3. 组件签名约定
 
-`ignis app publish` 支持对组件签名。
+`ignis service publish --service <http-service>` 支持对组件签名。
 
 环境变量：
 

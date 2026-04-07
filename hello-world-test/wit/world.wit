@@ -1,5 +1,0 @@
-package app:hello-world-test;
-
-world hello-world-test {
-    include wasi:http/proxy@0.2.2;
-}

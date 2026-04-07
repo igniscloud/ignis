@@ -2,7 +2,7 @@
 
 本文说明如何接入 `ignis`。这里的“接入”分成两类：
 
-- 作为 worker 开发者，使用 `ignis-cli`、`ignis-sdk`、`worker.toml` 开发一个 Wasm HTTP 服务
+- 作为 service 开发者，使用 `ignis-cli`、`ignis-sdk`、`ignis.toml` 开发一个 project 下的 `http` 或 `frontend` service
 - 作为平台开发者，把 `ignis-manifest`、`ignis-runtime`、`ignis-platform-host` 组装进你自己的宿主或控制面
 
 `ignis` 当前不包含公开的控制面实现或节点编排系统，但已经包含本地开发所需的 CLI、manifest、运行时和第一个平台宿主模块。
@@ -11,10 +11,10 @@
 
 如果你的目标是：
 
-- 写一个运行在 Wasm 里的 HTTP 服务
+- 写一个运行在 Wasm 里的 HTTP service
 - 在本地快速调试 `wasi:http` worker
 - 在你自己的平台里嵌入 Wasm 运行时
-- 复用 `worker.toml`、签名、SQLite host import、路由 SDK
+- 复用 `ignis.toml`、签名、SQLite host import、路由 SDK
 
 那么 `ignis` 已经可以作为基础。
 
@@ -30,9 +30,9 @@
 `ignis` 当前主要由这些 crate 组成：
 
 - `ignis-cli`
-  用于初始化项目、本地构建/调试，以及调用兼容的外部控制面 API
+  用于创建 project、创建 service、本地构建/调试，以及调用兼容的外部控制面 API
 - `ignis-manifest`
-  负责 `worker.toml` 解析、校验、渲染和组件签名
+  负责 `ignis.toml` / 派生 worker manifest 的解析、校验、渲染和组件签名
 - `ignis-sdk`
   提供 guest 侧 Rust SDK，包括 HTTP Router 和 SQLite helper
 - `ignis-runtime`
@@ -63,39 +63,41 @@ rustup target add wasm32-wasip2
 cargo install --git https://github.com/igniscloud/ignis ignis-cli
 ```
 
-### 3.2 初始化一个 worker
+### 3.2 初始化一个 project 和 service
 
 如果你还没有源码仓库，可以先克隆公开仓库：
 
 ```bash
 git clone https://github.com/igniscloud/ignis.git
 cd ignis
-ignis init hello-worker
-cd hello-worker
+ignis login
+ignis project create hello-project
+cd hello-project
+ignis service new --service api --kind http --path services/api
 ```
 
 默认会生成：
 
-- `Cargo.toml`
-- `src/lib.rs`
-- `wit/world.wit`
-- `worker.toml`
-- `.gitignore`
+- `ignis.toml`
+- `services/api/Cargo.toml`
+- `services/api/src/lib.rs`
+- `services/api/wit/world.wit`
+- `services/api/.gitignore`
 
-初始化模板是一个最小 `wasi:http/proxy` worker，不强依赖 `ignis-sdk`。这样你可以先跑通最小链路，再决定是否引入 SDK。
+`service new --kind http` 生成最小 `wasi:http/proxy` service 模板。`service new --kind frontend` 会生成静态前端模板。
 
 ### 3.3 本地构建与调试
 
-构建：
+构建 `http` service：
 
 ```bash
-ignis build
+ignis service build --service api
 ```
 
 本地运行：
 
 ```bash
-ignis dev --addr 127.0.0.1:3000
+ignis service dev --service api --addr 127.0.0.1:3000
 ```
 
 访问：
@@ -107,7 +109,7 @@ curl http://127.0.0.1:3000/
 如果刚刚已经构建过，也可以跳过构建步骤：
 
 ```bash
-ignis dev --skip-build --addr 127.0.0.1:3000
+ignis service dev --service api --skip-build --addr 127.0.0.1:3000
 ```
 
 ### 3.4 引入 `ignis-sdk`
@@ -155,37 +157,47 @@ fn build_router() -> Router {
 }
 ```
 
-### 3.5 使用 `worker.toml`
+### 3.5 使用 `ignis.toml`
 
-`worker.toml` 是 Ignis worker 的描述文件。最常见的一份配置如下：
+`ignis.toml` 是 Ignis 当前的 project 配置文件。最常见的一份配置如下：
 
 ```toml
-name = "hello-worker"
-component = "target/wasm32-wasip2/release/hello_worker.wasm"
+[project]
+name = "hello-project"
+
+[[services]]
+name = "api"
+kind = "http"
+path = "services/api"
+
+[services.http]
+component = "target/wasm32-wasip2/release/api.wasm"
 base_path = "/"
 
-[env]
-APP_NAME = "hello-worker"
+[services.env]
+APP_NAME = "hello-project"
 
-[secrets]
+[services.secrets]
 OPENAI_API_KEY = "secret://openai-api-key"
 
-[sqlite]
+[services.sqlite]
 enabled = true
 
-[resources]
+[services.resources]
 cpu_time_limit_ms = 5000
 memory_limit_bytes = 134217728
 
-[network]
+[services.network]
 mode = "deny_all"
 ```
 
-完整字段说明、默认值、校验规则和更多示例见 [worker.toml 文档](./worker-toml.md)。
+完整字段说明、默认值、校验规则和更多示例见 [ignis.toml 文档](./ignis-toml.md)。
 
 这些字段控制：
 
-- worker 名称
+- project 名称
+- service 列表
+- service 相对路径
 - Wasm 构件路径
 - 路由基础路径
 - 普通环境变量
@@ -200,21 +212,24 @@ mode = "deny_all"
 
 ```bash
 ignis login
-ignis app publish
-ignis app deploy hello-worker <version>
-ignis app status hello-worker
+ignis project create hello-project
+cd hello-project
+ignis service new --service api --kind http --path services/api
+ignis service publish --service api
+ignis service deploy --service api <version>
+ignis service status --service api
 ```
 
 这里的 `ignis login` 会打开浏览器，走 igniscloud 登录页，并通过本地 localhost 回调保存 CLI token。
 
 如果平台支持这些接口，你还可以使用：
 
-- `ignis app logs`
-- `ignis app env`
-- `ignis app secrets`
-- `ignis app rollback`
-- `ignis app sqlite backup`
-- `ignis app sqlite restore`
+- `ignis service logs`
+- `ignis service env`
+- `ignis service secrets`
+- `ignis service rollback`
+- `ignis service sqlite backup`
+- `ignis service sqlite restore`
 
 控制面兼容接口约定见 [API 文档](./api.md)。
 
@@ -224,25 +239,26 @@ ignis app status hello-worker
 
 如果你要把 Ignis 嵌进自己的平台，最小接入通常是：
 
-1. 使用 `ignis-manifest` 读取并校验 `worker.toml`
-2. 使用 `ignis-runtime` 装载组件并转发 HTTP 请求
-3. 使用 `ignis-platform-host` 提供当前的 SQLite host imports
-4. 自己实现控制面、认证、发布、版本管理、部署和多节点能力
+1. 使用 `ignis-manifest` 读取并校验 `ignis.toml`
+2. 从 project 中选中一个 `http` service，并派生运行时需要的 worker manifest
+3. 使用 `ignis-runtime` 装载组件并转发 HTTP 请求
+4. 使用 `ignis-platform-host` 提供当前的 SQLite host imports
+5. 自己实现控制面、认证、发布、版本管理、部署和多节点能力
 
-### 4.2 加载 manifest
+### 4.2 加载 project manifest
 
 ```rust
-use ignis_manifest::LoadedManifest;
+use ignis_manifest::LoadedProjectManifest;
 
-let loaded = LoadedManifest::load("./worker.toml")?;
+let loaded = LoadedProjectManifest::load("./ignis.toml")?;
 ```
 
-`LoadedManifest` 会：
+`LoadedProjectManifest` 会：
 
-- 自动解析 `worker.toml`
+- 自动解析 `ignis.toml`
 - 校验配置合法性
 - 推导 `project_dir`
-- 提供 `component_path()` 解析实际 Wasm 路径
+- 提供 service 查询和 service 目录解析
 
 ### 4.3 本地 HTTP 宿主
 
@@ -251,12 +267,13 @@ let loaded = LoadedManifest::load("./worker.toml")?;
 ```rust
 use std::net::SocketAddr;
 
-use ignis_manifest::LoadedManifest;
+use ignis_manifest::LoadedProjectManifest;
 use ignis_runtime::{DevServerConfig, serve};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let manifest = LoadedManifest::load("./worker.toml")?;
+    let project = LoadedProjectManifest::load("./ignis.toml")?;
+    let manifest = project.http_service_manifest("api")?;
     serve(
         manifest,
         DevServerConfig {
@@ -274,10 +291,11 @@ async fn main() -> anyhow::Result<()> {
 ```rust
 use std::sync::Arc;
 
-use ignis_manifest::LoadedManifest;
+use ignis_manifest::LoadedProjectManifest;
 use ignis_runtime::WorkerRuntime;
 
-let manifest = LoadedManifest::load("./worker.toml")?;
+let project = LoadedProjectManifest::load("./ignis.toml")?;
+let manifest = project.http_service_manifest("api")?;
 let runtime = Arc::new(WorkerRuntime::load(manifest)?);
 runtime.warm().await?;
 ```
@@ -299,8 +317,8 @@ runtime.warm().await?;
 
 当前 SQLite host 的行为是：
 
-- `worker.toml` 中 `[sqlite].enabled = true` 时允许访问数据库
-- 数据库默认落在 worker 项目目录下的 `.ignis/sqlite/default.sqlite3`
+- `ignis.toml` 中目标 `http` service 的 `[services.sqlite].enabled = true` 时允许访问数据库
+- 数据库默认落在该 service 目录下的 `.ignis/sqlite/default.sqlite3`
 - 宿主会把 WIT 中定义的 SQLite imports 链接到 Wasmtime 组件里
 
 ### 4.6 平台需要自己负责的部分
@@ -321,7 +339,7 @@ runtime.warm().await?;
 如果你是 worker 开发者：
 
 1. 先看 [CLI 文档](./cli.md)
-2. 再看 [API 文档](./api.md) 中的 `ignis-sdk` 和 `worker.toml`
+2. 再看 [API 文档](./api.md) 中的 `ignis-sdk` 和 `ignis.toml`
 3. 最后参考 `examples/`
 
 如果你是平台开发者：
