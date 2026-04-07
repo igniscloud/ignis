@@ -6,6 +6,8 @@
   说明 `ember-manifest`、`ember-sdk`、`ember-runtime`、`ember-platform-host` 和兼容控制面 HTTP API
 - `worker-toml.md`
   独立说明 `worker.toml` 的配置项、默认值、校验规则和示例配置
+- `ember-sdk/`
+  `mddoc` 生成的 `ember-sdk` Markdown API 文档树
 - `cli.md`
   说明 `ember` CLI 的安装、配置、命令、签名、SQLite 和常见问题
 - `readme.md`

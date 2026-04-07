@@ -62,6 +62,7 @@ cargo check --manifest-path examples/pocket-tasks-worker/Cargo.toml
 - [API Reference](./docs/api.md)
 - [CLI Guide](./docs/cli.md)
 - [worker.toml Guide](./docs/worker-toml.md)
+- [Ember SDK Markdown Reference](./docs/ember-sdk/index.md)
 
 ## What Each Crate Does
 

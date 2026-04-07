@@ -51,6 +51,8 @@
 
 `ember-sdk` 是 guest 侧 Rust SDK，当前主要分为 `http` 和 `sqlite` 两块。
 
+完整自动生成参考见 [ember-sdk Markdown 文档](./ember-sdk/index.md)。
+
 #### `ember_sdk::http`
 
 主要类型：
