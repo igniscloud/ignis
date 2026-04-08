@@ -16,9 +16,11 @@ use anyhow::{Context, Result, anyhow, bail};
 use clap::{Parser, Subcommand, ValueEnum};
 use ignis_manifest::{
     ComponentSignature, FrontendServiceConfig, HttpServiceConfig, LoadedManifest,
-    LoadedProjectManifest, PROJECT_MANIFEST_FILE, ProjectConfig, ProjectManifest, ResourceConfig,
-    ServiceKind, ServiceManifest, SqliteConfig, sign_component_with_seed,
+    LoadedProjectManifest, NetworkMode, PROJECT_MANIFEST_FILE, ProjectConfig, ProjectManifest,
+    ResourceConfig, ServiceKind, ServiceManifest, SqliteConfig,
+    IGNIS_LOGIN_COMMON_SERVER_BASE_URL_ENV, sign_component_with_seed,
 };
+use serde::Serialize;
 use serde_json::Value;
 use tokio::process::Command;
 use tracing::info;
@@ -72,6 +74,7 @@ enum ProjectCommands {
         #[arg(long)]
         force: bool,
     },
+    Sync,
     List,
     Status {
         project: String,
@@ -117,6 +120,10 @@ enum ServiceCommands {
     },
     List,
     Status {
+        #[arg(long)]
+        service: String,
+    },
+    Check {
         #[arg(long)]
         service: String,
     },
@@ -273,6 +280,7 @@ async fn project_command(command: ProjectCommands, token: Option<String>) -> Res
         ProjectCommands::Create { name, dir, force } => {
             create_project(name, dir, force, token).await
         }
+        ProjectCommands::Sync => sync_project(token).await,
         ProjectCommands::List => list_projects(token).await,
         ProjectCommands::Status { project } => project_status(&project, token).await,
         ProjectCommands::Delete { project } => delete_project(&project, token).await,
@@ -290,6 +298,7 @@ async fn service_command(command: ServiceCommands, token: Option<String>) -> Res
         } => new_service(&context, &service, kind, &path, token).await,
         ServiceCommands::List => list_services(&context),
         ServiceCommands::Status { service } => service_status(&context, &service, token).await,
+        ServiceCommands::Check { service } => check_service(&context, &service),
         ServiceCommands::Delete { service } => delete_service(&context, &service, token).await,
         ServiceCommands::Build { service, release } => {
             build_service(&context, &service, release).await
@@ -393,6 +402,96 @@ async fn delete_project(project: &str, token: Option<String>) -> Result<()> {
     let client = api::ApiClient::new(config::CliConfig::resolve(token)?);
     let response = client.delete_project(project).await?;
     print_json(&response)
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct ProjectSyncServiceResult {
+    service: String,
+    status: &'static str,
+    message: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct ProjectServicesEnvelope {
+    data: Vec<RemoteServiceEntry>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct RemoteServiceEntry {
+    service: String,
+    manifest: ServiceManifest,
+}
+
+async fn sync_project(token: Option<String>) -> Result<()> {
+    let context = load_project_context()?;
+    for service in &context.loaded.manifest.services {
+        ensure_service_check_passes(service)?;
+    }
+
+    let client = api::ApiClient::new(config::CliConfig::resolve(token)?);
+    let project_name = context.loaded.project_name().to_owned();
+    let mut project_created = false;
+    if client.project_status_optional(&project_name).await?.is_none() {
+        client.create_project(&project_name).await?;
+        project_created = true;
+    }
+
+    let remote_services: ProjectServicesEnvelope =
+        serde_json::from_value(client.services(&project_name).await?)
+            .context("parsing project services response")?;
+    let remote_manifests = remote_services
+        .data
+        .into_iter()
+        .map(|entry| (entry.service.clone(), entry.manifest))
+        .collect::<BTreeMap<_, _>>();
+
+    let mut service_results = Vec::new();
+    let mut local_service_names = std::collections::BTreeSet::new();
+    for service in &context.loaded.manifest.services {
+        local_service_names.insert(service.name.clone());
+        match remote_manifests.get(&service.name) {
+            None => {
+                client.create_service(&project_name, service).await?;
+                service_results.push(ProjectSyncServiceResult {
+                    service: service.name.clone(),
+                    status: "created",
+                    message: format!("created remote service `{}`", service.name),
+                });
+            }
+            Some(remote_manifest) if remote_manifest == service => {
+                service_results.push(ProjectSyncServiceResult {
+                    service: service.name.clone(),
+                    status: "unchanged",
+                    message: format!("remote service `{}` already matches local manifest", service.name),
+                });
+            }
+            Some(_) => {
+                service_results.push(ProjectSyncServiceResult {
+                    service: service.name.clone(),
+                    status: "drift",
+                    message: format!(
+                        "remote service `{}` already exists but its manifest differs; current sync only creates missing services",
+                        service.name
+                    ),
+                });
+            }
+        }
+    }
+
+    let remote_only_services = remote_manifests
+        .keys()
+        .filter(|name| !local_service_names.contains(*name))
+        .cloned()
+        .collect::<Vec<_>>();
+
+    print_json(&serde_json::json!({
+        "data": {
+            "project": project_name,
+            "project_created": project_created,
+            "service_results": service_results,
+            "remote_only_services": remote_only_services,
+        }
+    }))
 }
 
 async fn new_service(
@@ -546,6 +645,7 @@ fn build_new_service_manifest(
                     base_path: "/".to_owned(),
                 }),
                 frontend: None,
+                ignis_login: None,
                 env: BTreeMap::new(),
                 secrets: BTreeMap::new(),
                 sqlite: SqliteConfig { enabled: true },
@@ -571,6 +671,7 @@ fn build_new_service_manifest(
                 output_dir: PathBuf::from("dist"),
                 spa_fallback: true,
             }),
+            ignis_login: None,
             env: BTreeMap::new(),
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),
@@ -710,6 +811,112 @@ async fn service_status(
     print_json(&response)
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct ServiceCheckFinding {
+    level: &'static str,
+    code: &'static str,
+    message: String,
+}
+
+fn check_service(context: &ProjectContext, service_name: &str) -> Result<()> {
+    let service = required_service(&context.loaded, service_name)?;
+    let findings = collect_service_check_findings(service);
+    let error_count = findings.iter().filter(|finding| finding.level == "error").count();
+    let warning_count = findings
+        .iter()
+        .filter(|finding| finding.level == "warning")
+        .count();
+    let ok = error_count == 0;
+
+    print_json(&serde_json::json!({
+        "data": {
+            "project": context.loaded.project_name(),
+            "service": service.name,
+            "ok": ok,
+            "error_count": error_count,
+            "warning_count": warning_count,
+            "findings": findings,
+        }
+    }))?;
+
+    if ok {
+        Ok(())
+    } else {
+        bail!("service check failed for `{}`", service.name);
+    }
+}
+
+fn collect_service_check_findings(service: &ServiceManifest) -> Vec<ServiceCheckFinding> {
+    let mut findings = Vec::new();
+
+    if service
+        .env
+        .contains_key(IGNIS_LOGIN_COMMON_SERVER_BASE_URL_ENV)
+    {
+        findings.push(ServiceCheckFinding {
+            level: "error",
+            code: "common_server_base_url_env_not_supported",
+            message: format!(
+                "service `{}` defines env `{}`; ignis_login should not depend on COMMON_SERVER_BASE_URL as an env var",
+                service.name, IGNIS_LOGIN_COMMON_SERVER_BASE_URL_ENV
+            ),
+        });
+    }
+
+    if service.ignis_login.is_some()
+        && !service
+            .network
+            .allows_authority("cloud.transairobot.com", Some("cloud.transairobot.com"))
+    {
+        let message = if service.network.mode == NetworkMode::DenyAll {
+            format!(
+                "service `{}` configures `ignis_login` but `[services.network]` is `deny_all`; hosted login, token exchange, and userinfo need outbound access to `cloud.transairobot.com`",
+                service.name
+            )
+        } else if service
+            .network
+            .allow
+            .iter()
+            .any(|entry| entry.eq_ignore_ascii_case("cloud.transairobot.com:443"))
+        {
+            format!(
+                "service `{}` configures `ignis_login` but `[services.network].allow` only lists `cloud.transairobot.com:443`; add `cloud.transairobot.com` explicitly",
+                service.name
+            )
+        } else {
+            format!(
+                "service `{}` configures `ignis_login` but `[services.network]` does not allow `cloud.transairobot.com`",
+                service.name
+            )
+        };
+        findings.push(ServiceCheckFinding {
+            level: "error",
+            code: "ignis_login_missing_common_server_allow",
+            message,
+        });
+    }
+
+    findings
+}
+
+fn ensure_service_check_passes(service: &ServiceManifest) -> Result<()> {
+    let findings = collect_service_check_findings(service);
+    let errors = findings
+        .into_iter()
+        .filter(|finding| finding.level == "error")
+        .collect::<Vec<_>>();
+    if errors.is_empty() {
+        return Ok(());
+    }
+
+    let messages = errors
+        .into_iter()
+        .map(|finding| format!("[{}] {}", finding.code, finding.message))
+        .collect::<Vec<_>>()
+        .join("\n");
+    bail!("service `{}` failed local checks:\n{messages}", service.name)
+}
+
 async fn delete_service(
     context: &ProjectContext,
     service: &str,
@@ -745,6 +952,7 @@ async fn publish_service(
     token: Option<String>,
 ) -> Result<()> {
     let service = required_service(&context.loaded, service)?;
+    ensure_service_check_passes(service)?;
     let client = api::ApiClient::new(config::CliConfig::resolve(token)?);
     let response = match service.kind {
         ServiceKind::Http => {
@@ -1562,8 +1770,13 @@ fn load_component_signature(artifact_path: &Path) -> Result<Option<ComponentSign
 
 #[cfg(test)]
 mod tests {
-    use super::{SkillFormat, gen_skill_output_root};
+    use super::{SkillFormat, collect_service_check_findings, gen_skill_output_root};
+    use ignis_manifest::{
+        HttpServiceConfig, IgnisLoginConfig, IgnisLoginProvider, NetworkConfig, NetworkMode,
+        ResourceConfig, ServiceKind, ServiceManifest, SqliteConfig,
+    };
     use std::path::Path;
+    use std::path::PathBuf;
 
     #[test]
     fn gen_skill_output_root_uses_format_defaults() {
@@ -1579,5 +1792,68 @@ mod tests {
             gen_skill_output_root(SkillFormat::Raw, None),
             Path::new("ignis-user")
         );
+    }
+
+    fn sample_http_service() -> ServiceManifest {
+        ServiceManifest {
+            name: "api".to_owned(),
+            kind: ServiceKind::Http,
+            path: PathBuf::from("services/api"),
+            prefix: "/api".to_owned(),
+            http: Some(HttpServiceConfig {
+                component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
+                base_path: "/".to_owned(),
+            }),
+            frontend: None,
+            ignis_login: Some(IgnisLoginConfig {
+                display_name: "demo".to_owned(),
+                redirect_path: "/auth/callback".to_owned(),
+                providers: vec![IgnisLoginProvider::Google],
+            }),
+            env: Default::default(),
+            secrets: Default::default(),
+            sqlite: SqliteConfig::default(),
+            resources: ResourceConfig::default(),
+            network: NetworkConfig {
+                mode: NetworkMode::AllowList,
+                allow: vec!["cloud.transairobot.com".to_owned()],
+            },
+        }
+    }
+
+    #[test]
+    fn service_check_flags_common_server_base_url_env() {
+        let mut service = sample_http_service();
+        service.env.insert(
+            "COMMON_SERVER_BASE_URL".to_owned(),
+            "https://cloud.transairobot.com".to_owned(),
+        );
+
+        let findings = collect_service_check_findings(&service);
+
+        assert!(findings
+            .iter()
+            .any(|finding| finding.code == "common_server_base_url_env_not_supported"));
+    }
+
+    #[test]
+    fn service_check_flags_ignis_login_allow_rule_with_only_port_specific_host() {
+        let mut service = sample_http_service();
+        service.network.allow = vec!["cloud.transairobot.com:443".to_owned()];
+
+        let findings = collect_service_check_findings(&service);
+
+        assert!(findings
+            .iter()
+            .any(|finding| finding.code == "ignis_login_missing_common_server_allow"));
+    }
+
+    #[test]
+    fn service_check_accepts_ignis_login_host_allow_rule() {
+        let service = sample_http_service();
+
+        let findings = collect_service_check_findings(&service);
+
+        assert!(findings.is_empty());
     }
 }

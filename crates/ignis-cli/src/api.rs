@@ -5,6 +5,7 @@ use std::path::Path;
 use anyhow::{Context, Result, bail};
 use base64::Engine;
 use reqwest::multipart::{Form, Part};
+use reqwest::StatusCode;
 use serde_json::{Value, json};
 use sha2::Digest;
 
@@ -61,6 +62,15 @@ impl ApiClient {
         .await
     }
 
+    pub async fn project_status_optional(&self, project: &str) -> Result<Option<Value>> {
+        request_json_optional_not_found(
+            self.http
+                .get(self.url(&format!("/v1/projects/{project}")))
+                .bearer_auth(&self.config.token),
+        )
+        .await
+    }
+
     pub async fn delete_project(&self, project: &str) -> Result<Value> {
         self.request(
             self.http
@@ -99,6 +109,15 @@ impl ApiClient {
                 .post(self.url(&format!("/v1/projects/{project}/services")))
                 .bearer_auth(&self.config.token)
                 .json(service),
+        )
+        .await
+    }
+
+    pub async fn services(&self, project: &str) -> Result<Value> {
+        self.request(
+            self.http
+                .get(self.url(&format!("/v1/projects/{project}/services")))
+                .bearer_auth(&self.config.token),
         )
         .await
     }
@@ -451,4 +470,21 @@ async fn request_json(builder: reqwest::RequestBuilder) -> Result<Value> {
     }
     let value = serde_json::from_str(&text).unwrap_or_else(|_| json!({ "raw": text }));
     Ok(value)
+}
+
+async fn request_json_optional_not_found(builder: reqwest::RequestBuilder) -> Result<Option<Value>> {
+    let response = builder.send().await.context("sending HTTP request")?;
+    let status = response.status();
+    let text = response.text().await.context("reading HTTP response")?;
+    if status == StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
+    if !status.is_success() {
+        bail!("request failed with {status}: {text}");
+    }
+    if text.trim().is_empty() {
+        return Ok(Some(json!({ "status": status.as_u16() })));
+    }
+    let value = serde_json::from_str(&text).unwrap_or_else(|_| json!({ "raw": text }));
+    Ok(Some(value))
 }

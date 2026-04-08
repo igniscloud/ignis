@@ -16,6 +16,7 @@ ignis
 - 生成 `ignis-user` 的 `codex`、`opencode`、`raw` 三种 skill 包
 - 创建云端 project，并初始化本地 project 根目录
 - 在 project 下创建 `http` 或 `frontend` service
+- 检查本地 service manifest 的常见配置异常
 - 构建单个 service，并发布/部署到云端
 - 发布、部署、回滚、查询 service 状态
 - 管理 service 级 env、secret 和 SQLite 备份
@@ -86,7 +87,9 @@ ignis.toml
 ignis login
 ignis project create hello-project
 cd hello-project
+ignis project sync
 ignis service new --service api --kind http --path services/api
+ignis service check --service api
 ignis service build --service api
 ignis service publish --service api
 ignis service deploy --service api <version>
@@ -145,6 +148,7 @@ ignis gen-skill --format codex --path ./internal-skills/ignis-user
 一级命令：
 
 - `ignis project create <name>`
+- `ignis project sync`
 - `ignis project list`
 - `ignis project status <name>`
 - `ignis project delete <name>`
@@ -185,6 +189,29 @@ ignis project token create hello-project
 
 这个 token 可以管理该 project 下的全部 services。
 
+### 5.3 `ignis project sync`
+
+在本地已有 `ignis.toml` 的 project 目录里，把 project 和缺失的 services 同步到云端。
+
+示例：
+
+```bash
+cd hello-project
+ignis project sync
+```
+
+当前行为：
+
+- 如果云端 project 不存在，先创建 project
+- 如果某个本地 service 还没在云端创建，自动创建该 service
+- 如果云端 service 已存在且 manifest 一致，标记为 `unchanged`
+- 如果云端 service 已存在但 manifest 不一致，标记为 `drift`
+
+说明：
+
+- 当前 `sync` 只创建缺失资源，不会覆盖已存在的云端 service manifest
+- `sync` 执行前会先运行本地 service 检查；如果存在 `error` 级问题，会直接失败
+
 ## 6. `ignis service`
 
 一级命令：
@@ -192,6 +219,7 @@ ignis project token create hello-project
 - `ignis service new --service <name> --kind <http|frontend> --path <relative-path>`
 - `ignis service list`
 - `ignis service status --service <name>`
+- `ignis service check --service <name>`
 - `ignis service delete --service <name>`
 - `ignis service build --service <name>`
 - `ignis service publish --service <name>`
@@ -257,6 +285,25 @@ ignis service delete --service api
 - `src/lib.rs`
 - `wit/world.wit`
 - `.gitignore`
+
+### 6.3 `ignis service check`
+
+检查当前本地 `ignis.toml` 里的单个 service，输出常见配置异常。
+
+示例：
+
+```bash
+ignis service check --service api
+```
+
+当前会检查：
+
+- `ignis_login` service 是否错误地把 `COMMON_SERVER_BASE_URL` 作为 env 依赖
+- `ignis_login` service 是否允许访问 `cloud.transairobot.com`
+
+如果发现 `error` 级问题，命令会返回非零退出码。
+
+`ignis service publish` 也会在真正上传构件前自动执行同一套本地检查。
 
 `frontend` 模板会生成：
 

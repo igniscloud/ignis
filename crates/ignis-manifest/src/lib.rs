@@ -17,6 +17,13 @@ use serde::{Deserialize, Serialize};
 pub const MANIFEST_FILE: &str = "worker.toml";
 pub const PROJECT_MANIFEST_FILE: &str = "ignis.toml";
 pub const MAX_RESOURCE_NAME_LEN: usize = 48;
+pub const IGNIS_LOGIN_COMMON_SERVER_BASE_URL_ENV: &str = "COMMON_SERVER_BASE_URL";
+pub const IGNIS_LOGIN_CLIENT_ID_SECRET: &str = "IGNIS_LOGIN_CLIENT_ID";
+pub const IGNIS_LOGIN_CLIENT_SECRET_SECRET: &str = "IGNIS_LOGIN_CLIENT_SECRET";
+pub const IGNIS_LOGIN_RESERVED_SECRETS: [&str; 2] = [
+    IGNIS_LOGIN_CLIENT_ID_SECRET,
+    IGNIS_LOGIN_CLIENT_SECRET_SECRET,
+];
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct WorkerManifest {
@@ -51,6 +58,19 @@ pub struct ProjectConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IgnisLoginConfig {
+    pub display_name: String,
+    pub redirect_path: String,
+    pub providers: Vec<IgnisLoginProvider>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum IgnisLoginProvider {
+    Google,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ServiceManifest {
     pub name: String,
     pub kind: ServiceKind,
@@ -61,6 +81,8 @@ pub struct ServiceManifest {
     pub http: Option<HttpServiceConfig>,
     #[serde(default)]
     pub frontend: Option<FrontendServiceConfig>,
+    #[serde(default)]
+    pub ignis_login: Option<IgnisLoginConfig>,
     #[serde(default)]
     pub env: BTreeMap<String, String>,
     #[serde(default)]
@@ -366,6 +388,9 @@ impl ServiceManifest {
                         self.name
                     );
                 }
+                if let Some(login) = &self.ignis_login {
+                    validate_ignis_login(login, self)?;
+                }
                 http.validate(&self.name)?;
                 validate_binding_names(self.env.keys(), "services.env")?;
                 validate_binding_names(self.secrets.keys(), "services.secrets")?;
@@ -382,6 +407,12 @@ impl ServiceManifest {
                 if self.http.is_some() {
                     bail!(
                         "frontend service `{}` cannot define `[services.http]`",
+                        self.name
+                    );
+                }
+                if self.ignis_login.is_some() {
+                    bail!(
+                        "frontend service `{}` cannot define `[services.ignis_login]`",
                         self.name
                     );
                 }
@@ -591,6 +622,59 @@ fn validate_binding_names<'a>(
     Ok(())
 }
 
+fn validate_ignis_login(config: &IgnisLoginConfig, service: &ServiceManifest) -> Result<()> {
+    if config.display_name.trim().is_empty() {
+        bail!(
+            "http service `{}` field `ignis_login.display_name` cannot be empty",
+            service.name
+        );
+    }
+    if config.providers.is_empty() {
+        bail!(
+            "http service `{}` field `ignis_login.providers` cannot be empty",
+            service.name
+        );
+    }
+    if config.providers.len() != 1 || config.providers[0] != IgnisLoginProvider::Google {
+        bail!(
+            "http service `{}` field `ignis_login.providers` currently only supports [\"google\"]",
+            service.name
+        );
+    }
+    validate_service_prefix_like_path(
+        &config.redirect_path,
+        &format!(
+            "http service `{}` field `ignis_login.redirect_path`",
+            service.name
+        ),
+    )?;
+    if service
+        .env
+        .contains_key(IGNIS_LOGIN_COMMON_SERVER_BASE_URL_ENV)
+    {
+        bail!(
+            "service `{}` cannot define env `{}`; ignis_login does not provide COMMON_SERVER_BASE_URL as an env var",
+            service.name,
+            IGNIS_LOGIN_COMMON_SERVER_BASE_URL_ENV
+        );
+    }
+    for reserved in IGNIS_LOGIN_RESERVED_SECRETS {
+        if service.env.contains_key(reserved) {
+            bail!(
+                "service `{}` cannot define reserved ignis_login env `{reserved}`",
+                service.name
+            );
+        }
+        if service.secrets.contains_key(reserved) {
+            bail!(
+                "service `{}` cannot define reserved ignis_login secret `{reserved}`",
+                service.name
+            );
+        }
+    }
+    Ok(())
+}
+
 fn validate_resource_name(name: &str, field_name: &str) -> Result<()> {
     let trimmed = name.trim();
     if trimmed.is_empty() {
@@ -641,6 +725,23 @@ fn validate_relative_service_path(path: &Path) -> Result<()> {
 
 fn validate_service_prefix(prefix: &str) -> Result<()> {
     normalize_service_prefix(prefix).map(|_| ())
+}
+
+fn validate_service_prefix_like_path(value: &str, field_name: &str) -> Result<()> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        bail!("{field_name} cannot be empty");
+    }
+    if !trimmed.starts_with('/') {
+        bail!("{field_name} must start with '/'");
+    }
+    if trimmed.contains("//") {
+        bail!("{field_name} cannot contain empty path segments");
+    }
+    if trimmed.contains('?') || trimmed.contains('#') {
+        bail!("{field_name} cannot contain query or fragment syntax");
+    }
+    Ok(())
 }
 
 fn normalize_service_prefix(prefix: &str) -> Result<String> {
@@ -819,6 +920,7 @@ mod tests {
                         base_path: "/".to_owned(),
                     }),
                     frontend: None,
+                    ignis_login: None,
                     env: BTreeMap::from([(String::from("APP_ENV"), String::from("production"))]),
                     secrets: BTreeMap::new(),
                     sqlite: SqliteConfig { enabled: true },
@@ -839,6 +941,7 @@ mod tests {
                         output_dir: PathBuf::from("dist"),
                         spa_fallback: true,
                     }),
+                    ignis_login: None,
                     env: BTreeMap::new(),
                     secrets: BTreeMap::new(),
                     sqlite: SqliteConfig::default(),
@@ -871,6 +974,7 @@ mod tests {
                         base_path: "/".to_owned(),
                     }),
                     frontend: None,
+                    ignis_login: None,
                     env: BTreeMap::new(),
                     secrets: BTreeMap::new(),
                     sqlite: SqliteConfig::default(),
@@ -888,6 +992,7 @@ mod tests {
                         output_dir: PathBuf::from("dist"),
                         spa_fallback: true,
                     }),
+                    ignis_login: None,
                     env: BTreeMap::new(),
                     secrets: BTreeMap::new(),
                     sqlite: SqliteConfig::default(),
@@ -913,6 +1018,7 @@ mod tests {
                 output_dir: PathBuf::from("dist"),
                 spa_fallback: false,
             }),
+            ignis_login: None,
             env: BTreeMap::from([(String::from("APP_ENV"), String::from("production"))]),
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),
@@ -935,6 +1041,157 @@ mod tests {
                 base_path: "/".to_owned(),
             }),
             frontend: None,
+            ignis_login: None,
+            env: BTreeMap::new(),
+            secrets: BTreeMap::new(),
+            sqlite: SqliteConfig::default(),
+            resources: ResourceConfig::default(),
+            network: NetworkConfig::default(),
+        };
+
+        assert!(service.validate().is_err());
+    }
+
+    #[test]
+    fn validates_service_ignis_login_shape() {
+        let manifest = ProjectManifest {
+            project: ProjectConfig {
+                name: "video-gif-studio".to_owned(),
+            },
+            services: vec![ServiceManifest {
+                name: "api".to_owned(),
+                kind: ServiceKind::Http,
+                path: PathBuf::from("services/api"),
+                prefix: "/api".to_owned(),
+                http: Some(HttpServiceConfig {
+                    component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
+                    base_path: "/".to_owned(),
+                }),
+                frontend: None,
+                ignis_login: Some(IgnisLoginConfig {
+                    display_name: "Video GIF Studio".to_owned(),
+                    redirect_path: "/auth/common/callback".to_owned(),
+                    providers: vec![IgnisLoginProvider::Google],
+                }),
+                env: BTreeMap::new(),
+                secrets: BTreeMap::new(),
+                sqlite: SqliteConfig::default(),
+                resources: ResourceConfig::default(),
+                network: NetworkConfig::default(),
+            }],
+        };
+
+        manifest.validate().unwrap();
+        let rendered = manifest.render().unwrap();
+        assert!(rendered.contains("ignis_login"));
+        assert!(rendered.contains("redirect_path"));
+    }
+
+    #[test]
+    fn rejects_frontend_ignis_login() {
+        let service = ServiceManifest {
+            name: "web".to_owned(),
+            kind: ServiceKind::Frontend,
+            path: PathBuf::from("services/web"),
+            prefix: "/".to_owned(),
+            http: None,
+            frontend: Some(FrontendServiceConfig {
+                build_command: vec!["pnpm".to_owned(), "build".to_owned()],
+                output_dir: PathBuf::from("dist"),
+                spa_fallback: true,
+            }),
+            ignis_login: Some(IgnisLoginConfig {
+                display_name: "Video GIF Studio".to_owned(),
+                redirect_path: "/auth/common/callback".to_owned(),
+                providers: vec![IgnisLoginProvider::Google],
+            }),
+            env: BTreeMap::new(),
+            secrets: BTreeMap::new(),
+            sqlite: SqliteConfig::default(),
+            resources: ResourceConfig::default(),
+            network: NetworkConfig::default(),
+        };
+
+        assert!(service.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_ignis_login_reserved_secret_conflict() {
+        let service = ServiceManifest {
+            name: "api".to_owned(),
+            kind: ServiceKind::Http,
+            path: PathBuf::from("services/api"),
+            prefix: "/api".to_owned(),
+            http: Some(HttpServiceConfig {
+                component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
+                base_path: "/".to_owned(),
+            }),
+            frontend: None,
+            ignis_login: Some(IgnisLoginConfig {
+                display_name: "Video GIF Studio".to_owned(),
+                redirect_path: "/auth/common/callback".to_owned(),
+                providers: vec![IgnisLoginProvider::Google],
+            }),
+            env: BTreeMap::new(),
+            secrets: BTreeMap::from([(
+                String::from(IGNIS_LOGIN_CLIENT_ID_SECRET),
+                String::from("manual-client-id"),
+            )]),
+            sqlite: SqliteConfig::default(),
+            resources: ResourceConfig::default(),
+            network: NetworkConfig::default(),
+        };
+
+        assert!(service.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_ignis_login_reserved_env_conflict() {
+        let service = ServiceManifest {
+            name: "api".to_owned(),
+            kind: ServiceKind::Http,
+            path: PathBuf::from("services/api"),
+            prefix: "/api".to_owned(),
+            http: Some(HttpServiceConfig {
+                component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
+                base_path: "/".to_owned(),
+            }),
+            frontend: None,
+            ignis_login: Some(IgnisLoginConfig {
+                display_name: "Video GIF Studio".to_owned(),
+                redirect_path: "/auth/common/callback".to_owned(),
+                providers: vec![IgnisLoginProvider::Google],
+            }),
+            env: BTreeMap::from([(
+                String::from(IGNIS_LOGIN_COMMON_SERVER_BASE_URL_ENV),
+                String::from("https://cloud.transairobot.com"),
+            )]),
+            secrets: BTreeMap::new(),
+            sqlite: SqliteConfig::default(),
+            resources: ResourceConfig::default(),
+            network: NetworkConfig::default(),
+        };
+
+        assert!(service.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_empty_ignis_login_provider_list() {
+        let service = ServiceManifest {
+            name: "api".to_owned(),
+            kind: ServiceKind::Http,
+            path: PathBuf::from("services/api"),
+            prefix: "/api".to_owned(),
+            http: Some(HttpServiceConfig {
+                component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
+                base_path: "/".to_owned(),
+            }),
+            frontend: None,
+            ignis_login: Some(IgnisLoginConfig {
+                display_name: "Video GIF Studio".to_owned(),
+                redirect_path: "/auth/common/callback".to_owned(),
+                providers: Vec::new(),
+            }),
             env: BTreeMap::new(),
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),

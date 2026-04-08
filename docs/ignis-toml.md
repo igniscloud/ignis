@@ -26,6 +26,11 @@ prefix = "/api"
 [services.http]
 component = "target/wasm32-wasip2/release/api.wasm"
 base_path = "/"
+
+[services.ignis_login]
+display_name = "hello-project"
+redirect_path = "/auth/common/callback"
+providers = ["google"]
 ```
 
 这个配置适合一个只有单个 `http` service 的最小本地链路。
@@ -45,6 +50,11 @@ prefix = "/api"
 [services.http]
 component = "target/wasm32-wasip2/release/api.wasm"
 base_path = "/api"
+
+[services.ignis_login]
+display_name = "pocket-tasks"
+redirect_path = "/auth/common/callback"
+providers = ["google"]
 
 [services.env]
 APP_NAME = "pocket-tasks"
@@ -139,11 +149,53 @@ spa_fallback = true
 `http` service 允许这些字段：
 
 - `[services.http]`
+- `[services.ignis_login]`
 - `[services.env]`
 - `[services.secrets]`
 - `[services.sqlite]`
 - `[services.resources]`
 - `[services.network]`
+
+#### `services.ignis_login`
+
+- 作用：为当前 `http` service 声明一个由 Ignis control-plane 托管的 `common_server` confidential client。
+- 必填：否。
+- 说明：
+  - 这是 service 级配置，不是 project 级配置
+  - 第一版只支持 `confidential`
+  - `client_id` / `client_secret` 由 control-plane 创建并写入当前 service 的 secrets
+  - 当前 igniscloud hosted login 公网地址固定为 `https://cloud.transairobot.com`
+  - 不要把 `COMMON_SERVER_BASE_URL` 作为 env 依赖
+
+#### `services.ignis_login.display_name`
+
+- 类型：`string`
+- 作用：在 `common_server` 中创建 client 时使用的显示名
+- 约束：
+  - 不能为空
+
+#### `services.ignis_login.redirect_path`
+
+- 类型：`string`
+- 作用：该 service 登录回调路径
+- 约束：
+  - 必须以 `/` 开头
+
+#### `services.ignis_login.providers`
+
+- 类型：`array<string>`
+- 作用：要在 `common_server` 上打开的登录方式
+- 约束：
+  - 必须精确等于 `["google"]`
+
+#### `ignis_login` 保留 secret 与不支持的 env
+
+如果声明 `services.ignis_login`，当前 service 不允许手动声明这些名字：
+
+- `IGNIS_LOGIN_CLIENT_ID`
+- `IGNIS_LOGIN_CLIENT_SECRET`
+
+另外，`COMMON_SERVER_BASE_URL` 也不应该作为 `services.env` 变量出现；当前 igniscloud 接入里请直接使用 `https://cloud.transairobot.com`。
 
 #### `services.http.component`
 
@@ -211,6 +263,8 @@ spa_fallback = true
   - 仅当 `mode = "allow_list"` 时允许设置
   - 当 `mode = "allow_list"` 时不能为空
   - 支持 `host`、`host:port`、`.suffix`、`[ipv6]:port`
+  - 如果 service 声明了 `services.ignis_login`，建议显式包含 `cloud.transairobot.com`
+  - 可用 `ignis service check --service <name>` 检查这类常见配置问题
 
 ### 3.4 `frontend` service 配置
 
@@ -242,6 +296,7 @@ spa_fallback = true
 #### `frontend` service 限制
 
 - 不能定义 `[services.http]`
+- 不能定义 `[services.ignis_login]`
 - 不能定义 `[services.env]`
 - 不能定义 `[services.secrets]`
 - 不能启用 sqlite

@@ -73,6 +73,7 @@ cd ignis
 ignis login
 ignis project create hello-project
 cd hello-project
+ignis project sync
 ignis service new --service api --kind http --path services/api
 ```
 
@@ -97,11 +98,50 @@ ignis service build --service api
 构建完成后，直接走发布和部署：
 
 ```bash
+ignis project sync
+ignis service check --service api
 ignis service publish --service api
 ignis service deploy --service api <version>
 ```
 
 当前 CLI 以发布部署为主，不再把本地 `dev` 作为标准工作流。测试环境部署能力后续会在 deploy 链路上扩展。
+
+发布前建议先执行：
+
+```bash
+ignis service check --service api
+```
+
+如果某个 `http` service 需要接入 `common_server` OAuth，推荐在该 service 下声明：
+
+```toml
+[[services]]
+name = "api"
+kind = "http"
+path = "services/api"
+prefix = "/api"
+
+[services.http]
+component = "target/wasm32-wasip2/release/api.wasm"
+base_path = "/"
+
+[services.ignis_login]
+display_name = "hello-project"
+redirect_path = "/auth/common/callback"
+providers = ["google"]
+```
+
+第一版规则是：
+
+- 只支持 `confidential`
+- 只对声明了 `ignis_login` 的 `http` service 生效
+- 浏览器首入口统一走 `common_server` hosted `GET /login`
+- control-plane 会把 `IGNIS_LOGIN_CLIENT_ID` / `IGNIS_LOGIN_CLIENT_SECRET` 作为保留 secret 托管
+- 当前 igniscloud hosted login 公网地址固定为 `https://cloud.transairobot.com`，不要把 `COMMON_SERVER_BASE_URL` 设计成 env 依赖
+- 如果 service 使用 `ignis_login` 并配置了 `network.mode = "allow_list"`，必须允许 `cloud.transairobot.com`
+- 不支持 `public`
+- 不支持直接注入到 `frontend`
+- `providers` 当前只允许 `["google"]`
 
 ### 3.4 引入 `ignis-sdk`
 
@@ -167,6 +207,11 @@ prefix = "/api"
 [services.http]
 component = "target/wasm32-wasip2/release/api.wasm"
 base_path = "/"
+
+[services.ignis_login]
+display_name = "hello-project"
+redirect_path = "/auth/common/callback"
+providers = ["google"]
 
 [services.env]
 APP_NAME = "hello-project"

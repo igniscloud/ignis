@@ -31,4 +31,5 @@ cargo check --workspace
 cargo check -p ignis-cli
 cargo check --manifest-path examples/hello-fullstack/services/api/Cargo.toml
 cargo check --manifest-path examples/sqlite-example/services/api/Cargo.toml
+cargo check --manifest-path examples/ignis-login-example/services/api/Cargo.toml
 ```

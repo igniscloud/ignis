@@ -21,6 +21,16 @@ A minimal project-style SQLite example showing:
 - a persistent counter exposed through `GET /api` and `POST /api/increment`
 - a single `ignis.toml` project with `web=/` and `api=/api`
 
+## `ignis-login-example`
+
+A minimal `ignis_login` example showing:
+
+- one `http` service with service-level `[services.ignis_login]`
+- hosted `common_server /login` startup through `GET /auth/start`
+- a callback endpoint at `GET /auth/callback`
+- auto-managed `IGNIS_LOGIN_CLIENT_ID` and `IGNIS_LOGIN_CLIENT_SECRET`
+- a single `ignis.toml` project with one service mounted at `/`
+
 ## Validation
 
 ```bash
@@ -28,4 +38,5 @@ git clone https://github.com/igniscloud/ignis.git
 cd ignis
 cargo check --manifest-path examples/hello-fullstack/services/api/Cargo.toml
 cargo check --manifest-path examples/sqlite-example/services/api/Cargo.toml
+cargo check --manifest-path examples/ignis-login-example/services/api/Cargo.toml
 ```

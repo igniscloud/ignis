@@ -26,7 +26,8 @@ description: Use for people building Ignis services with ignis-cli, ignis-sdk, i
 2. 如果任务偏 CLI 或发布部署，继续读 `references/cli.md`。
 3. 如果任务偏 `ignis.toml` 字段、默认值或示例配置，读 `references/ignis-toml.md`。
 4. 如果任务偏 `ignis-sdk` API，用 `references/ignis-sdk/index.md` 作为入口，只继续打开当前需要的模块或 item 页面。
-5. 如果需要最小代码模板，读 `references/hello-service.rs`；如果要接 SQLite，读 `references/sqlite-service.rs`。
+5. 如果 service 配置了 `ignis_login`，或者任务需要接入登录（google 登录），读 `references/common-server-public-api.md`。
+6. 如果需要最小代码模板，读 `references/hello-service.rs`；如果要接 SQLite，读 `references/sqlite-service.rs`。
 
 ## 工作规则
 
@@ -38,6 +39,9 @@ description: Use for people building Ignis services with ignis-cli, ignis-sdk, i
 - 简单 handler 可以直接用 `wstd::http`，但多路由、中间件、统一响应、SQLite 通常优先用 `ignis-sdk`。
 - 需要查 SDK 细节时，优先读 `mddoc` 生成的单页，不要只靠摘要文档推断。
 - 当前公网路由模型是一个 project host 下按 path prefix 暴露 services，例如前端走 `/`，API 走 `/api`，不要再假设 `api.<project-host>` 这类子域。
+- 如果某个 `http` service 声明了 `ignis_login`，当前只允许 `providers = ["google"]`。
+- 浏览器登录首入口优先走 `common_server` hosted `GET /login`，不要直接假设业务 app 自己拉起 Google。
+- 如果 manifest 里出现 `ignis_login`，先读 `references/common-server-public-api.md`，再决定回调路径、登录入口和后端换码方式。
 - 如果本机装了 `cargo-component`，先确认当前 service 真的是按 component 模式组织；否则优先使用标准 `wasm32-wasip2` 构建路径。
 - `frontend` service 的本地静态预览能力不是主工作流，也不要假设它自动提供 SPA fallback。
 - `ignis-sdk` 依赖来源不要猜测；如果当前版本未发布到 crates.io，使用明确的 `path` 或固定 `git` 版本。
@@ -56,6 +60,7 @@ description: Use for people building Ignis services with ignis-cli, ignis-sdk, i
 - 接入流程：`references/integration.md`
 - CLI：`references/cli.md`
 - `ignis.toml`：`references/ignis-toml.md`
+- `common_server` Public API：`references/common-server-public-api.md`
 - `ignis-sdk` 生成文档入口：`references/ignis-sdk/index.md`
 - 仓库首页：`references/readme.md`
 - 最小 HTTP 示例：`references/hello-service.rs`

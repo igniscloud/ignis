@@ -19,6 +19,10 @@ const IGNIS_USER_FILES: &[BundledFile] = &[
         contents: include_str!("../../../docs/cli.md"),
     },
     BundledFile {
+        path: "references/common-server-public-api.md",
+        contents: include_str!("../../../skills/ignis-user/references/common-server-public-api.md"),
+    },
+    BundledFile {
         path: "references/doc_index.md",
         contents: include_str!("../../../skills/ignis-user/references/doc_index.md"),
     },

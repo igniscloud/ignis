@@ -1,0 +1,5 @@
+package example:ignislogin;
+
+world api {
+  export wasi:http/incoming-handler;
+}
