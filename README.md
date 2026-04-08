@@ -1,149 +1,72 @@
 # Ignis
 
-`ignis` is a small Rust workspace for building and hosting Wasm HTTP workers.
+Ignis is a Rust workspace for building, running, and publishing Wasm HTTP services.
 
-It currently extracts the reusable parts of a larger private platform:
+It gives you the pieces needed to work on an Ignis project:
 
-- `ignis-cli`: project scaffolding, local build/dev flows, and optional control-plane client commands
-- `ignis-host-abi`: the WIT contract shared by guest SDKs and host runtimes
-- `ignis-manifest`: project/service manifest parsing, validation, and component signing helpers
-- `ignis-sdk`: guest-side Rust helpers for HTTP routing and SQLite access
-- `ignis-runtime`: the reusable Wasmtime-based execution core for `wasi:http` workers
-- `ignis-platform-host`: the first platform host crate, currently providing SQLite host imports
+- `ignis` CLI for project creation, service scaffolding, local build/dev, and compatible igniscloud APIs
+- `ignis.toml` project manifest parsing and validation
+- `ignis-sdk` for HTTP routing, middleware, responses, and SQLite access inside services
+- `ignis-runtime` for executing `wasi:http` components
+- example projects for a fullstack app and a SQLite-backed service
 
-This repository does not currently include a public control plane or node manager. The CLI is part
-of this workspace and can talk to any compatible external control plane.
+This repository does not include a public control plane implementation. The CLI talks to a compatible external control plane.
 
-## Status
+## Install
 
-The workspace is usable for local development and as a base for a custom platform host, but it is
-still in active extraction. The current host split is intentionally conservative: runtime execution
-is separated from the first platform host crate, but the host integration model may still evolve.
-
-## Workspace Layout
-
-```text
-crates/
-  ignis-cli/
-  ignis-host-abi/
-  ignis-manifest/
-  ignis-platform-host/
-  ignis-runtime/
-  ignis-sdk/
-examples/
-  hello-fullstack/
-  sqlite-example/
-```
-
-## Getting Started
+Install without cloning the repo:
 
 ```bash
-git clone https://github.com/igniscloud/ignis.git
-cd ignis
 cargo install --git https://github.com/igniscloud/ignis ignis-cli
 ```
 
-## Quick Validation
-
-```bash
-cargo check --workspace
-cargo check -p ignis-cli
-cargo check --manifest-path examples/hello-fullstack/services/api/Cargo.toml
-cargo check --manifest-path examples/sqlite-example/services/api/Cargo.toml
-```
-
-## Documentation
-
-- [Integration Guide](./docs/integration.md)
-- [API Reference](./docs/api.md)
-- [CLI Guide](./docs/cli.md)
-- [ignis.toml Guide](./docs/ignis-toml.md)
-- [Ignis SDK Markdown Reference](./docs/ignis-sdk/index.md)
-
-## What Each Crate Does
-
-### `ignis-cli`
-
-CLI for:
-
-- `ignis project create` to initialize a project root
-- `ignis service new` to scaffold a service
-- `ignis service build` and `ignis service dev` for local iteration
-- `ignis whoami`, `ignis project ...`, and `ignis service ...` for the hosted igniscloud control plane
-
-### `ignis-sdk`
-
-Guest-side Rust helpers for:
-
-- HTTP routing and middleware
-- response helpers
-- SQLite calls through the host ABI
-- lightweight migrations
-
-### `ignis-runtime`
-
-Runtime execution core built on Wasmtime:
-
-- component loading
-- WASI / `wasi:http` linking
-- request dispatch
-- store limits
-- CPU time control through epoch interruption
-- outbound HTTP policy enforcement
-
-### `ignis-platform-host`
-
-Platform host implementations that are not part of the runtime core.
-
-Right now this crate contains the SQLite host implementation and the linker hook used by
-`ignis-runtime`.
-
-## Current Boundaries
-
-Public in this workspace:
-
-- CLI for local development and compatible control-plane APIs
-- guest SDK
-- Wasm runtime core
-- host ABI
-- manifest format and signing helpers
-- minimal examples
-
-Not included here:
-
-- project/service control plane implementation
-- control plane
-- multi-node orchestration
-
-## Next Steps
-
-- make host integration more generic beyond the first SQLite-backed host crate
-- add crate-level docs and publish metadata
-- add a small public host binary example for local serving
-
-## CLI Quickstart
+Install after cloning the repo:
 
 ```bash
 git clone https://github.com/igniscloud/ignis.git
 cd ignis
-ignis login
-ignis project create hello-project
-cd hello-project
-ignis service new --service api --kind http --path services/api
-ignis service build --service api
-ignis service dev --service api --addr 127.0.0.1:3000
+cargo install --path crates/ignis-cli --force
 ```
 
-If you need to publish to igniscloud, log in once from the browser and let the CLI keep the
-returned token locally:
+Check that the CLI is available:
 
 ```bash
-ignis login
-ignis whoami
-ignis service publish --service api
-ignis service deploy --service api <version>
+ignis --help
 ```
 
-`ignis login` starts a temporary localhost callback, opens the igniscloud sign-in page in your
-browser, and stores the returned CLI token in the local config. You can still override that saved
-session with `--token` or `IGNIS_TOKEN` when needed.
+## What You Can Do
+
+- Create a new project with `ignis project create`
+- Add `http` or `frontend` services with `ignis service new`
+- Build and run a service locally with `ignis service build` and `ignis service dev`
+- Log in and publish/deploy services to a compatible igniscloud environment
+- Generate the `ignis-user` skill package for Codex, OpenCode, or raw Markdown
+
+## Generate Skill
+
+Generate the bundled `ignis-user` skill:
+
+```bash
+ignis gen-skill --format codex
+```
+
+Supported formats:
+
+- `codex` -> `.codex/skills/ignis-user/SKILL.md`
+- `opencode` -> `.opencode/skills/ignis-user/SKILL.md`
+- `raw` -> `ignis-user/skill.md`
+
+All formats include the required `references/` documents.
+
+## Examples
+
+- [hello-fullstack](./examples/hello-fullstack)
+- [sqlite-example](./examples/sqlite-example)
+
+## Docs
+
+- [Integration Guide](./docs/integration.md)
+- [CLI Guide](./docs/cli.md)
+- [ignis.toml Guide](./docs/ignis-toml.md)
+- [API Reference](./docs/api.md)
+- [Ignis SDK Markdown Reference](./docs/ignis-sdk/index.md)
