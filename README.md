@@ -2,15 +2,6 @@
 
 Ignis is a Rust workspace for building and publishing Wasm HTTP services.
 
-It gives you the pieces needed to work on an Ignis project:
-
-- `ignis` CLI for project creation, service scaffolding, build, publish/deploy, and compatible igniscloud APIs
-- `ignis.toml` project manifest parsing and validation
-- `ignis-sdk` for HTTP routing, middleware, responses, and SQLite access inside services
-- `ignis-runtime` for executing `wasi:http` components
-- example projects for a fullstack app and a SQLite-backed service
-
-This repository does not include a public control plane implementation. The CLI talks to a compatible external control plane.
 
 ## Features
 
@@ -19,6 +10,27 @@ This repository does not include a public control plane implementation. The CLI 
 - Higher freedom than closed serverless stacks: own your routing, runtime boundaries, service layout, and deployment model
 - One developer can ship and iterate on systems ambitious enough to target 100M DAU-class applications
 - One stack for fullstack products: static frontends, HTTP services, SQLite-backed state, and publish/deploy workflows
+
+## Quick Start
+
+Install the CLI, create a new working directory, generate the Codex skill, set the prompt, and run Codex:
+
+```bash
+cargo install --git https://github.com/igniscloud/ignis ignis-cli
+mkdir video-gif-studio && cd video-gif-studio
+ignis gen-skill --format codex
+codex exec "Build a video-to-GIF website with Ignis. Users should sign in with a username and password, with no email required. The conversion feature must only be available after login. Use Vue SSG for the frontend. Read the skill first before implementing anything."
+```
+
+That will generate `.codex/skills/ignis-user/SKILL.md` in the current directory, so Codex can read the Ignis workflow before it starts building.
+
+If you use OpenCode instead of Codex:
+
+```bash
+ignis gen-skill --format opencode
+```
+
+Use the same prompt.
 
 ## Install
 
