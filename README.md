@@ -12,6 +12,14 @@ It gives you the pieces needed to work on an Ignis project:
 
 This repository does not include a public control plane implementation. The CLI talks to a compatible external control plane.
 
+## Features
+
+- Rust + Wasm execution path built for extreme performance and tight control over latency budgets
+- Designed for microsecond-scale startup overhead and high-density service execution
+- Higher freedom than closed serverless stacks: own your routing, runtime boundaries, service layout, and deployment model
+- One developer can ship and iterate on systems ambitious enough to target 100M DAU-class applications
+- One stack for fullstack products: static frontends, HTTP services, SQLite-backed state, and publish/deploy workflows
+
 ## Install
 
 Install without cloning the repo:
