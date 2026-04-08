@@ -55,7 +55,7 @@
 rustup target add wasm32-wasip2
 ```
 
-如果你希望优先用 `cargo component build`，还可以自行安装 `cargo-component`。`ignis build` 在检测不到它时会自动回退到标准 `cargo build --target wasm32-wasip2`。
+`ignis` 当前统一使用标准 `cargo build --target wasm32-wasip2` 构建 `http` service，不再依赖 `cargo-component`。
 
 安装 CLI：
 

@@ -330,8 +330,7 @@ ignis service build --service api
 
 行为：
 
-- 优先尝试 `cargo component build`
-- 如果没有 `cargo-component`，回退到 `cargo build --target wasm32-wasip2`
+- 统一执行 `cargo build --target wasm32-wasip2`
 
 `frontend` service：
 

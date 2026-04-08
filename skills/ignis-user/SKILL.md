@@ -42,7 +42,7 @@ description: Use for people building Ignis services with ignis-cli, ignis-sdk, i
 - 如果某个 `http` service 声明了 `ignis_login`，当前只允许 `providers = ["google"]`。
 - 浏览器登录首入口优先走 `common_server` hosted `GET /login`，不要直接假设业务 app 自己拉起 Google。
 - 如果 manifest 里出现 `ignis_login`，先读 `references/common-server-public-api.md`，再决定回调路径、登录入口和后端换码方式。
-- 如果本机装了 `cargo-component`，先确认当前 service 真的是按 component 模式组织；否则优先使用标准 `wasm32-wasip2` 构建路径。
+- 当前 `http` service 统一使用标准 `wasm32-wasip2` 构建路径，不要再按 `cargo-component` 工作流推断 CLI 行为。
 - `frontend` service 的本地静态预览能力不是主工作流，也不要假设它自动提供 SPA fallback。
 - `ignis-sdk` 依赖来源不要猜测；如果当前版本未发布到 crates.io，使用明确的 `path` 或固定 `git` 版本。
 

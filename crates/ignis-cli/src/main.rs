@@ -1230,25 +1230,12 @@ fn ensure_service_exists(loaded: &LoadedProjectManifest, service_name: &str) -> 
 }
 
 async fn build_http_service(loaded: &LoadedManifest, release: bool) -> Result<()> {
-    if cargo_component_available().await? {
-        run_command(
-            &loaded.project_dir,
-            "cargo",
-            [
-                "component",
-                "build",
-                if release { "--release" } else { "--debug" },
-            ],
-        )
-        .await?;
-    } else {
-        ensure_rust_target("wasm32-wasip2").await?;
-        let mut args = vec!["build", "--target", "wasm32-wasip2"];
-        if release {
-            args.push("--release");
-        }
-        run_command(&loaded.project_dir, "cargo", args).await?;
+    ensure_rust_target("wasm32-wasip2").await?;
+    let mut args = vec!["build", "--target", "wasm32-wasip2"];
+    if release {
+        args.push("--release");
     }
+    run_command(&loaded.project_dir, "cargo", args).await?;
 
     let output = loaded.component_path();
     if !output.exists() {
@@ -1314,18 +1301,6 @@ where
     Ok(())
 }
 
-async fn cargo_component_available() -> Result<bool> {
-    let status = Command::new("cargo")
-        .args(["component", "--version"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .await
-        .context("checking cargo-component availability")?;
-    Ok(status.success())
-}
-
 async fn ensure_rust_target(target: &str) -> Result<()> {
     let output = Command::new("rustup")
         .args(["target", "list", "--installed"])
@@ -1371,13 +1346,7 @@ async fn build_metadata(
     metadata.insert(
         "build_mode".to_owned(),
         match service.kind {
-            ServiceKind::Http => {
-                if cargo_component_available().await? {
-                    "cargo-component".to_owned()
-                } else {
-                    "cargo-build-wasm32-wasip2".to_owned()
-                }
-            }
+            ServiceKind::Http => "cargo-build-wasm32-wasip2".to_owned(),
             ServiceKind::Frontend => "frontend-build-command".to_owned(),
         },
     );
