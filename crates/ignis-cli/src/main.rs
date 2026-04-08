@@ -6,7 +6,6 @@ mod template;
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::{Read, Write};
-use std::net::SocketAddr;
 use std::path::{Component, Path, PathBuf};
 use std::process::Stdio;
 use std::sync::mpsc;
@@ -20,7 +19,6 @@ use ignis_manifest::{
     LoadedProjectManifest, PROJECT_MANIFEST_FILE, ProjectConfig, ProjectManifest, ResourceConfig,
     ServiceKind, ServiceManifest, SqliteConfig, sign_component_with_seed,
 };
-use ignis_runtime::DevServerConfig;
 use serde_json::Value;
 use tokio::process::Command;
 use tracing::info;
@@ -131,14 +129,6 @@ enum ServiceCommands {
         service: String,
         #[arg(long, default_value_t = true)]
         release: bool,
-    },
-    Dev {
-        #[arg(long)]
-        service: String,
-        #[arg(long, default_value = "127.0.0.1:3000")]
-        addr: SocketAddr,
-        #[arg(long)]
-        skip_build: bool,
     },
     Publish {
         #[arg(long)]
@@ -304,11 +294,6 @@ async fn service_command(command: ServiceCommands, token: Option<String>) -> Res
         ServiceCommands::Build { service, release } => {
             build_service(&context, &service, release).await
         }
-        ServiceCommands::Dev {
-            service,
-            addr,
-            skip_build,
-        } => dev_service(&context, &service, addr, skip_build).await,
         ServiceCommands::Publish { service } => publish_service(&context, &service, token).await,
         ServiceCommands::Deploy { service, version } => {
             deploy_service(&context, &service, &version, token).await
@@ -754,54 +739,6 @@ async fn build_service(context: &ProjectContext, service: &str, release: bool) -
     }
 }
 
-async fn dev_service(
-    context: &ProjectContext,
-    service: &str,
-    addr: SocketAddr,
-    skip_build: bool,
-) -> Result<()> {
-    let service = required_service(&context.loaded, service)?;
-    match service.kind {
-        ServiceKind::Http => {
-            let loaded = context.loaded.http_service_manifest(&service.name)?;
-            if !skip_build {
-                build_http_service(&loaded, true).await?;
-            }
-            ignis_runtime::serve(loaded, DevServerConfig { listen_addr: addr }).await
-        }
-        ServiceKind::Frontend => {
-            if !skip_build {
-                build_frontend_service(&context.loaded, service).await?;
-            }
-            let frontend = service.frontend.as_ref().ok_or_else(|| {
-                anyhow!(
-                    "frontend service `{}` is missing frontend config",
-                    service.name
-                )
-            })?;
-            let output_dir = context
-                .loaded
-                .service_dir(service)
-                .join(&frontend.output_dir);
-            if !output_dir.exists() {
-                bail!(
-                    "frontend output directory {} does not exist; run `ignis service build --service {}` first",
-                    output_dir.display(),
-                    service.name
-                );
-            }
-            let addr_ip = addr.ip().to_string();
-            let addr_port = addr.port().to_string();
-            run_foreground_command(
-                &output_dir,
-                "python3",
-                ["-m", "http.server", "--bind", &addr_ip, &addr_port],
-            )
-            .await
-        }
-    }
-}
-
 async fn publish_service(
     context: &ProjectContext,
     service: &str,
@@ -1167,14 +1104,6 @@ where
         bail!("command `{program} {}` failed", rendered_args.join(" "));
     }
     Ok(())
-}
-
-async fn run_foreground_command<I, S>(cwd: &Path, program: &str, args: I) -> Result<()>
-where
-    I: IntoIterator<Item = S>,
-    S: AsRef<str>,
-{
-    run_command(cwd, program, args).await
 }
 
 async fn cargo_component_available() -> Result<bool> {

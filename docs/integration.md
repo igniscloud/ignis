@@ -5,7 +5,7 @@
 - 作为 service 开发者，使用 `ignis-cli`、`ignis-sdk`、`ignis.toml` 开发一个 project 下的 `http` 或 `frontend` service
 - 作为平台开发者，把 `ignis-manifest`、`ignis-runtime`、`ignis-platform-host` 组装进你自己的宿主或控制面
 
-`ignis` 当前不包含公开的控制面实现或节点编排系统，但已经包含本地开发所需的 CLI、manifest、运行时和第一个平台宿主模块。
+`ignis` 当前不包含公开的控制面实现或节点编排系统，但已经包含 project/service 构建、发布和部署所需的 CLI、manifest、运行时和第一个平台宿主模块。
 
 ## 1. 适用场景
 
@@ -86,7 +86,7 @@ ignis service new --service api --kind http --path services/api
 
 `service new --kind http` 生成最小 `wasi:http/proxy` service 模板。`service new --kind frontend` 会生成静态前端模板。
 
-### 3.3 本地构建与调试
+### 3.3 构建、发布与部署
 
 构建 `http` service：
 
@@ -94,23 +94,14 @@ ignis service new --service api --kind http --path services/api
 ignis service build --service api
 ```
 
-本地运行：
+构建完成后，直接走发布和部署：
 
 ```bash
-ignis service dev --service api --addr 127.0.0.1:3000
+ignis service publish --service api
+ignis service deploy --service api <version>
 ```
 
-访问：
-
-```bash
-curl http://127.0.0.1:3000/
-```
-
-如果刚刚已经构建过，也可以跳过构建步骤：
-
-```bash
-ignis service dev --service api --skip-build --addr 127.0.0.1:3000
-```
+当前 CLI 以发布部署为主，不再把本地 `dev` 作为标准工作流。测试环境部署能力后续会在 deploy 链路上扩展。
 
 ### 3.4 引入 `ignis-sdk`
 
@@ -122,6 +113,8 @@ ignis-sdk = "<ignis-version>"
 http-body-util = "0.1.3"
 wstd = "0.6"
 ```
+
+如果当前版本还没有发布到 crates.io，使用明确的 `path` 依赖或固定 `git` 版本，不要猜测包是否已经发布。
 
 一个最小 Router 写法：
 

@@ -1,6 +1,6 @@
 # CLI 工具文档
 
-本文说明如何使用 `ignis-cli` 创建 project、创建 service、本地构建/调试，以及发布到兼容的 igniscloud control-plane。
+本文说明如何使用 `ignis-cli` 创建 project、创建 service、构建产物，并发布到兼容的 igniscloud control-plane。
 
 `ignis-cli` 当前的二进制名是：
 
@@ -16,7 +16,7 @@ ignis
 - 生成 `ignis-user` 的 `codex`、`opencode`、`raw` 三种 skill 包
 - 创建云端 project，并初始化本地 project 根目录
 - 在 project 下创建 `http` 或 `frontend` service
-- 本地构建和本地调试单个 service
+- 构建单个 service，并发布/部署到云端
 - 发布、部署、回滚、查询 service 状态
 - 管理 service 级 env、secret 和 SQLite 备份
 
@@ -88,13 +88,8 @@ ignis project create hello-project
 cd hello-project
 ignis service new --service api --kind http --path services/api
 ignis service build --service api
-ignis service dev --service api --addr 127.0.0.1:3000
-```
-
-访问：
-
-```bash
-curl http://127.0.0.1:3000/
+ignis service publish --service api
+ignis service deploy --service api <version>
 ```
 
 如果你要创建前端 service：
@@ -102,7 +97,8 @@ curl http://127.0.0.1:3000/
 ```bash
 ignis service new --service web --kind frontend --path services/web
 ignis service build --service web
-ignis service dev --service web --addr 127.0.0.1:3000
+ignis service publish --service web
+ignis service deploy --service web <version>
 ```
 
 ## 4.1 `ignis gen-skill`
@@ -198,7 +194,6 @@ ignis project token create hello-project
 - `ignis service status --service <name>`
 - `ignis service delete --service <name>`
 - `ignis service build --service <name>`
-- `ignis service dev --service <name>`
 - `ignis service publish --service <name>`
 - `ignis service deploy --service <name> <version>`
 - `ignis service deployments --service <name>`
@@ -301,29 +296,7 @@ ignis service build --service web
 
 - 在 service 目录执行 `frontend.build_command`
 
-### 6.4 `ignis service dev`
-
-本地预览单个 service。
-
-`http` service：
-
-```bash
-ignis service dev --service api --addr 127.0.0.1:3000
-```
-
-`frontend` service：
-
-```bash
-ignis service dev --service web --addr 127.0.0.1:3000
-```
-
-如果刚刚构建过，也可以跳过构建：
-
-```bash
-ignis service dev --service api --skip-build
-```
-
-### 6.5 `ignis service publish`
+### 6.4 `ignis service publish`
 
 发布当前 service 的新版本。
 
@@ -345,7 +318,7 @@ ignis service publish --service api
 - `build_metadata`
 - `site_bundle`
 
-### 6.6 `ignis service deploy`
+### 6.5 `ignis service deploy`
 
 把某个版本部署成当前运行版本：
 
@@ -353,7 +326,7 @@ ignis service publish --service api
 ignis service deploy --service api <version>
 ```
 
-### 6.7 `ignis service status`
+### 6.6 `ignis service status`
 
 查看 service 当前状态：
 
@@ -361,7 +334,7 @@ ignis service deploy --service api <version>
 ignis service status --service api
 ```
 
-### 6.8 查询命令
+### 6.7 查询命令
 
 部署历史：
 

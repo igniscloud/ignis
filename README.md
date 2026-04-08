@@ -1,10 +1,10 @@
 # Ignis
 
-Ignis is a Rust workspace for building, running, and publishing Wasm HTTP services.
+Ignis is a Rust workspace for building and publishing Wasm HTTP services.
 
 It gives you the pieces needed to work on an Ignis project:
 
-- `ignis` CLI for project creation, service scaffolding, local build/dev, and compatible igniscloud APIs
+- `ignis` CLI for project creation, service scaffolding, build, publish/deploy, and compatible igniscloud APIs
 - `ignis.toml` project manifest parsing and validation
 - `ignis-sdk` for HTTP routing, middleware, responses, and SQLite access inside services
 - `ignis-runtime` for executing `wasi:http` components
@@ -38,7 +38,7 @@ ignis --help
 
 - Create a new project with `ignis project create`
 - Add `http` or `frontend` services with `ignis service new`
-- Build and run a service locally with `ignis service build` and `ignis service dev`
+- Build a service artifact and publish/deploy it with `ignis service build`, `ignis service publish`, and `ignis service deploy`
 - Log in and publish/deploy services to a compatible igniscloud environment
 - Generate the `ignis-user` skill package for Codex, OpenCode, or raw Markdown
 

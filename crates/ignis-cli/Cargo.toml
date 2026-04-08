@@ -1,6 +1,6 @@
 [package]
 name = "ignis-cli"
-description = "CLI for Ignis workers: scaffolding, local development, and compatible control-plane APIs"
+description = "CLI for Ignis services: scaffolding, build, publish/deploy, and compatible control-plane APIs"
 edition.workspace = true
 license.workspace = true
 readme = "../../README.md"
@@ -27,4 +27,3 @@ toml.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 ignis-manifest = { path = "../ignis-manifest" }
-ignis-runtime = { path = "../ignis-runtime" }

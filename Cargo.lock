@@ -1171,7 +1171,6 @@ dependencies = [
  "dirs",
  "hex",
  "ignis-manifest",
- "ignis-runtime",
  "reqwest",
  "serde",
  "serde_json",
