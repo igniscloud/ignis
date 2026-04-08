@@ -106,6 +106,10 @@ enum ServiceCommands {
         #[arg(long)]
         service: String,
     },
+    Delete {
+        #[arg(long)]
+        service: String,
+    },
     Build {
         #[arg(long)]
         service: String,
@@ -275,6 +279,7 @@ async fn service_command(command: ServiceCommands, token: Option<String>) -> Res
         } => new_service(&context, &service, kind, &path, token).await,
         ServiceCommands::List => list_services(&context),
         ServiceCommands::Status { service } => service_status(&context, &service, token).await,
+        ServiceCommands::Delete { service } => delete_service(&context, &service, token).await,
         ServiceCommands::Build { service, release } => {
             build_service(&context, &service, release).await
         }
@@ -427,7 +432,7 @@ fn build_new_service_manifest(
                 name: service_name.to_owned(),
                 kind: ServiceKind::Http,
                 path: path.to_path_buf(),
-                bindings: Vec::new(),
+                prefix: format!("/{service_name}"),
                 http: Some(HttpServiceConfig {
                     component: PathBuf::from(format!(
                         "target/wasm32-wasip2/release/{package_name}.wasm"
@@ -449,7 +454,7 @@ fn build_new_service_manifest(
             name: service_name.to_owned(),
             kind: ServiceKind::Frontend,
             path: path.to_path_buf(),
-            bindings: Vec::new(),
+            prefix: "/".to_owned(),
             http: None,
             frontend: Some(FrontendServiceConfig {
                 build_command: vec![
@@ -574,7 +579,7 @@ fn list_services(context: &ProjectContext) -> Result<()> {
                     ServiceKind::Frontend => "frontend",
                 },
                 "path": service.path,
-                "bindings": service.bindings,
+                "prefix": service.prefix,
             })
         })
         .collect::<Vec<_>>();
@@ -596,6 +601,24 @@ async fn service_status(
     let response = client
         .service_status(context.loaded.project_name(), service)
         .await?;
+    print_json(&response)
+}
+
+async fn delete_service(
+    context: &ProjectContext,
+    service: &str,
+    token: Option<String>,
+) -> Result<()> {
+    ensure_service_exists(&context.loaded, service)?;
+    let client = api::ApiClient::new(config::CliConfig::resolve(token)?);
+    let response = client
+        .delete_service(context.loaded.project_name(), service)
+        .await?;
+
+    let mut manifest = context.loaded.manifest.clone();
+    manifest.services.retain(|item| item.name != service);
+    save_project_manifest(&context.loaded.manifest_path, &manifest)?;
+
     print_json(&response)
 }
 

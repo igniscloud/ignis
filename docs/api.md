@@ -29,7 +29,6 @@
 - `ProjectConfig`
 - `ServiceManifest`
 - `ServiceKind`
-- `ServiceBinding`
 - `HttpServiceConfig`
 - `FrontendServiceConfig`
 - `WorkerManifest`
@@ -412,6 +411,17 @@ CLI 会读取响应中的：
 ```json
 { "version": "<version>" }
 ```
+
+#### `DELETE /v1/projects/{project}/services/{service}`
+
+用途：
+
+- `ignis service delete --service <service>`
+
+说明：
+
+- 如果 service 仍有 active deployment，请求会失败
+- 删除会级联清理该 service 的 env / secrets / versions / deployments / logs
 
 #### `DELETE /v1/projects/{project}/services/{service}/versions/{version}`
 

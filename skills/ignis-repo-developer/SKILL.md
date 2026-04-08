@@ -21,7 +21,7 @@ description: Use for contributing to the ignis repository itself, including igni
 3. 对用户可见的行为变更，同步更新 `docs/`。
 4. 如果改了 `crates/ignis-sdk/src/lib.rs` 的公开 API 或 doc comment，必须重新生成 `docs/ignis-sdk/`：
    `mddoc --manifest-path Cargo.toml --package ignis-sdk --lib --output-dir docs/ignis-sdk`
-5. 如果改了 `ignis-manifest` 的 `worker.toml` 模型或校验规则，必须同步更新 `docs/worker-toml.md`。
+5. 如果改了 `ignis-manifest` 的 `ignis.toml` 模型或校验规则，必须同步更新 `docs/ignis-toml.md`。
 6. skill 里的文档引用优先用软链接指向 `docs/` 或根 `README.md`，不要维护重复 Markdown。
 7. 优先做定向验证，不要默认全仓重跑。
 
@@ -46,6 +46,6 @@ description: Use for contributing to the ignis repository itself, including igni
 - API 文档：`references/api.md`
 - CLI 文档：`references/cli.md`
 - 接入文档：`references/integration.md`
-- `worker.toml` 文档：`references/worker-toml.md`
+- `ignis.toml` 文档：`references/ignis-toml.md`
 - `ignis-sdk` 生成文档入口：`references/ignis-sdk/index.md`
 - 文档索引：`references/doc_index.md`

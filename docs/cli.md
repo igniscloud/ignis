@@ -156,6 +156,7 @@ ignis project token create hello-project
 - `ignis service new --service <name> --kind <http|frontend> --path <relative-path>`
 - `ignis service list`
 - `ignis service status --service <name>`
+- `ignis service delete --service <name>`
 - `ignis service build --service <name>`
 - `ignis service dev --service <name>`
 - `ignis service publish --service <name>`
@@ -190,6 +191,19 @@ ignis service new --service api --kind http --path services/api
 ```bash
 ignis service new --service web --kind frontend --path services/web
 ```
+
+### 6.2 `ignis service delete`
+
+删除云端 service，并从本地 `ignis.toml` 里移除该 service 条目：
+
+```bash
+ignis service delete --service api
+```
+
+说明：
+
+- 如果该 service 还有 active deployment，control-plane 会拒绝删除
+- CLI 不会自动删除本地 service 目录
 
 执行时会：
 

@@ -1,0 +1,34 @@
+[project]
+name = "test"
+
+[[services]]
+name = "api"
+kind = "http"
+path = "services/api"
+prefix = "/api"
+
+[services.http]
+component = "target/wasm32-wasip2/release/api.wasm"
+base_path = "/"
+
+[services.sqlite]
+enabled = true
+
+[services.resources]
+cpu_time_limit_ms = 5000
+memory_limit_bytes = 134217728
+
+[[services]]
+name = "web"
+kind = "frontend"
+path = "services/web"
+prefix = "/"
+
+[services.frontend]
+build_command = [
+    "bash",
+    "-lc",
+    "rm -rf dist && mkdir -p dist && cp -R src/. dist/",
+]
+output_dir = "dist"
+spa_fallback = true

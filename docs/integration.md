@@ -169,6 +169,7 @@ name = "hello-project"
 name = "api"
 kind = "http"
 path = "services/api"
+prefix = "/api"
 
 [services.http]
 component = "target/wasm32-wasip2/release/api.wasm"
@@ -198,6 +199,7 @@ mode = "deny_all"
 - project 名称
 - service 列表
 - service 相对路径
+- service 在 project 域名下的路径前缀
 - Wasm 构件路径
 - 路由基础路径
 - 普通环境变量

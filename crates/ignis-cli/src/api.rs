@@ -103,6 +103,15 @@ impl ApiClient {
         .await
     }
 
+    pub async fn delete_service(&self, project: &str, service: &str) -> Result<Value> {
+        self.request(
+            self.http
+                .delete(self.url(&format!("/v1/projects/{project}/services/{service}")))
+                .bearer_auth(&self.config.token),
+        )
+        .await
+    }
+
     pub async fn service_status(&self, project: &str, service: &str) -> Result<Value> {
         self.request(
             self.http

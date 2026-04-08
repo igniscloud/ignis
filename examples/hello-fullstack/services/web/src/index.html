@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hello Fullstack</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f4efe8;
+        --panel: rgba(255, 252, 247, 0.92);
+        --ink: #1e1b18;
+        --muted: #645b52;
+        --accent: #d2693c;
+        --accent-strong: #b84f28;
+        --border: rgba(30, 27, 24, 0.08);
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(210, 105, 60, 0.22), transparent 28%),
+          radial-gradient(circle at bottom right, rgba(42, 95, 140, 0.18), transparent 24%),
+          linear-gradient(145deg, #f9f5ef 0%, #efe6dc 100%);
+      }
+
+      .shell {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 32px 20px;
+      }
+
+      .card {
+        width: min(760px, 100%);
+        padding: 32px;
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        background: var(--panel);
+        box-shadow: 0 28px 90px rgba(37, 29, 21, 0.12);
+        backdrop-filter: blur(20px);
+      }
+
+      .eyebrow {
+        margin: 0 0 12px;
+        font-size: 0.82rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--accent-strong);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(2.4rem, 7vw, 4.8rem);
+        line-height: 0.95;
+      }
+
+      .lead {
+        margin: 16px 0 0;
+        max-width: 44rem;
+        color: var(--muted);
+        font-size: 1.05rem;
+        line-height: 1.7;
+      }
+
+      .grid {
+        display: grid;
+        gap: 16px;
+        margin-top: 28px;
+      }
+
+      .panel {
+        padding: 18px 20px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.75);
+        border: 1px solid rgba(30, 27, 24, 0.06);
+      }
+
+      .label {
+        margin: 0 0 8px;
+        font-size: 0.86rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .value {
+        margin: 0;
+        font-size: 1.15rem;
+        line-height: 1.6;
+        word-break: break-word;
+      }
+
+      .value.message {
+        font-size: clamp(1.6rem, 4vw, 2.4rem);
+        font-weight: 700;
+        color: var(--accent-strong);
+      }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: var(--accent);
+        box-shadow: 0 0 0 8px rgba(210, 105, 60, 0.14);
+      }
+
+      .controls {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-top: 22px;
+      }
+
+      input {
+        flex: 1 1 320px;
+        min-width: 0;
+        padding: 14px 16px;
+        border-radius: 14px;
+        border: 1px solid rgba(30, 27, 24, 0.12);
+        background: rgba(255, 255, 255, 0.88);
+        color: var(--ink);
+        font: inherit;
+      }
+
+      button {
+        border: 0;
+        border-radius: 14px;
+        padding: 14px 18px;
+        background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+        color: white;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        cursor: progress;
+        opacity: 0.7;
+      }
+
+      @media (max-width: 640px) {
+        .card {
+          padding: 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app" class="shell">
+      <main class="card">
+        <p class="eyebrow">Ignis Example</p>
+        <h1>Hello World</h1>
+        <p class="lead">
+          这是一个最小的 Vue 前端 service。页面会请求 Ignis HTTP service，
+          然后把后端 handler 返回的内容直接显示出来。
+        </p>
+
+        <section class="grid">
+          <article class="panel">
+            <p class="label">Backend Message</p>
+            <p v-if="loading" class="value status">
+              <span class="dot"></span>
+              正在请求后端...
+            </p>
+            <p v-else-if="error" class="value">{{ error }}</p>
+            <p v-else class="value message">{{ message }}</p>
+          </article>
+
+          <article class="panel">
+            <p class="label">API Base</p>
+            <p class="value">{{ apiBase }}</p>
+          </article>
+        </section>
+
+        <section class="controls">
+          <input v-model="apiBase" type="text" spellcheck="false" />
+          <button type="button" @click="loadMessage" :disabled="loading">
+            {{ loading ? "Loading..." : "Reload" }}
+          </button>
+        </section>
+        <p class="lead">
+          线上部署时，前端默认会请求同域的 <code>/api</code> 前缀，不再依赖
+          <code>api.&lt;project-host&gt;</code> 这种子域名。
+        </p>
+      </main>
+    </div>
+
+    <script>
+      const defaultApiBase = () => {
+        if (
+          window.location.hostname === "127.0.0.1" ||
+          window.location.hostname === "localhost"
+        ) {
+          return "http://127.0.0.1:3001";
+        }
+        return `${window.location.origin}/api`;
+      };
+
+      Vue.createApp({
+        data() {
+          return {
+            apiBase: defaultApiBase(),
+            loading: false,
+            message: "",
+            error: "",
+          };
+        },
+        methods: {
+          async loadMessage() {
+            this.loading = true;
+            this.error = "";
+            try {
+              const response = await fetch(`${this.apiBase}/hello`);
+              if (!response.ok) {
+                throw new Error(`backend returned ${response.status}`);
+              }
+              this.message = await response.text();
+            } catch (error) {
+              this.message = "";
+              this.error = error instanceof Error ? error.message : String(error);
+            } finally {
+              this.loading = false;
+            }
+          },
+        },
+        mounted() {
+          this.loadMessage();
+        },
+      }).mount("#app");
+    </script>
+  </body>
+</html>

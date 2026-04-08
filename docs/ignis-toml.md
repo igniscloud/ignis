@@ -5,9 +5,9 @@
 - project 名称
 - project 下有哪些 service
 - 每个 service 的本地相对路径
+- 每个 service 的路径前缀路由
 - `http` service 的 Wasm 运行配置
 - `frontend` service 的静态构建配置
-- service 的域名绑定
 
 当前字段由 `ignis-manifest` 解析和校验，真实配置模型以 [ignis-manifest](../crates/ignis-manifest/src/lib.rs) 为准。
 
@@ -21,6 +21,7 @@ name = "hello-project"
 name = "api"
 kind = "http"
 path = "services/api"
+prefix = "/api"
 
 [services.http]
 component = "target/wasm32-wasip2/release/api.wasm"
@@ -39,6 +40,7 @@ name = "pocket-tasks"
 name = "api"
 kind = "http"
 path = "services/api"
+prefix = "/api"
 
 [services.http]
 component = "target/wasm32-wasip2/release/api.wasm"
@@ -62,24 +64,17 @@ memory_limit_bytes = 134217728
 mode = "allow_list"
 allow = ["api.openai.com:443", ".example.com"]
 
-[[services.bindings]]
-host = "api"
-
 [[services]]
 name = "web"
 kind = "frontend"
 path = "services/web"
+prefix = "/"
 
 [services.frontend]
 build_command = ["npm", "run", "build"]
 output_dir = "dist"
 spa_fallback = true
 
-[[services.bindings]]
-host = "@"
-
-[[services.bindings]]
-host = "www"
 ```
 
 ## 3. 字段说明
@@ -129,6 +124,16 @@ host = "www"
   - 不能是绝对路径
   - 不能包含 `..`
 
+#### `services[].prefix`
+
+- 作用：service 在 project 域名下的路径前缀。
+- 必填：是。
+- 类型：`string`
+- 约束：
+  - 必须以 `/` 开头
+  - project 内唯一
+  - `/` 表示占用 project 根路径
+
 ### 3.3 `http` service 配置
 
 `http` service 允许这些字段：
@@ -139,7 +144,6 @@ host = "www"
 - `[services.sqlite]`
 - `[services.resources]`
 - `[services.network]`
-- `[[services.bindings]]`
 
 #### `services.http.component`
 
@@ -213,7 +217,6 @@ host = "www"
 `frontend` service 允许这些字段：
 
 - `[services.frontend]`
-- `[[services.bindings]]`
 
 #### `services.frontend.build_command`
 
@@ -245,35 +248,26 @@ host = "www"
 - 不能定义 `[services.resources]`
 - 不能定义 `[services.network]`
 
-### 3.5 `[[services.bindings]]`
+### 3.5 `services[].prefix`
 
 ```toml
-[[services.bindings]]
-host = "@"
+prefix = "/"
 ```
 
 ```toml
-[[services.bindings]]
-host = "api"
+prefix = "/api"
 ```
 
-```toml
-[[services.bindings]]
-host = "example.com"
-```
-
-- `@`
-  - 绑定 `<project_id>.<base_domain>`
-- `api`
-  - 绑定 `api.<project_id>.<base_domain>`
-- `example.com`
-  - 绑定完整自定义域名
+- `/`
+  - 绑定 `https://<project_id>.<base_domain>/`
+- `/api`
+  - 绑定 `https://<project_id>.<base_domain>/api`
 
 规则：
 
-- 同一个 project 内不能重复声明相同的 binding
-- `@` 不会自动绑定给任何 service
-- project 没有默认 service
+- 同一个 project 内不能重复声明相同的 prefix
+- ingress 按最长 prefix 匹配 service
+- 匹配到非根 prefix 后，会先去掉 prefix 再把请求转给 service
 
 ## 4. 默认值汇总
 
@@ -299,6 +293,9 @@ allow = []
 - `services[].path`
   - 必须是相对路径
   - 不能包含 `..`
+- `services[].prefix`
+  - 必须以 `/` 开头
+  - project 内唯一
 - `http.base_path`
   - 必须以 `/` 开头
 - `http.component`
@@ -321,9 +318,10 @@ allow = []
 
 - 让一个 project 承载一组相关 service，不要再把单个 service 当作完整 project
 - `http` service 和 `frontend` service 分目录管理，例如 `services/api`、`services/web`
+- 一个 project 域名下只保留一套 TLS 和 host，service 之间靠 path prefix 区分
 - 需要访问外网时优先用 `allow_list`
 - 敏感值不要写进 `[services.env]`，优先通过 `[services.secrets]` 绑定
-- 没有任何默认 service，域名访问完全由 `bindings` 决定
+- 根前缀 `/` 适合前端 service，API 等后台 service 建议显式挂到 `/api`、`/admin` 之类前缀
 
 ## 7. 相关文档
 

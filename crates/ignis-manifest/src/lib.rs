@@ -55,8 +55,8 @@ pub struct ServiceManifest {
     pub name: String,
     pub kind: ServiceKind,
     pub path: PathBuf,
-    #[serde(default)]
-    pub bindings: Vec<ServiceBinding>,
+    #[serde(default = "default_service_prefix")]
+    pub prefix: String,
     #[serde(default)]
     pub http: Option<HttpServiceConfig>,
     #[serde(default)]
@@ -78,11 +78,6 @@ pub struct ServiceManifest {
 pub enum ServiceKind {
     Http,
     Frontend,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ServiceBinding {
-    pub host: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -186,6 +181,10 @@ fn default_base_path() -> String {
     "/".to_owned()
 }
 
+fn default_service_prefix() -> String {
+    "/".to_owned()
+}
+
 impl WorkerManifest {
     pub fn validate(&self) -> Result<()> {
         validate_resource_name(&self.name, "manifest field `name`")?;
@@ -214,21 +213,20 @@ impl ProjectManifest {
     pub fn validate(&self) -> Result<()> {
         validate_resource_name(&self.project.name, "project field `name`")?;
         let mut service_names = std::collections::BTreeSet::new();
-        let mut binding_hosts = std::collections::BTreeMap::<String, String>::new();
+        let mut service_prefixes = std::collections::BTreeMap::<String, String>::new();
         for service in &self.services {
             service.validate()?;
             if !service_names.insert(service.name.clone()) {
                 bail!("project contains duplicate service `{}`", service.name);
             }
-            for binding in &service.bindings {
-                let normalized = normalize_binding_host(&binding.host)?;
-                if let Some(existing) = binding_hosts.insert(normalized, service.name.clone()) {
-                    bail!(
-                        "binding `{}` is declared by both service `{existing}` and `{}`",
-                        binding.host,
-                        service.name
-                    );
-                }
+            let normalized = normalize_service_prefix(&service.prefix)?;
+            if let Some(existing) =
+                service_prefixes.insert(normalized.clone(), service.name.clone())
+            {
+                bail!(
+                    "route prefix `{normalized}` is declared by both service `{existing}` and `{}`",
+                    service.name
+                );
             }
         }
         Ok(())
@@ -356,9 +354,7 @@ impl ServiceManifest {
     pub fn validate(&self) -> Result<()> {
         validate_resource_name(&self.name, "service field `name`")?;
         validate_relative_service_path(&self.path)?;
-        for binding in &self.bindings {
-            validate_binding_host(&binding.host)?;
-        }
+        validate_service_prefix(&self.prefix)?;
         match self.kind {
             ServiceKind::Http => {
                 let http = self.http.as_ref().ok_or_else(|| {
@@ -643,51 +639,28 @@ fn validate_relative_service_path(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn validate_binding_host(host: &str) -> Result<()> {
-    normalize_binding_host(host).map(|_| ())
+fn validate_service_prefix(prefix: &str) -> Result<()> {
+    normalize_service_prefix(prefix).map(|_| ())
 }
 
-fn normalize_binding_host(host: &str) -> Result<String> {
-    let trimmed = host.trim().trim_end_matches('.').to_ascii_lowercase();
+fn normalize_service_prefix(prefix: &str) -> Result<String> {
+    let trimmed = prefix.trim();
     if trimmed.is_empty() {
-        bail!("service binding `host` cannot be empty");
+        bail!("service field `prefix` cannot be empty");
     }
-    if trimmed == "@" {
-        return Ok(trimmed);
+    if !trimmed.starts_with('/') {
+        bail!("service field `prefix` must start with '/'");
     }
-    if trimmed.contains('.') {
-        validate_domain_like_host(&trimmed)?;
-        return Ok(trimmed);
+    if trimmed.contains("//") {
+        bail!("service field `prefix` cannot contain empty path segments");
     }
-    validate_host_label(&trimmed)?;
-    Ok(trimmed)
-}
-
-fn validate_domain_like_host(host: &str) -> Result<()> {
-    let labels: Vec<&str> = host.split('.').collect();
-    if labels.len() < 2 {
-        bail!("binding host `{host}` must contain a valid domain name");
+    if trimmed.contains('?') || trimmed.contains('#') {
+        bail!("service field `prefix` cannot contain query or fragment syntax");
     }
-    for label in labels {
-        validate_host_label(label)?;
+    if trimmed != "/" && trimmed.ends_with('/') {
+        return Ok(trimmed.trim_end_matches('/').to_owned());
     }
-    Ok(())
-}
-
-fn validate_host_label(label: &str) -> Result<()> {
-    if label.is_empty() {
-        bail!("binding host contains an empty label");
-    }
-    if label.starts_with('-') || label.ends_with('-') {
-        bail!("binding host label `{label}` cannot start or end with '-'");
-    }
-    if !label
-        .chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || ch == '-')
-    {
-        bail!("binding host label `{label}` must contain only letters, numbers or '-'");
-    }
-    Ok(())
+    Ok(trimmed.to_owned())
 }
 
 fn authority_matches_rule(authority: &str, host: &str, rule: &str) -> bool {
@@ -840,9 +813,7 @@ mod tests {
                     name: "api".to_owned(),
                     kind: ServiceKind::Http,
                     path: PathBuf::from("services/api"),
-                    bindings: vec![ServiceBinding {
-                        host: "api".to_owned(),
-                    }],
+                    prefix: "/api".to_owned(),
                     http: Some(HttpServiceConfig {
                         component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
                         base_path: "/".to_owned(),
@@ -861,9 +832,7 @@ mod tests {
                     name: "web".to_owned(),
                     kind: ServiceKind::Frontend,
                     path: PathBuf::from("services/web"),
-                    bindings: vec![ServiceBinding {
-                        host: "@".to_owned(),
-                    }],
+                    prefix: "/".to_owned(),
                     http: None,
                     frontend: Some(FrontendServiceConfig {
                         build_command: vec!["pnpm".to_owned(), "build".to_owned()],
@@ -886,7 +855,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_duplicate_service_bindings() {
+    fn rejects_duplicate_service_prefixes() {
         let manifest = ProjectManifest {
             project: ProjectConfig {
                 name: "my-project".to_owned(),
@@ -896,9 +865,7 @@ mod tests {
                     name: "api".to_owned(),
                     kind: ServiceKind::Http,
                     path: PathBuf::from("services/api"),
-                    bindings: vec![ServiceBinding {
-                        host: "api".to_owned(),
-                    }],
+                    prefix: "/api".to_owned(),
                     http: Some(HttpServiceConfig {
                         component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
                         base_path: "/".to_owned(),
@@ -914,9 +881,7 @@ mod tests {
                     name: "web".to_owned(),
                     kind: ServiceKind::Frontend,
                     path: PathBuf::from("services/web"),
-                    bindings: vec![ServiceBinding {
-                        host: "api".to_owned(),
-                    }],
+                    prefix: "/api/".to_owned(),
                     http: None,
                     frontend: Some(FrontendServiceConfig {
                         build_command: vec!["pnpm".to_owned(), "build".to_owned()],
@@ -941,7 +906,7 @@ mod tests {
             name: "web".to_owned(),
             kind: ServiceKind::Frontend,
             path: PathBuf::from("services/web"),
-            bindings: vec![],
+            prefix: "/".to_owned(),
             http: None,
             frontend: Some(FrontendServiceConfig {
                 build_command: vec!["pnpm".to_owned(), "build".to_owned()],
@@ -949,6 +914,28 @@ mod tests {
                 spa_fallback: false,
             }),
             env: BTreeMap::from([(String::from("APP_ENV"), String::from("production"))]),
+            secrets: BTreeMap::new(),
+            sqlite: SqliteConfig::default(),
+            resources: ResourceConfig::default(),
+            network: NetworkConfig::default(),
+        };
+
+        assert!(service.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_invalid_service_prefix() {
+        let service = ServiceManifest {
+            name: "api".to_owned(),
+            kind: ServiceKind::Http,
+            path: PathBuf::from("services/api"),
+            prefix: "api".to_owned(),
+            http: Some(HttpServiceConfig {
+                component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
+                base_path: "/".to_owned(),
+            }),
+            frontend: None,
+            env: BTreeMap::new(),
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),
             resources: ResourceConfig::default(),

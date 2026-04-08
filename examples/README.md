@@ -19,6 +19,15 @@ A minimal SQLite-backed worker showing:
 - typed SQLite reads
 - state mutation through simple HTTP handlers
 
+## `hello-fullstack`
+
+A minimal project-style example showing:
+
+- one `http` service with a `GET /hello` handler that returns `hello world`
+- one Vue frontend service that fetches the backend response and renders it
+- a single `ignis.toml` project with both `api` and `web` services
+- same-origin routing with `web=/` and `api=/api` on one project host
+
 ## `secret-worker`
 
 A minimal secret-backed worker showing:
@@ -45,4 +54,5 @@ cargo check --manifest-path examples/hello-worker/Cargo.toml
 cargo check --manifest-path examples/sqlite-worker/Cargo.toml
 cargo check --manifest-path examples/secret-worker/Cargo.toml
 cargo check --manifest-path examples/pocket-tasks-worker/Cargo.toml
+cargo check --manifest-path examples/hello-fullstack/services/api/Cargo.toml
 ```

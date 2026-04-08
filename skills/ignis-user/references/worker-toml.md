@@ -1,1 +1,1 @@
-../../../docs/worker-toml.md
+../../../docs/ignis-toml.md

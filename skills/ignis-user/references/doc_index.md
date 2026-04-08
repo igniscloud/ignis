@@ -4,8 +4,8 @@
   从 worker 开发者和平台开发者两个角度说明如何接入 Ignis
 - `api.md`
   说明 `ignis-manifest`、`ignis-sdk`、`ignis-runtime`、`ignis-platform-host` 和兼容控制面 HTTP API
-- `worker-toml.md`
-  独立说明 `worker.toml` 的配置项、默认值、校验规则和示例配置
+- `ignis-toml.md`
+  独立说明 `ignis.toml` 的配置项、默认值、校验规则和示例配置
 - `ignis-sdk/`
   `mddoc` 生成的 `ignis-sdk` Markdown API 文档树
 - `cli.md`
