@@ -1,5 +1,5 @@
-use ignis_sdk::sqlite::{self, SqliteValue};
 use ignis_sdk::http::{Context, Router, middleware, text_response};
+use ignis_sdk::sqlite::{self, SqliteValue};
 use wstd::http::{Body, Request, Response, Result, StatusCode};
 
 #[wstd::http_server]
@@ -24,6 +24,7 @@ fn build_router() -> Router {
             }
         })
         .expect("register GET /");
+
     router
         .post("/increment", |_context: Context| async move {
             if let Err(error) = ensure_schema() {
@@ -35,6 +36,7 @@ fn build_router() -> Router {
             }
         })
         .expect("register POST /increment");
+
     router
 }
 

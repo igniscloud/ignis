@@ -1,8 +1,0 @@
-name = "secret-worker"
-component = "target/wasm32-wasip2/release/secret_worker.wasm"
-base_path = "/"
-
-[env]
-
-[secrets]
-GREETING = "secret://greeting"

@@ -1,5 +1,6 @@
 mod api;
 mod config;
+mod skill_bundle;
 mod template;
 
 use std::collections::BTreeMap;
@@ -46,6 +47,14 @@ enum Commands {
     Login,
     Logout,
     Whoami,
+    GenSkill {
+        #[arg(long, value_enum, default_value_t = SkillFormat::Codex)]
+        format: SkillFormat,
+        #[arg(long)]
+        path: Option<PathBuf>,
+        #[arg(long)]
+        force: bool,
+    },
     Project {
         #[command(subcommand)]
         command: ProjectCommands,
@@ -89,6 +98,13 @@ enum ProjectTokenCommands {
         project: String,
         token_id: String,
     },
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
+enum SkillFormat {
+    Codex,
+    Opencode,
+    Raw,
 }
 
 #[derive(Debug, Subcommand)]
@@ -252,6 +268,11 @@ async fn main() -> Result<()> {
         Commands::Login => login(token).await,
         Commands::Logout => logout(),
         Commands::Whoami => whoami(token).await,
+        Commands::GenSkill {
+            format,
+            path,
+            force,
+        } => gen_skill(format, path.as_deref(), force),
         Commands::Project { command } => project_command(command, token).await,
         Commands::Service { command } => service_command(command, token).await,
     }
@@ -418,6 +439,106 @@ async fn new_service(
     create_local_service_files(&context.loaded.project_dir, &service)?;
 
     print_json(&response)
+}
+
+fn gen_skill(format: SkillFormat, path: Option<&Path>, force: bool) -> Result<()> {
+    let root = gen_skill_output_root(format, path);
+    if root.exists() {
+        if !force {
+            bail!(
+                "{} already exists; pass --force to overwrite",
+                root.display()
+            );
+        }
+        if root.is_dir() {
+            fs::remove_dir_all(&root).with_context(|| format!("removing {}", root.display()))?;
+        } else {
+            fs::remove_file(&root).with_context(|| format!("removing {}", root.display()))?;
+        }
+    }
+
+    match format {
+        SkillFormat::Codex | SkillFormat::Opencode => {
+            write_bundled_skill_dir(&root, "SKILL.md", skill_bundle::ignis_user_files())?;
+            let entrypoint = root.join("SKILL.md");
+            print_json(&serde_json::json!({
+                "data": {
+                    "format": skill_format_name(format),
+                    "name": "ignis-user",
+                    "path": root,
+                    "entrypoint": entrypoint,
+                }
+            }))
+        }
+        SkillFormat::Raw => {
+            fs::create_dir_all(root.join("references"))
+                .with_context(|| format!("creating {}", root.join("references").display()))?;
+            for file in skill_bundle::ignis_user_files() {
+                if file.path == "SKILL.md" {
+                    continue;
+                }
+                let destination = root.join(file.path);
+                if let Some(parent) = destination.parent() {
+                    fs::create_dir_all(parent)
+                        .with_context(|| format!("creating {}", parent.display()))?;
+                }
+                fs::write(&destination, file.contents)
+                    .with_context(|| format!("writing {}", destination.display()))?;
+            }
+            let entrypoint = root.join("skill.md");
+            fs::write(&entrypoint, skill_bundle::raw_ignis_user_markdown())
+                .with_context(|| format!("writing {}", entrypoint.display()))?;
+            print_json(&serde_json::json!({
+                "data": {
+                    "format": skill_format_name(format),
+                    "name": "ignis-user",
+                    "path": root,
+                    "entrypoint": entrypoint,
+                }
+            }))
+        }
+    }
+}
+
+fn gen_skill_output_root(format: SkillFormat, path: Option<&Path>) -> PathBuf {
+    if let Some(path) = path {
+        return path.to_path_buf();
+    }
+    match format {
+        SkillFormat::Codex => PathBuf::from(".codex").join("skills").join("ignis-user"),
+        SkillFormat::Opencode => PathBuf::from(".opencode").join("skills").join("ignis-user"),
+        SkillFormat::Raw => PathBuf::from("ignis-user"),
+    }
+}
+
+fn skill_format_name(format: SkillFormat) -> &'static str {
+    match format {
+        SkillFormat::Codex => "codex",
+        SkillFormat::Opencode => "opencode",
+        SkillFormat::Raw => "raw",
+    }
+}
+
+fn write_bundled_skill_dir(
+    root: &Path,
+    entrypoint_name: &str,
+    files: &[skill_bundle::BundledFile],
+) -> Result<()> {
+    fs::create_dir_all(root).with_context(|| format!("creating {}", root.display()))?;
+    for file in files {
+        let relative_path = if file.path == "SKILL.md" {
+            PathBuf::from(entrypoint_name)
+        } else {
+            PathBuf::from(file.path)
+        };
+        let destination = root.join(relative_path);
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent).with_context(|| format!("creating {}", parent.display()))?;
+        }
+        fs::write(&destination, file.contents)
+            .with_context(|| format!("writing {}", destination.display()))?;
+    }
+    Ok(())
 }
 
 fn build_new_service_manifest(
@@ -1507,5 +1628,27 @@ fn load_component_signature(artifact_path: &Path) -> Result<Option<ComponentSign
         _ => bail!(
             "set both IGNIS_SIGNING_KEY_ID and IGNIS_SIGNING_KEY_BASE64 to publish a signed component"
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{SkillFormat, gen_skill_output_root};
+    use std::path::Path;
+
+    #[test]
+    fn gen_skill_output_root_uses_format_defaults() {
+        assert_eq!(
+            gen_skill_output_root(SkillFormat::Codex, None),
+            Path::new(".codex").join("skills").join("ignis-user")
+        );
+        assert_eq!(
+            gen_skill_output_root(SkillFormat::Opencode, None),
+            Path::new(".opencode").join("skills").join("ignis-user")
+        );
+        assert_eq!(
+            gen_skill_output_root(SkillFormat::Raw, None),
+            Path::new("ignis-user")
+        );
     }
 }

@@ -31,10 +31,8 @@ crates/
   ignis-runtime/
   ignis-sdk/
 examples/
-  hello-worker/
-  pocket-tasks-worker/
-  secret-worker/
-  sqlite-worker/
+  hello-fullstack/
+  sqlite-example/
 ```
 
 ## Getting Started
@@ -50,10 +48,8 @@ cargo install --git https://github.com/igniscloud/ignis ignis-cli
 ```bash
 cargo check --workspace
 cargo check -p ignis-cli
-cargo check --manifest-path examples/hello-worker/Cargo.toml
-cargo check --manifest-path examples/sqlite-worker/Cargo.toml
-cargo check --manifest-path examples/secret-worker/Cargo.toml
-cargo check --manifest-path examples/pocket-tasks-worker/Cargo.toml
+cargo check --manifest-path examples/hello-fullstack/services/api/Cargo.toml
+cargo check --manifest-path examples/sqlite-example/services/api/Cargo.toml
 ```
 
 ## Documentation

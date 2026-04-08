@@ -16,7 +16,7 @@ fn build_router() -> Router {
 
     router
         .get("/", |_context: Context| async move {
-            text_response(StatusCode::OK, "hello from router worker\n")
+            text_response(StatusCode::OK, "hello from router service\n")
         })
         .expect("register GET /");
     router

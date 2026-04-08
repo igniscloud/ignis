@@ -5,11 +5,11 @@ description: Use for people building Ignis services with ignis-cli, ignis-sdk, i
 
 # Ignis User
 
-在当前任务是“使用 Ignis 开发或发布 worker”时使用这个 skill，而不是修改 Ignis 仓库本身时使用。
+在当前任务是“使用 Ignis 开发或发布 service”时使用这个 skill，而不是修改 Ignis 仓库本身时使用。
 
 适用范围：
 
-- 使用 `ignis-cli` 初始化、构建、本地调试和发布 worker
+- 使用 `ignis-cli` 初始化、构建、本地调试和发布 service
 - 使用 `ignis-sdk` 的 HTTP Router、中间件、响应 helper、SQLite 和 migration
 - 编写或排查 `ignis.toml`
 - 使用 igniscloud 兼容流程进行 `login / publish / deploy`
@@ -26,11 +26,11 @@ description: Use for people building Ignis services with ignis-cli, ignis-sdk, i
 2. 如果任务偏 CLI 或发布部署，继续读 `references/cli.md`。
 3. 如果任务偏 `ignis.toml` 字段、默认值或示例配置，读 `references/ignis-toml.md`。
 4. 如果任务偏 `ignis-sdk` API，用 `references/ignis-sdk/index.md` 作为入口，只继续打开当前需要的模块或 item 页面。
-5. 如果需要最小代码模板，读 `references/hello-worker.rs`；如果要接 SQLite，读 `references/sqlite-worker.rs`。
+5. 如果需要最小代码模板，读 `references/hello-service.rs`；如果要接 SQLite，读 `references/sqlite-service.rs`。
 
 ## 工作规则
 
-- 把 `worker.toml` 文档和 `ignis-sdk` 生成文档当作配置/API 的事实来源。
+- 把 `ignis.toml` 文档和 `ignis-sdk` 生成文档当作配置/API 的事实来源。
 - 不要猜测 `ignis.toml` 字段、CLI 命令名、`ignis-sdk` 方法或 secret 约定。
 - 本地开发优先使用：`ignis project create -> ignis service new -> ignis service build -> ignis service dev`。
 - 云端交互优先使用：`ignis login -> ignis service publish -> ignis service deploy`。
@@ -40,11 +40,11 @@ description: Use for people building Ignis services with ignis-cli, ignis-sdk, i
 
 ## 典型场景
 
-- 创建一个新的 Rust `wasi:http` worker
-- 给现有 worker 接入 `ignis_sdk::http::Router`
+- 创建一个新的 Rust `wasi:http` service
+- 给现有 service 接入 `ignis_sdk::http::Router`
 - 配置 `ignis.toml` 里的 prefix、env、secret、SQLite、network、igniscloud
-- 给 worker 增加 SQLite migration
-- 本地调试 `ignis dev`
+- 给 service 增加 SQLite migration
+- 本地调试 `ignis service dev`
 - 发布、部署、回滚和排查 igniscloud 兼容链路
 
 ## 参考资料
@@ -54,6 +54,6 @@ description: Use for people building Ignis services with ignis-cli, ignis-sdk, i
 - `ignis.toml`：`references/ignis-toml.md`
 - `ignis-sdk` 生成文档入口：`references/ignis-sdk/index.md`
 - 仓库首页：`references/readme.md`
-- 最小 HTTP 示例：`references/hello-worker.rs`
-- SQLite 示例：`references/sqlite-worker.rs`
+- 最小 HTTP 示例：`references/hello-service.rs`
+- SQLite 示例：`references/sqlite-service.rs`
 - 文档索引：`references/doc_index.md`

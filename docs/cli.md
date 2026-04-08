@@ -13,6 +13,7 @@ ignis
 当前主要覆盖：
 
 - 浏览器登录和本地 token 持久化
+- 生成 `ignis-user` 的 `codex`、`opencode`、`raw` 三种 skill 包
 - 创建云端 project，并初始化本地 project 根目录
 - 在 project 下创建 `http` 或 `frontend` service
 - 本地构建和本地调试单个 service
@@ -103,6 +104,45 @@ ignis service new --service web --kind frontend --path services/web
 ignis service build --service web
 ignis service dev --service web --addr 127.0.0.1:3000
 ```
+
+## 4.1 `ignis gen-skill`
+
+一级命令：
+
+- `ignis gen-skill --format <codex|opencode|raw>`
+
+当前支持三种格式：
+
+- `codex`
+  默认输出到 `.codex/skills/ignis-user/SKILL.md`
+- `opencode`
+  默认输出到 `.opencode/skills/ignis-user/SKILL.md`
+- `raw`
+  默认输出到 `ignis-user/skill.md`
+
+示例：
+
+```bash
+ignis gen-skill --format codex
+```
+
+```bash
+ignis gen-skill --format opencode
+```
+
+```bash
+ignis gen-skill --format raw
+```
+
+三种格式都会带上 `ignis-user` 依赖的 `references/` 文档，生成后可以脱离当前仓库单独使用。
+
+也可以显式指定输出目录：
+
+```bash
+ignis gen-skill --format codex --path ./internal-skills/ignis-user
+```
+
+如果目标已经存在，需要显式传 `--force` 覆盖。
 
 ## 5. `ignis project`
 

@@ -1,5 +1,0 @@
-package app:hello-worker;
-
-world hello-worker {
-    include wasi:http/proxy@0.2.2;
-}

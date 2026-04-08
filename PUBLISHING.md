@@ -29,8 +29,6 @@ This workspace is intentionally being prepared for public release in phases.
 ```bash
 cargo check --workspace
 cargo check -p ignis-cli
-cargo check --manifest-path examples/hello-worker/Cargo.toml
-cargo check --manifest-path examples/sqlite-worker/Cargo.toml
-cargo check --manifest-path examples/secret-worker/Cargo.toml
-cargo check --manifest-path examples/pocket-tasks-worker/Cargo.toml
+cargo check --manifest-path examples/hello-fullstack/services/api/Cargo.toml
+cargo check --manifest-path examples/sqlite-example/services/api/Cargo.toml
 ```

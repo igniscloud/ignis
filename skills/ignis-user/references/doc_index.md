@@ -1,7 +1,7 @@
 # 文档索引
 
 - `integration.md`
-  从 worker 开发者和平台开发者两个角度说明如何接入 Ignis
+  从 service 开发者和平台开发者两个角度说明如何接入 Ignis
 - `api.md`
   说明 `ignis-manifest`、`ignis-sdk`、`ignis-runtime`、`ignis-platform-host` 和兼容控制面 HTTP API
 - `ignis-toml.md`
@@ -12,7 +12,7 @@
   说明 `ignis` CLI 的安装、配置、命令、签名、SQLite 和常见问题
 - `readme.md`
   Ignis 仓库首页概览
-- `hello-worker.rs`
-  最小 HTTP Router 示例
-- `sqlite-worker.rs`
-  最小 SQLite worker 示例
+- `hello-service.rs`
+  最小 HTTP service Router 示例
+- `sqlite-service.rs`
+  最小 SQLite service 示例
