@@ -288,6 +288,12 @@ CLI 会读取响应中的：
 
 ### 2.4 Project 接口
 
+说明：
+
+- `POST /v1/projects` 的成功响应应返回远端唯一标识 `data.project_id`，或兼容地返回 `data.id`
+- 当前 CLI 会把这个值保存到 `.ignis/project.json`
+- 下文 service 相关接口中的路径参数虽然仍记作 `{project}`，但当前 CLI 实际上传递的是 `.ignis/project.json` 中保存的 `project_id`，而不是 `ignis.toml` 里的 `project.name`
+
 #### `POST /v1/projects`
 
 用途：
@@ -346,6 +352,10 @@ CLI 会读取响应中的：
 
 - `ignis service new --service <name> --kind <kind> --path <path>`
 
+说明：
+
+- 当前 CLI 在 `{project}` 位置传的是远端 `project_id`
+
 请求 JSON：
 
 - 内容为 `ignis.toml` 中单个 `ServiceManifest`
@@ -356,11 +366,19 @@ CLI 会读取响应中的：
 
 - `ignis service status --service <service>`
 
+说明：
+
+- 当前 CLI 在 `{project}` 位置传的是远端 `project_id`
+
 #### `POST /v1/projects/{project}/services/{service}/versions`
 
 用途：
 
 - `ignis service publish --service <service>`
+
+说明：
+
+- 当前 CLI 在 `{project}` 位置传的是远端 `project_id`
 
 请求格式：
 
@@ -394,6 +412,10 @@ CLI 会读取响应中的：
 
 - `ignis service deploy --service <service> <version>`
 
+说明：
+
+- 当前 CLI 在 `{project}` 位置传的是远端 `project_id`
+
 请求 JSON：
 
 ```json
@@ -405,6 +427,10 @@ CLI 会读取响应中的：
 用途：
 
 - `ignis service rollback --service <service> <version>`
+
+说明：
+
+- 当前 CLI 在 `{project}` 位置传的是远端 `project_id`
 
 请求 JSON：
 
@@ -420,6 +446,10 @@ CLI 会读取响应中的：
 
 说明：
 
+- 当前 CLI 在 `{project}` 位置传的是远端 `project_id`
+
+说明：
+
 - 如果 service 仍有 active deployment，请求会失败
 - 删除会级联清理该 service 的 env / secrets / versions / deployments / logs
 
@@ -429,6 +459,10 @@ CLI 会读取响应中的：
 
 - `ignis service delete-version --service <service> <version>`
 
+说明：
+
+- 当前 CLI 在 `{project}` 位置传的是远端 `project_id`
+
 ### 2.7 查询接口
 
 #### `GET /v1/projects/{project}/services/{service}/deployments/history?limit={n}`
@@ -437,17 +471,29 @@ CLI 会读取响应中的：
 
 - `ignis service deployments --service <service> --limit <n>`
 
+说明：
+
+- 当前 CLI 在 `{project}` 位置传的是远端 `project_id`
+
 #### `GET /v1/projects/{project}/services/{service}/events?limit={n}`
 
 用途：
 
 - `ignis service events --service <service> --limit <n>`
 
+说明：
+
+- 当前 CLI 在 `{project}` 位置传的是远端 `project_id`
+
 #### `GET /v1/projects/{project}/services/{service}/logs?limit={n}`
 
 用途：
 
 - `ignis service logs --service <service> --limit <n>`
+
+说明：
+
+- 当前 CLI 在 `{project}` 位置传的是远端 `project_id`
 
 ### 2.8 环境变量接口
 

@@ -78,6 +78,12 @@ ignis project sync --mode plan
 ignis project sync --mode apply
 ```
 
+这里的远端绑定规则是：
+
+- `ignis project create hello-project` 会创建远端 project，并把返回的 `project_id` 写入 `hello-project/.ignis/project.json`
+- 后续所有 `ignis service ...` 的远端调用都会使用这个 `project_id`
+- 如果你拿到的是一个只包含 `ignis.toml` 的现有仓库副本，没有 `.ignis/project.json`，先在 project 根目录执行 `ignis project sync --mode apply`
+
 默认会生成：
 
 - `ignis.toml`
@@ -105,6 +111,8 @@ ignis service check --service api
 ignis service publish --service api
 ignis service deploy --service api <version>
 ```
+
+如果 `.ignis/project.json` 已经存在，但 `publish` 或 `deploy` 仍然返回 `404 project <id> not found`，应优先排查 control-plane 是否正确接受了 CLI 传入的 `project_id`；这通常不是因为本地少做了一步初始化。
 
 当前 CLI 以发布部署为主，不再把本地 `dev` 作为标准工作流。测试环境部署能力后续会在 deploy 链路上扩展。
 

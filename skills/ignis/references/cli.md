@@ -86,6 +86,15 @@ ignis.toml
 
 这个文件保存 control-plane 返回的 `project_id`，用于把本地 project 绑定到远端唯一标识。`project.name` 继续保留为展示名，不再作为远端写操作的默认覆盖键。
 
+需要特别区分两类标识：
+
+- `project.name`
+  写在 `ignis.toml` 的展示名，也是 `ignis project create <name>` 里的输入
+- `project_id`
+  由 control-plane 在创建远端 project 时分配，并写入 `.ignis/project.json`
+
+当前 CLI 的 `ignis service new`、`publish`、`deploy`、`env`、`secrets`、`sqlite` 等远端 service 操作，都会使用 `.ignis/project.json` 里的 `project_id`，不再按 `project.name` 猜测或回退命中远端项目。
+
 完整配置说明见 [ignis.toml 文档](./ignis-toml.md)。
 
 ## 4. 最小工作流
@@ -104,6 +113,12 @@ ignis service build --service api
 ignis service publish --service api
 ignis service deploy --service api <version>
 ```
+
+说明：
+
+- `ignis project create` 会立即创建远端 project，并把返回的 `project_id` 写入 `.ignis/project.json`
+- 如果这个 project 是从 Git 拉下来的、目录里只有 `ignis.toml` 而没有 `.ignis/project.json`，先执行 `ignis project sync --mode apply` 完成远端绑定，再执行任何远端 service 操作
+- `ignis service deploy --service api <version>` 里的 `<version>` 来自前一步 `ignis service publish --service api` 的返回结果
 
 如果你要创建前端 service：
 
@@ -191,6 +206,8 @@ ignis project create hello-project
 - 创建本地目录 `./hello-project`
 - 写入空的 `ignis.toml`
 - 写入 `.ignis/project.json`，保存当前 project 的 `project_id`
+
+如果 control-plane 的创建响应没有返回 `project_id`，CLI 仍会创建本地目录和 `ignis.toml`，但后续 `ignis service ...` 远端操作会因为缺少绑定而失败。这种情况下先修复 control-plane 响应，再重新执行 `ignis project sync --mode apply`。
 
 也可以指定目录：
 
@@ -510,7 +527,16 @@ ignis service sqlite restore --service api ./backup.sqlite3
 - 确认 CLI 已经写入 `.ignis/project.json`
 - 不要再依赖 `project.name` 命中远端 project；同名 project 现在不会被自动复用
 
-### 9.4 `service publish` 找不到产物
+### 9.4 `service publish` / `deploy` 返回 `404 project <id> not found`
+
+如果 `.ignis/project.json` 已经存在，且里面也有 `project_id`，但 `ignis service publish` 或 `ignis service deploy` 仍然返回这类错误：
+
+- 先执行 `ignis project sync --mode plan` 或 `ignis project sync --mode apply`，确认 CLI 读取到的绑定没有丢
+- 确认 `ignis project create` 或 `sync --mode apply` 的响应里确实返回了 `data.project_id` 或 `data.id`
+- 这通常说明 control-plane 的 service 相关接口没有正确识别 CLI 传入的 `project_id`，而不是本地少执行了某个初始化步骤
+- 不要尝试通过手工把 `project.name` 填回 `.ignis/project.json` 规避问题；那会重新引入同名 project 误命中的风险
+
+### 9.5 `service publish` 找不到产物
 
 先确认：
 
