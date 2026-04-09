@@ -298,8 +298,8 @@ ignis service check --service api
 
 当前会检查：
 
-- `ignis_login` service 是否错误地把 `COMMON_SERVER_BASE_URL` 作为 env 依赖
-- `ignis_login` service 是否允许访问 `cloud.transairobot.com`
+- `ignis_login` service 是否错误地把 `IGNISCLOUD_ID_BASE_URL` 作为 env 依赖
+- `ignis_login` service 是否允许访问 `id.igniscloud.transairobot.com`
 
 如果发现 `error` 级问题，命令会返回非零退出码。
 

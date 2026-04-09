@@ -112,7 +112,7 @@ ignis service deploy --service api <version>
 ignis service check --service api
 ```
 
-如果某个 `http` service 需要接入 `common_server` OAuth，推荐在该 service 下声明：
+如果某个 `http` service 需要接入 `IgnisCloud ID` OAuth，推荐在该 service 下声明：
 
 ```toml
 [[services]]
@@ -135,10 +135,10 @@ providers = ["google"]
 
 - 只支持 `confidential`
 - 只对声明了 `ignis_login` 的 `http` service 生效
-- 浏览器首入口统一走 `common_server` hosted `GET /login`
+- 浏览器首入口统一走 `IgnisCloud ID` hosted `GET /login`
 - control-plane 会把 `IGNIS_LOGIN_CLIENT_ID` / `IGNIS_LOGIN_CLIENT_SECRET` 作为保留 secret 托管
-- 当前 igniscloud hosted login 公网地址固定为 `https://cloud.transairobot.com`，不要把 `COMMON_SERVER_BASE_URL` 设计成 env 依赖
-- 如果 service 使用 `ignis_login` 并配置了 `network.mode = "allow_list"`，必须允许 `cloud.transairobot.com`
+- 当前 igniscloud hosted login 公网地址固定为 `https://id.igniscloud.transairobot.com`，不要把 `IGNISCLOUD_ID_BASE_URL` 设计成 env 依赖
+- 如果 service 使用 `ignis_login` 并配置了 `network.mode = "allow_list"`，必须允许 `id.igniscloud.transairobot.com`
 - 不支持 `public`
 - 不支持直接注入到 `frontend`
 - `providers` 当前只允许 `["google"]`

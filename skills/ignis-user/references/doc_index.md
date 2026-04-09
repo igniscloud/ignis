@@ -6,7 +6,7 @@
   说明 `ignis-manifest`、`ignis-sdk`、`ignis-runtime`、`ignis-platform-host` 和兼容控制面 HTTP API
 - `ignis-toml.md`
   独立说明 `ignis.toml` 的配置项、默认值、校验规则和示例配置
-- `common-server-public-api.md`
+- `igniscloud-id-public-api.md`
   当某个 service 配置了 `ignis_login`，或需要接入 hosted login / Google 登录时先读这份文档
 - `ignis-sdk/`
   `mddoc` 生成的 `ignis-sdk` Markdown API 文档树

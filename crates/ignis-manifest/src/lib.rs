@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 pub const MANIFEST_FILE: &str = "worker.toml";
 pub const PROJECT_MANIFEST_FILE: &str = "ignis.toml";
 pub const MAX_RESOURCE_NAME_LEN: usize = 48;
-pub const IGNIS_LOGIN_COMMON_SERVER_BASE_URL_ENV: &str = "COMMON_SERVER_BASE_URL";
+pub const IGNIS_LOGIN_IGNISCLOUD_ID_BASE_URL_ENV: &str = "IGNISCLOUD_ID_BASE_URL";
 pub const IGNIS_LOGIN_CLIENT_ID_SECRET: &str = "IGNIS_LOGIN_CLIENT_ID";
 pub const IGNIS_LOGIN_CLIENT_SECRET_SECRET: &str = "IGNIS_LOGIN_CLIENT_SECRET";
 pub const IGNIS_LOGIN_RESERVED_SECRETS: [&str; 2] = [
@@ -650,12 +650,12 @@ fn validate_ignis_login(config: &IgnisLoginConfig, service: &ServiceManifest) ->
     )?;
     if service
         .env
-        .contains_key(IGNIS_LOGIN_COMMON_SERVER_BASE_URL_ENV)
+        .contains_key(IGNIS_LOGIN_IGNISCLOUD_ID_BASE_URL_ENV)
     {
         bail!(
-            "service `{}` cannot define env `{}`; ignis_login does not provide COMMON_SERVER_BASE_URL as an env var",
+            "service `{}` cannot define env `{}`; ignis_login does not provide IGNISCLOUD_ID_BASE_URL as an env var",
             service.name,
-            IGNIS_LOGIN_COMMON_SERVER_BASE_URL_ENV
+            IGNIS_LOGIN_IGNISCLOUD_ID_BASE_URL_ENV
         );
     }
     for reserved in IGNIS_LOGIN_RESERVED_SECRETS {
@@ -1163,8 +1163,8 @@ mod tests {
                 providers: vec![IgnisLoginProvider::Google],
             }),
             env: BTreeMap::from([(
-                String::from(IGNIS_LOGIN_COMMON_SERVER_BASE_URL_ENV),
-                String::from("https://cloud.transairobot.com"),
+                String::from(IGNIS_LOGIN_IGNISCLOUD_ID_BASE_URL_ENV),
+                String::from("https://id.igniscloud.transairobot.com"),
             )]),
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),

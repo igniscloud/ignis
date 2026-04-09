@@ -322,7 +322,7 @@
           state.nicknameValue.textContent = payload.nickname;
           state.subjectValue.textContent = payload.subject || "Unavailable";
           state.sessionState.textContent = "Authenticated";
-          state.profileLead.textContent = "Nickname resolved from common_server userinfo.";
+          state.profileLead.textContent = "Nickname resolved from IgnisCloud ID userinfo.";
           renderAvatar(payload.avatar_url);
           return;
         }

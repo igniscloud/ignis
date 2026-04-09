@@ -12,7 +12,7 @@ use wstd::time::Duration;
 
 const CLIENT_ID_ENV: &str = "IGNIS_LOGIN_CLIENT_ID";
 const CLIENT_SECRET_ENV: &str = "IGNIS_LOGIN_CLIENT_SECRET";
-const COMMON_SERVER_BASE_URL: &str = "https://cloud.transairobot.com";
+const IGNISCLOUD_ID_BASE_URL: &str = "https://id.igniscloud.transairobot.com";
 const DEPLOYED_API_PREFIX: &str = "/api";
 const CALLBACK_PATH: &str = "/auth/callback";
 const SESSION_COOKIE: &str = "ignis_login_session";
@@ -105,7 +105,7 @@ async fn handle_auth_start(context: Context) -> Response<Body> {
     let challenge = code_challenge(&verifier);
     let login_url = format!(
         "{}?client_id={}&redirect_uri={}&state={}&code_challenge={}&code_challenge_method=S256",
-        hosted_login_url(&config.common_server_base_url),
+        hosted_login_url(&config.igniscloud_id_base_url),
         encode(&config.client_id),
         encode(&redirect_uri),
         encode(&state),
@@ -202,7 +202,7 @@ async fn exchange_authorization_code(
 
     let request = Request::builder()
         .method(Method::POST)
-        .uri(token_url(&config.common_server_base_url))
+        .uri(token_url(&config.igniscloud_id_base_url))
         .header("content-type", "application/json")
         .body(Body::from(body))
         .map_err(|error| format!("building token request failed: {error}"))?;
@@ -234,7 +234,7 @@ async fn fetch_userinfo(
 ) -> std::result::Result<UserInfo, String> {
     let request = Request::builder()
         .method(Method::GET)
-        .uri(userinfo_url(&config.common_server_base_url))
+        .uri(userinfo_url(&config.igniscloud_id_base_url))
         .header("authorization", format!("Bearer {access_token}"))
         .body(Body::empty())
         .map_err(|error| format!("building userinfo request failed: {error}"))?;
@@ -269,7 +269,7 @@ fn http_client() -> Client {
 }
 
 struct ExampleConfig {
-    common_server_base_url: String,
+    igniscloud_id_base_url: String,
     client_id: String,
     client_secret: String,
 }
@@ -368,7 +368,7 @@ struct UserInfo {
 
 fn read_config() -> std::result::Result<ExampleConfig, String> {
     Ok(ExampleConfig {
-        common_server_base_url: COMMON_SERVER_BASE_URL.to_owned(),
+        igniscloud_id_base_url: IGNISCLOUD_ID_BASE_URL.to_owned(),
         client_id: required_env(CLIENT_ID_ENV)?,
         client_secret: required_env(CLIENT_SECRET_ENV)?,
     })

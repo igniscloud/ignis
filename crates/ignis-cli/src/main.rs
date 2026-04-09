@@ -16,7 +16,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use clap::{Parser, Subcommand, ValueEnum};
 use ignis_manifest::{
     ComponentSignature, FrontendServiceConfig, HttpServiceConfig,
-    IGNIS_LOGIN_COMMON_SERVER_BASE_URL_ENV, LoadedManifest, LoadedProjectManifest, NetworkMode,
+    IGNIS_LOGIN_IGNISCLOUD_ID_BASE_URL_ENV, LoadedManifest, LoadedProjectManifest, NetworkMode,
     PROJECT_MANIFEST_FILE, ProjectConfig, ProjectManifest, ResourceConfig, ServiceKind,
     ServiceManifest, SqliteConfig, sign_component_with_seed,
 };
@@ -861,14 +861,14 @@ fn collect_service_check_findings(service: &ServiceManifest) -> Vec<ServiceCheck
 
     if service
         .env
-        .contains_key(IGNIS_LOGIN_COMMON_SERVER_BASE_URL_ENV)
+        .contains_key(IGNIS_LOGIN_IGNISCLOUD_ID_BASE_URL_ENV)
     {
         findings.push(ServiceCheckFinding {
             level: "error",
-            code: "common_server_base_url_env_not_supported",
+            code: "igniscloud_id_base_url_env_not_supported",
             message: format!(
-                "service `{}` defines env `{}`; ignis_login should not depend on COMMON_SERVER_BASE_URL as an env var",
-                service.name, IGNIS_LOGIN_COMMON_SERVER_BASE_URL_ENV
+                "service `{}` defines env `{}`; ignis_login should not depend on IGNISCLOUD_ID_BASE_URL as an env var",
+                service.name, IGNIS_LOGIN_IGNISCLOUD_ID_BASE_URL_ENV
             ),
         });
     }
@@ -876,32 +876,35 @@ fn collect_service_check_findings(service: &ServiceManifest) -> Vec<ServiceCheck
     if service.ignis_login.is_some()
         && !service
             .network
-            .allows_authority("cloud.transairobot.com", Some("cloud.transairobot.com"))
+            .allows_authority(
+                "id.igniscloud.transairobot.com",
+                Some("id.igniscloud.transairobot.com"),
+            )
     {
         let message = if service.network.mode == NetworkMode::DenyAll {
             format!(
-                "service `{}` configures `ignis_login` but `[services.network]` is `deny_all`; hosted login, token exchange, and userinfo need outbound access to `cloud.transairobot.com`",
+                "service `{}` configures `ignis_login` but `[services.network]` is `deny_all`; hosted login, token exchange, and userinfo need outbound access to `id.igniscloud.transairobot.com`",
                 service.name
             )
         } else if service
             .network
             .allow
             .iter()
-            .any(|entry| entry.eq_ignore_ascii_case("cloud.transairobot.com:443"))
+            .any(|entry| entry.eq_ignore_ascii_case("id.igniscloud.transairobot.com:443"))
         {
             format!(
-                "service `{}` configures `ignis_login` but `[services.network].allow` only lists `cloud.transairobot.com:443`; add `cloud.transairobot.com` explicitly",
+                "service `{}` configures `ignis_login` but `[services.network].allow` only lists `id.igniscloud.transairobot.com:443`; add `id.igniscloud.transairobot.com` explicitly",
                 service.name
             )
         } else {
             format!(
-                "service `{}` configures `ignis_login` but `[services.network]` does not allow `cloud.transairobot.com`",
+                "service `{}` configures `ignis_login` but `[services.network]` does not allow `id.igniscloud.transairobot.com`",
                 service.name
             )
         };
         findings.push(ServiceCheckFinding {
             level: "error",
-            code: "ignis_login_missing_common_server_allow",
+            code: "ignis_login_missing_igniscloud_id_allow",
             message,
         });
     }
@@ -1798,17 +1801,17 @@ mod tests {
             resources: ResourceConfig::default(),
             network: NetworkConfig {
                 mode: NetworkMode::AllowList,
-                allow: vec!["cloud.transairobot.com".to_owned()],
+                allow: vec!["id.igniscloud.transairobot.com".to_owned()],
             },
         }
     }
 
     #[test]
-    fn service_check_flags_common_server_base_url_env() {
+    fn service_check_flags_igniscloud_id_base_url_env() {
         let mut service = sample_http_service();
         service.env.insert(
-            "COMMON_SERVER_BASE_URL".to_owned(),
-            "https://cloud.transairobot.com".to_owned(),
+            "IGNISCLOUD_ID_BASE_URL".to_owned(),
+            "https://id.igniscloud.transairobot.com".to_owned(),
         );
 
         let findings = collect_service_check_findings(&service);
@@ -1816,21 +1819,21 @@ mod tests {
         assert!(
             findings
                 .iter()
-                .any(|finding| finding.code == "common_server_base_url_env_not_supported")
+                .any(|finding| finding.code == "igniscloud_id_base_url_env_not_supported")
         );
     }
 
     #[test]
     fn service_check_flags_ignis_login_allow_rule_with_only_port_specific_host() {
         let mut service = sample_http_service();
-        service.network.allow = vec!["cloud.transairobot.com:443".to_owned()];
+        service.network.allow = vec!["id.igniscloud.transairobot.com:443".to_owned()];
 
         let findings = collect_service_check_findings(&service);
 
         assert!(
             findings
                 .iter()
-                .any(|finding| finding.code == "ignis_login_missing_common_server_allow")
+                .any(|finding| finding.code == "ignis_login_missing_igniscloud_id_allow")
         );
     }
 

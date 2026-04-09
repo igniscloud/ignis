@@ -158,19 +158,19 @@ spa_fallback = true
 
 #### `services.ignis_login`
 
-- 作用：为当前 `http` service 声明一个由 Ignis control-plane 托管的 `common_server` confidential client。
+- 作用：为当前 `http` service 声明一个由 Ignis control-plane 托管的 `IgnisCloud ID` confidential client。
 - 必填：否。
 - 说明：
   - 这是 service 级配置，不是 project 级配置
   - 第一版只支持 `confidential`
   - `client_id` / `client_secret` 由 control-plane 创建并写入当前 service 的 secrets
-  - 当前 igniscloud hosted login 公网地址固定为 `https://cloud.transairobot.com`
-  - 不要把 `COMMON_SERVER_BASE_URL` 作为 env 依赖
+  - 当前 igniscloud hosted login 公网地址固定为 `https://id.igniscloud.transairobot.com`
+  - 不要把 `IGNISCLOUD_ID_BASE_URL` 作为 env 依赖
 
 #### `services.ignis_login.display_name`
 
 - 类型：`string`
-- 作用：在 `common_server` 中创建 client 时使用的显示名
+- 作用：在 `IgnisCloud ID` 中创建 client 时使用的显示名
 - 约束：
   - 不能为空
 
@@ -184,7 +184,7 @@ spa_fallback = true
 #### `services.ignis_login.providers`
 
 - 类型：`array<string>`
-- 作用：要在 `common_server` 上打开的登录方式
+- 作用：要在 `IgnisCloud ID` 上打开的登录方式
 - 约束：
   - 必须精确等于 `["google"]`
 
@@ -195,7 +195,7 @@ spa_fallback = true
 - `IGNIS_LOGIN_CLIENT_ID`
 - `IGNIS_LOGIN_CLIENT_SECRET`
 
-另外，`COMMON_SERVER_BASE_URL` 也不应该作为 `services.env` 变量出现；当前 igniscloud 接入里请直接使用 `https://cloud.transairobot.com`。
+另外，`IGNISCLOUD_ID_BASE_URL` 也不应该作为 `services.env` 变量出现；当前 igniscloud 接入里请直接使用 `https://id.igniscloud.transairobot.com`。
 
 #### `services.http.component`
 
@@ -263,7 +263,7 @@ spa_fallback = true
   - 仅当 `mode = "allow_list"` 时允许设置
   - 当 `mode = "allow_list"` 时不能为空
   - 支持 `host`、`host:port`、`.suffix`、`[ipv6]:port`
-  - 如果 service 声明了 `services.ignis_login`，建议显式包含 `cloud.transairobot.com`
+  - 如果 service 声明了 `services.ignis_login`，建议显式包含 `id.igniscloud.transairobot.com`
   - 可用 `ignis service check --service <name>` 检查这类常见配置问题
 
 ### 3.4 `frontend` service 配置

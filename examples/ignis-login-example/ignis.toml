@@ -27,7 +27,7 @@ enabled = false
 
 [services.network]
 mode = "allow_list"
-allow = ["cloud.transairobot.com"]
+allow = ["id.igniscloud.transairobot.com"]
 
 [[services]]
 name = "web"

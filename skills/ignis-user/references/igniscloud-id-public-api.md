@@ -1,12 +1,10 @@
-# common_server Public API 文档
+# IgnisCloud ID Public API 文档
 
-> 2026-04-08 更新：浏览器场景的推荐入口已经调整为 `GET /login` 系列 hosted login。当前实现不再提供跨 app 静默单点登录；如果浏览器里已有 `common_server` 平台会话，`/login` 会先展示确认页，用户点击后才继续登录目标 app。设计背景见 [no-sso-app-login-confirmation-design.md](/home/hy/workplace/common_server/docs/internal/no-sso-app-login-confirmation-design.md)。
-
-本文描述 `common_server` 当前已经实现并对外可用的公共接口，面向前端、BFF、业务后端和客户端接入方。
+本文描述 `IgnisCloud ID` 当前已经实现并对外可用的公共接口，面向前端、BFF、业务后端和客户端接入方。
 
 文档约定：
 
-- 基础地址示例：`http://127.0.0.1:3002`
+- 地址是https://id.igniscloud.transairobot.com
 - JSON 接口成功时统一返回 `{"data": ...}`
 - JSON 接口失败时统一返回 `{"error": "错误信息"}`
 - 时间字段使用 RFC3339 UTC 字符串
@@ -198,7 +196,7 @@ ok
 
 说明：
 
-- 浏览器 Web 场景推荐优先走 `common_server` 自己托管的 `/login` 系列入口
+- 浏览器 Web 场景推荐优先走 `IgnisCloud ID` 自己托管的 `/login` 系列入口
 - `GET /login` 会先校验 `client_id` / `redirect_uri`
 - 如果浏览器已有 `cs_platform_session`，当前实现不会静默回跳，而是先展示“确认登录到目标 app”页面
 - `POST /login/password` 和 `POST /login/continue` 成功后返回 `303 See Other`
@@ -213,7 +211,7 @@ ok
 | `/login/continue` | `POST` | 已有平台会话时确认继续登录目标 app |
 | `/login/google` | `GET` | 拉起 Google 作为上游身份源 |
 | `/login/wechat` | `GET` | 拉起微信作为上游身份源 |
-| `/platform/logout` | `POST` | 清除 `common_server` 平台会话 cookie |
+| `/platform/logout` | `POST` | 清除 `IgnisCloud ID` 平台会话 cookie |
 
 `GET /login`
 
@@ -307,7 +305,7 @@ ok
 
 补充：
 
-- Google 回调到 `common_server` 的 provider callback 属于内部实现细节，不再作为业务接入入口对外文档化
+- Google 回调到 `IgnisCloud ID` 的 provider callback 属于内部实现细节，不再作为业务接入入口对外文档化
 
 #### 4.3.1 开发态直连流程
 
@@ -317,7 +315,7 @@ ok
 
 - 当前仓库里的 Google provider 仍保留开发态适配器
 - `code` 可以不是 Google 官方 authorization code，而是本项目内部约定的调试字符串
-- 当 `code` 为真实 Google authorization code 时，推荐优先走 `start/callback` 流程，由 `common_server` 自己完成跳转和回调处理
+- 当 `code` 为真实 Google authorization code 时，推荐优先走 `start/callback` 流程，由 `IgnisCloud ID` 自己完成跳转和回调处理
 
 当前 `code` 格式：
 
@@ -433,7 +431,7 @@ authorization: Bearer <access_token>
 
 - 让当前 `access_token` 对应的 session 立即失效
 - 适合业务后端或 BFF 在“退出登录”时调用
-- 只会清理 `common_server` 自己维护的 session
+- 只会清理 `IgnisCloud ID` 自己维护的 session
 - 不会清理 Google / 微信等外部 IdP 的浏览器登录态
 
 成功响应：
@@ -449,7 +447,7 @@ authorization: Bearer <access_token>
 - 用于 RP 发起的浏览器退出流程
 - 根据 `id_token_hint` 中的 `sid` 让当前 session 失效
 - 若传 `post_logout_redirect_uri`，必须是当前 app 已登记的 redirect URI
-- 只会清理 `common_server` 自己维护的 session
+- 只会清理 `IgnisCloud ID` 自己维护的 session
 - 不会清理 Google / 微信等外部 IdP 的浏览器登录态
 
 请求参数：

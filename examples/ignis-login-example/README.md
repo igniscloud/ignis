@@ -11,7 +11,7 @@ This project is now a minimal fullstack `ignis_login` example:
   - `IGNIS_LOGIN_CLIENT_ID`
   - `IGNIS_LOGIN_CLIENT_SECRET`
 - the backend uses the current igniscloud hosted login base URL directly:
-  - `https://cloud.transairobot.com`
+  - `https://id.igniscloud.transairobot.com`
 
 The frontend:
 
@@ -23,7 +23,7 @@ The frontend:
 The backend:
 
 - generates PKCE + state
-- redirects to hosted `common_server /login`
+- redirects to hosted `IgnisCloud ID /login`
 - exchanges the authorization code with `/oauth2/token`
 - stores the access token in an HttpOnly cookie
 - resolves the nickname with `/oidc/userinfo`
@@ -33,7 +33,7 @@ The backend:
 When this service is published and deployed through igniscloud:
 
 1. control-plane reads `[services.ignis_login]`
-2. it creates or reuses a `common_server` confidential client
+2. it creates or reuses an `IgnisCloud ID` confidential client
 3. it registers the callback URL for `/api/auth/callback`
 4. it enables the `google` provider
 5. it writes `IGNIS_LOGIN_CLIENT_ID` and `IGNIS_LOGIN_CLIENT_SECRET` into the service secrets
