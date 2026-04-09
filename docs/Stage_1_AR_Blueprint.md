@@ -74,11 +74,11 @@ Total checklist items: 25
 Primary targets: `crates/ignis-cli/src/**`
 Suggested validation: `cargo check -p ignis-cli`
 
-- [ ] [CLI-01] Split `ignis-cli` command dispatch into dedicated modules for `project`, `service`, `auth`, `build`, and shared output/context.
-- [ ] [CLI-02] Define a small shared `ProjectContext` and service lookup layer so command handlers stop re-implementing manifest-loading concerns.
-- [ ] [CLI-03] Extract browser login and loopback callback handling from `main.rs` into an isolated auth module with a narrow API surface.
-- [ ] [CLI-04] Replace hand-rolled localhost callback parsing with a minimal, well-tested HTTP handling strategy that reduces edge-case risk.
-- [ ] [CLI-05] Define a consistent CLI output contract for JSON success, warnings, drift reporting, and actionable failure messages across commands.
+- [x] [CLI-01] Split `ignis-cli` command dispatch into dedicated modules for `project`, `service`, `auth`, `build`, and shared output/context.
+- [x] [CLI-02] Define a small shared `ProjectContext` and service lookup layer so command handlers stop re-implementing manifest-loading concerns.
+- [x] [CLI-03] Extract browser login and loopback callback handling from `main.rs` into an isolated auth module with a narrow API surface.
+- [x] [CLI-04] Replace hand-rolled localhost callback parsing with a minimal, well-tested HTTP handling strategy that reduces edge-case risk.
+- [x] [CLI-05] Define a consistent CLI output contract for JSON success, warnings, drift reporting, and actionable failure messages across commands.
 
 ## Section 2: Build, Publish, And Packaging
 
