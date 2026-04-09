@@ -55,8 +55,9 @@ pub async fn login(token: Option<String>) -> Result<()> {
     let login_url = build_browser_login_url(&redirect_uri, &state)?;
 
     eprintln!("Opening browser for igniscloud login...");
+    eprintln!("Login URL:\n{login_url}");
     if !open_browser(&login_url) {
-        eprintln!("Open this URL in your browser:\n{login_url}");
+        eprintln!("Browser launch failed. Open this URL in your browser.");
     }
 
     let wait_result = tokio::time::timeout(LOGIN_TIMEOUT, receiver).await;
