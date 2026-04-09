@@ -47,6 +47,7 @@
 | 值 | 含义 |
 | --- | --- |
 | `password` | 平台密码登录 |
+| `test_password` | 固定测试账号密码登录，默认账号密码由服务端配置决定 |
 | `google` | Google 登录 |
 | `wechat` | 微信登录 |
 
@@ -97,12 +98,14 @@ ok
 | `claims_supported` | string[] | `id_token` / `userinfo` 支持的 claims 列表 |
 | `service_documentation` | string\|null | 文档地址，当前为空 |
 | `extra.authorization_endpoints.password` | string | 密码授权端点 |
+| `extra.authorization_endpoints.test_password` | string | 测试账号密码授权端点 |
 | `extra.authorization_endpoints.code` | string | 验证码授权端点 |
 | `extra.authorization_endpoints.google` | string | Google 开发态直连授权端点 |
 | `extra.authorization_endpoints.wechat` | string | 微信授权端点 |
 
 说明：
 
+- `extra.authorization_endpoints.test_password` 当前指向 `POST /oauth2/authorize/test-password`
 - `extra.authorization_endpoints.google` 当前指向 `POST /oauth2/authorize/google`，用于开发态直传 `code`
 
 ### 2.3 JWKS 公钥集合
@@ -199,7 +202,7 @@ ok
 - 浏览器 Web 场景推荐优先走 `IgnisCloud ID` 自己托管的 `/login` 系列入口
 - `GET /login` 会先校验 `client_id` / `redirect_uri`
 - 如果浏览器已有 `cs_platform_session`，当前实现不会静默回跳，而是先展示“确认登录到目标 app”页面
-- `POST /login/password` 和 `POST /login/continue` 成功后返回 `303 See Other`
+- `POST /login/password`、`POST /login/test-password` 和 `POST /login/continue` 成功后返回 `303 See Other`
 - 使用 `303` 的目的是强制浏览器后续用 `GET` 打开业务回调地址，避免把原始表单 `POST` 转发到业务 app 导致 `405`
 
 当前可用入口：
@@ -208,6 +211,7 @@ ok
 | --- | --- | --- |
 | `/login` | `GET` | 渲染 hosted login 页面或确认页 |
 | `/login/password` | `POST` | 提交密码登录 |
+| `/login/test-password` | `POST` | 提交固定测试账号密码登录 |
 | `/login/continue` | `POST` | 已有平台会话时确认继续登录目标 app |
 | `/login/google` | `GET` | 拉起 Google 作为上游身份源 |
 | `/login/wechat` | `GET` | 拉起微信作为上游身份源 |
@@ -234,6 +238,7 @@ ok
 - 如果缺少 PKCE，会收到与标准授权接口一致的错误；当前已知错误文案示例包括 `public clients must provide code_challenge`
 - 如果 `code_challenge_method` 不是 `S256`，会收到 `only S256 code_challenge_method is supported`
 - `prompt=login` 或 `prompt=select_account` 会强制忽略当前平台会话，重新展示登录 UI
+- 如果目标 app 启用了 `test_password` 且平台全局也开启了 `TEST_PASSWORD_ENABLED=true`，登录页会额外展示一个预填好的测试账号表单
 
 ## 4. OAuth/OIDC 授权接口
 
@@ -295,7 +300,37 @@ ok
 | --- | --- | --- |
 | `data.redirect_to` | string | 回跳地址，包含授权码 `code` |
 
-### 4.3 Google 授权
+### 4.3 测试账号密码授权
+
+`POST /oauth2/authorize/test-password`
+
+说明：
+
+- 用固定测试账号密码完成授权码登录，适合 agent、smoke test 和联调环境
+- 默认账号密码可由服务端配置为 `test / testtest`
+- 只有当平台全局 `TEST_PASSWORD_ENABLED=true` 且目标 app 启用了 `test_password` provider 时才可用
+- 不要求 `login_id` 是邮箱或手机号
+
+请求体：
+
+| 字段 | 类型 | 必填 | 含义 |
+| --- | --- | --- | --- |
+| `client_id` | string | 是 | app 客户端 ID |
+| `redirect_uri` | string | 是 | 回调地址，必须已加入白名单 |
+| `login_id` | string | 是 | 测试账号，默认是 `test` |
+| `password` | string | 是 | 测试密码，默认是 `testtest` |
+| `state` | string\|null | 否 | 客户端透传状态 |
+| `nonce` | string\|null | 否 | OIDC nonce |
+| `code_challenge` | string\|null | 授权码模式必填 | PKCE challenge |
+| `code_challenge_method` | string\|null | 与 `code_challenge` 成对出现 | 当前只支持 `S256` |
+
+响应字段：
+
+| 字段 | 类型 | 含义 |
+| --- | --- | --- |
+| `data.redirect_to` | string | 回跳地址，包含授权码 `code` |
+
+### 4.4 Google 授权
 
 说明：
 
@@ -307,7 +342,7 @@ ok
 
 - Google 回调到 `IgnisCloud ID` 的 provider callback 属于内部实现细节，不再作为业务接入入口对外文档化
 
-#### 4.3.1 开发态直连流程
+#### 4.4.1 开发态直连流程
 
 `POST /oauth2/authorize/google`
 

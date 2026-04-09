@@ -26,7 +26,7 @@ description: Use for people building Ignis services with ignis-cli, ignis-sdk, i
 2. 如果任务偏 CLI 或发布部署，继续读 `references/cli.md`。
 3. 如果任务偏 `ignis.toml` 字段、默认值或示例配置，读 `references/ignis-toml.md`。
 4. 如果任务偏 `ignis-sdk` API，用 `references/ignis-sdk/index.md` 作为入口，只继续打开当前需要的模块或 item 页面。
-5. 如果 service 配置了 `ignis_login`，或者任务需要接入登录（google 登录），读 `references/igniscloud-id-public-api.md`。
+5. 如果 service 配置了 `ignis_login`，或者任务需要接入登录（google 登录），读 `references/igniscloud-id-public-api.md`，如果需要测试登录，可以添加test_password provider, 测试完成之后需要移除。
 6. 如果需要最小代码模板，读 `references/hello-service.rs`；如果要接 SQLite，读 `references/sqlite-service.rs`。
 
 ## 工作规则
