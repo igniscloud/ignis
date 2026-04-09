@@ -143,7 +143,18 @@ providers = ["google"]
 - 如果 service 使用 `ignis_login` 并配置了 `network.mode = "allow_list"`，必须允许 `id.igniscloud.transairobot.com`
 - 不支持 `public`
 - 不支持直接注入到 `frontend`
-- `providers` 当前只允许 `["google"]`
+- `providers` 当前支持 `google` 和 `test_password`
+- `providers` 采用 managed 模式：control-plane 会把远端 app 的 provider 集合收敛到 manifest 声明值
+- 正式上线时应只保留正式登录方式；`test_password` 仅用于测试、联调和 smoke test，发布生产配置前应从 manifest 里移除
+
+关于测试登录：
+
+- `test_password` 已经是 `ignis.toml` 的正式 provider。
+- 推荐测试流程是：
+  1. 在测试环境的 `ignis.toml` 里临时声明 `providers = ["google", "test_password"]`，或只声明 `["test_password"]`
+  2. 正常 `publish / deploy`，让 control-plane 创建并同步对应的 `IgnisCloud ID` confidential app
+  3. 之后 hosted `GET /login` 页面会自动显示测试账号入口，默认账号密码是 `test / testtest`
+  4. 正式上线前把 `test_password` 从 `providers` 移除，再重新 `publish / deploy`
 
 ### 3.4 引入 `ignis-sdk`
 

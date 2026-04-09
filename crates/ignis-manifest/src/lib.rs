@@ -5,7 +5,7 @@
 //! - manifest validation
 //! - component signing and verification helpers
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -68,6 +68,16 @@ pub struct IgnisLoginConfig {
 #[serde(rename_all = "snake_case")]
 pub enum IgnisLoginProvider {
     Google,
+    TestPassword,
+}
+
+impl IgnisLoginProvider {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Google => "google",
+            Self::TestPassword => "test_password",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -635,11 +645,15 @@ fn validate_ignis_login(config: &IgnisLoginConfig, service: &ServiceManifest) ->
             service.name
         );
     }
-    if config.providers.len() != 1 || config.providers[0] != IgnisLoginProvider::Google {
-        bail!(
-            "http service `{}` field `ignis_login.providers` currently only supports [\"google\"]",
-            service.name
-        );
+    let mut seen = BTreeSet::new();
+    for provider in &config.providers {
+        if !seen.insert(provider.as_str()) {
+            bail!(
+                "http service `{}` field `ignis_login.providers` cannot contain duplicate provider `{}`",
+                service.name,
+                provider.as_str()
+            );
+        }
     }
     validate_service_prefix_like_path(
         &config.redirect_path,
@@ -1071,7 +1085,7 @@ mod tests {
                 ignis_login: Some(IgnisLoginConfig {
                     display_name: "Video GIF Studio".to_owned(),
                     redirect_path: "/auth/common/callback".to_owned(),
-                    providers: vec![IgnisLoginProvider::Google],
+                    providers: vec![IgnisLoginProvider::Google, IgnisLoginProvider::TestPassword],
                 }),
                 env: BTreeMap::new(),
                 secrets: BTreeMap::new(),
@@ -1191,6 +1205,33 @@ mod tests {
                 display_name: "Video GIF Studio".to_owned(),
                 redirect_path: "/auth/common/callback".to_owned(),
                 providers: Vec::new(),
+            }),
+            env: BTreeMap::new(),
+            secrets: BTreeMap::new(),
+            sqlite: SqliteConfig::default(),
+            resources: ResourceConfig::default(),
+            network: NetworkConfig::default(),
+        };
+
+        assert!(service.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_duplicate_ignis_login_providers() {
+        let service = ServiceManifest {
+            name: "api".to_owned(),
+            kind: ServiceKind::Http,
+            path: PathBuf::from("services/api"),
+            prefix: "/api".to_owned(),
+            http: Some(HttpServiceConfig {
+                component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
+                base_path: "/".to_owned(),
+            }),
+            frontend: None,
+            ignis_login: Some(IgnisLoginConfig {
+                display_name: "Video GIF Studio".to_owned(),
+                redirect_path: "/auth/common/callback".to_owned(),
+                providers: vec![IgnisLoginProvider::Google, IgnisLoginProvider::Google],
             }),
             env: BTreeMap::new(),
             secrets: BTreeMap::new(),

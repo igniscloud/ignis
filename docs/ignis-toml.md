@@ -186,7 +186,11 @@ spa_fallback = true
 - 类型：`array<string>`
 - 作用：要在 `IgnisCloud ID` 上打开的登录方式
 - 约束：
-  - 必须精确等于 `["google"]`
+  - 不能为空
+  - 当前只支持 `google` 和 `test_password`
+  - 不能重复
+  - 采用 managed 模式；publish / deploy 时 control-plane 会把远端 app 的 provider 集合同步到这里声明的值
+  - `test_password` 仅用于测试、联调和 smoke test；正式上线前应从这里移除
 
 #### `ignis_login` 保留 secret 与不支持的 env
 

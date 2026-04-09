@@ -47,7 +47,7 @@
 | 值 | 含义 |
 | --- | --- |
 | `password` | 平台密码登录 |
-| `test_password` | 固定测试账号密码登录，默认账号密码由服务端配置决定 |
+| `test_password` | 固定测试账号密码登录，默认账号密码是 `test / testtest`，仅建议用于测试与联调 |
 | `google` | Google 登录 |
 | `wechat` | 微信登录 |
 
@@ -238,7 +238,7 @@ ok
 - 如果缺少 PKCE，会收到与标准授权接口一致的错误；当前已知错误文案示例包括 `public clients must provide code_challenge`
 - 如果 `code_challenge_method` 不是 `S256`，会收到 `only S256 code_challenge_method is supported`
 - `prompt=login` 或 `prompt=select_account` 会强制忽略当前平台会话，重新展示登录 UI
-- 如果目标 app 启用了 `test_password` 且平台全局也开启了 `TEST_PASSWORD_ENABLED=true`，登录页会额外展示一个预填好的测试账号表单
+- 如果目标 app 启用了 `test_password`，登录页会额外展示一个预填好的测试账号表单
 
 ## 4. OAuth/OIDC 授权接口
 
@@ -308,7 +308,7 @@ ok
 
 - 用固定测试账号密码完成授权码登录，适合 agent、smoke test 和联调环境
 - 默认账号密码可由服务端配置为 `test / testtest`
-- 只有当平台全局 `TEST_PASSWORD_ENABLED=true` 且目标 app 启用了 `test_password` provider 时才可用
+- 只有当目标 app 启用了 `test_password` provider 时才可用
 - 不要求 `login_id` 是邮箱或手机号
 
 请求体：
