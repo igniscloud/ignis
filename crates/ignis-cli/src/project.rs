@@ -11,7 +11,8 @@ use crate::api::ApiClient;
 use crate::cli::{ProjectCommands, ProjectSyncMode, ProjectTokenCommands};
 use crate::config;
 use crate::context::ProjectContext;
-use crate::output::{self, Drift, Warning};
+use crate::output::{self, CliError, Drift, Warning};
+use crate::project_state::project_state_from_response;
 use crate::service;
 
 #[derive(Debug, serde::Deserialize)]
@@ -96,20 +97,38 @@ async fn create_project(
     fs::create_dir_all(&target_dir)
         .with_context(|| format!("creating {}", target_dir.display()))?;
     let manifest = ProjectManifest {
-        project: ProjectConfig { name },
+        project: ProjectConfig { name: name.clone() },
         services: Vec::new(),
     };
     let manifest_path = target_dir.join(PROJECT_MANIFEST_FILE);
     fs::write(&manifest_path, manifest.render()?)
         .with_context(|| format!("writing {}", manifest_path.display()))?;
+    let project_state = project_state_from_response(&response, &name);
+    let project_state_path = project_state.save(&target_dir)?;
+    let mut warnings = Vec::new();
+    if project_state.project_id().is_none() {
+        warnings.push(Warning::new(
+            "project_create_response_missing_project_id",
+            format!(
+                "control-plane create-project response for `{}` did not include a project_id; only the local project name was saved, so future remote operations may require re-linking once a project_id-aware API is available",
+                project_state.project_name
+            ),
+        ));
+    }
 
-    output::success(serde_json::json!({
-        "remote": response,
-        "local": {
-            "project_dir": target_dir,
-            "project_manifest_path": manifest_path,
-        }
-    }))
+    output::success_with(
+        serde_json::json!({
+            "remote": response,
+            "local": {
+                "project_dir": target_dir,
+                "project_manifest_path": manifest_path,
+                "project_state_path": project_state_path,
+                "project_id": project_state.project_id(),
+            }
+        }),
+        warnings,
+        Vec::new(),
+    )
 }
 
 fn ensure_project_dir_ready(path: &Path, force: bool) -> Result<()> {
@@ -153,12 +172,20 @@ async fn sync_project(mode: ProjectSyncMode, token: Option<String>) -> Result<()
 
     let client = ApiClient::new(config::CliConfig::resolve(token)?);
     let project_name = context.project_name().to_owned();
-    let project_missing = client
-        .project_status_optional(&project_name)
-        .await?
-        .is_none();
-    let remote_manifests = fetch_remote_manifests(&client, &project_name, project_missing).await?;
-    let plan = build_sync_plan(&context, &project_name, project_missing, &remote_manifests)?;
+    let project_id = context.project_id().map(str::to_owned);
+    let project_missing = match project_id.as_deref() {
+        Some(project_id) => client.project_status_optional(project_id).await?.is_none(),
+        None => true,
+    };
+    let remote_manifests = fetch_remote_manifests(&client, project_id.as_deref(), project_missing)
+        .await?;
+    let plan = build_sync_plan(
+        &context,
+        &project_name,
+        project_id.as_deref(),
+        project_missing,
+        &remote_manifests,
+    )?;
 
     match mode {
         ProjectSyncMode::Plan => output_plan(plan),
@@ -168,15 +195,18 @@ async fn sync_project(mode: ProjectSyncMode, token: Option<String>) -> Result<()
 
 async fn fetch_remote_manifests(
     client: &ApiClient,
-    project_name: &str,
+    project_id: Option<&str>,
     project_missing: bool,
 ) -> Result<BTreeMap<String, ServiceManifest>> {
     if project_missing {
         return Ok(BTreeMap::new());
     }
 
+    let project_id =
+        project_id.ok_or_else(|| anyhow!("project_id is required to fetch remote manifests"))?;
+
     let remote_services: ProjectServicesEnvelope =
-        serde_json::from_value(client.services(project_name).await?)
+        serde_json::from_value(client.services(project_id).await?)
             .context("parsing project services response")?;
     Ok(remote_services
         .data
@@ -188,17 +218,26 @@ async fn fetch_remote_manifests(
 fn build_sync_plan(
     context: &ProjectContext,
     project_name: &str,
+    project_id: Option<&str>,
     project_missing: bool,
     remote_manifests: &BTreeMap<String, ServiceManifest>,
 ) -> Result<SyncPlan> {
     let mut actions = Vec::new();
 
     if project_missing {
+        let message = match project_id {
+            Some(project_id) => format!(
+                "remote project binding `{project_id}` for local project `{project_name}` is missing and will be created again"
+            ),
+            None => format!(
+                "local project `{project_name}` is not linked to a remote project yet; apply will create one and save its project_id to `.ignis/project.json`"
+            ),
+        };
         actions.push(SyncAction {
             kind: "create_project",
             status: "planned",
             apply_supported: true,
-            message: format!("remote project `{project_name}` is missing and will be created"),
+            message,
             service: None,
             diffs: Vec::new(),
         });
@@ -293,11 +332,16 @@ async fn apply_sync_plan(
 ) -> Result<()> {
     let mut applied_actions = Vec::new();
     let mut project_created = false;
+    let mut remote_project_id = context.project_id().map(str::to_owned);
+    let mut project_state_path = context.project_dir().join(".ignis/project.json");
 
     for action in &plan.actions {
         match action.kind {
             "create_project" => {
-                client.create_project(&plan.project).await?;
+                let response = client.create_project(&plan.project).await?;
+                let project_state = project_state_from_response(&response, &plan.project);
+                project_state_path = project_state.save(context.project_dir())?;
+                remote_project_id = project_state.project_id().map(str::to_owned);
                 project_created = true;
                 applied_actions.push(SyncAction {
                     status: "applied",
@@ -312,7 +356,21 @@ async fn apply_sync_plan(
                 let service = context.find_service(service_name).ok_or_else(|| {
                     anyhow!("local service `{service_name}` not found while applying sync plan")
                 })?;
-                client.create_service(&plan.project, service).await?;
+                let project_id = remote_project_id.as_deref().ok_or_else(|| {
+                    CliError::new(format!(
+                        "project `{}` is still not linked to a remote project_id after creation",
+                        plan.project
+                    ))
+                    .code("project_id_missing")
+                    .with_details([
+                        format!(
+                            "expected `.ignis/project.json` at {} to contain a `project_id` after `create_project`",
+                            project_state_path.display()
+                        ),
+                        "the control-plane create-project response must include `data.project_id` for follow-up service operations".to_owned(),
+                    ])
+                })?;
+                client.create_service(project_id, service).await?;
                 applied_actions.push(SyncAction {
                     status: "applied",
                     ..action.clone()
@@ -367,6 +425,12 @@ fn plan_advisories(plan: &SyncPlan) -> (Vec<Warning>, Vec<Drift>) {
                         ),
                     ));
                 }
+            }
+            "create_project" if action.message.contains(".ignis/project.json") => {
+                warnings.push(Warning::new(
+                    "project_not_linked",
+                    action.message.clone(),
+                ));
             }
             _ => {}
         }
@@ -456,4 +520,22 @@ fn collect_value_diffs(
             }
         }
     }
+}
+
+pub(crate) fn linked_project_id(context: &ProjectContext) -> Result<&str> {
+    context.project_id().ok_or_else(|| {
+        CliError::new(format!(
+            "project `{}` is not linked to a remote project_id",
+            context.project_name()
+        ))
+        .code("project_not_linked")
+        .with_details([
+            format!(
+                "run `ignis project sync --mode apply` in {} to create a remote project and save `.ignis/project.json`",
+                context.project_dir().display()
+            ),
+            "remote service operations no longer fall back to `project.name`, because that could target another project with the same name".to_owned(),
+        ])
+        .into()
+    })
 }

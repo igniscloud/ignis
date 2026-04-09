@@ -18,6 +18,7 @@ use crate::cli::{
 use crate::config;
 use crate::context::ProjectContext;
 use crate::output::{self, CliError, Warning};
+use crate::project::linked_project_id;
 use crate::template;
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -82,11 +83,10 @@ async fn new_service(
     let service = build_new_service_manifest(service_name, kind, path);
     service.validate()?;
     context.ensure_new_service_path_available(&service)?;
+    let project_id = linked_project_id(context)?;
 
     let client = ApiClient::new(config::CliConfig::resolve(token)?);
-    let response = client
-        .create_service(context.project_name(), &service)
-        .await?;
+    let response = client.create_service(project_id, &service).await?;
 
     let mut manifest = context.manifest().clone();
     manifest.services.push(service.clone());
@@ -235,8 +235,9 @@ async fn service_status(
 ) -> Result<()> {
     let service = context.service(service_name)?;
     let client = ApiClient::new(config::CliConfig::resolve(token)?);
+    let project_id = linked_project_id(context)?;
     let response = client
-        .service_status(service.project_name(), service.name())
+        .service_status(project_id, service.name())
         .await?;
     output::success(response)
 }
@@ -368,9 +369,10 @@ async fn delete_service(
     token: Option<String>,
 ) -> Result<()> {
     let service = context.service(service_name)?;
+    let project_id = linked_project_id(context)?;
     let client = ApiClient::new(config::CliConfig::resolve(token)?);
     let response = client
-        .delete_service(service.project_name(), service.name())
+        .delete_service(project_id, service.name())
         .await?;
 
     let mut manifest = context.manifest().clone();
@@ -404,6 +406,7 @@ async fn publish_service(
 ) -> Result<()> {
     let service = context.service(service_name)?;
     ensure_service_check_passes(service.manifest())?;
+    let project_id = linked_project_id(context)?;
 
     let client = ApiClient::new(config::CliConfig::resolve(token)?);
     let publish_artifact = build::prepare_publish_artifact(&service).await?;
@@ -414,7 +417,7 @@ async fn publish_service(
         } => {
             client
                 .publish_http_service(
-                    service.project_name(),
+                    project_id,
                     service.name(),
                     service.manifest(),
                     component_path,
@@ -426,7 +429,7 @@ async fn publish_service(
         build::PublishArtifactKind::Frontend { bundle_path } => {
             client
                 .publish_frontend_service(
-                    service.project_name(),
+                    project_id,
                     service.name(),
                     service.manifest(),
                     bundle_path,
@@ -451,10 +454,9 @@ async fn deploy_service(
     token: Option<String>,
 ) -> Result<()> {
     let service = context.service(service_name)?;
+    let project_id = linked_project_id(context)?;
     let client = ApiClient::new(config::CliConfig::resolve(token)?);
-    let response = client
-        .deploy_service(service.project_name(), service.name(), version)
-        .await?;
+    let response = client.deploy_service(project_id, service.name(), version).await?;
     output::success(response)
 }
 
@@ -465,10 +467,9 @@ async fn deployments(
     token: Option<String>,
 ) -> Result<()> {
     let service = context.service(service_name)?;
+    let project_id = linked_project_id(context)?;
     let client = ApiClient::new(config::CliConfig::resolve(token)?);
-    let response = client
-        .deployments(service.project_name(), service.name(), limit)
-        .await?;
+    let response = client.deployments(project_id, service.name(), limit).await?;
     output::success(response)
 }
 
@@ -479,10 +480,9 @@ async fn events(
     token: Option<String>,
 ) -> Result<()> {
     let service = context.service(service_name)?;
+    let project_id = linked_project_id(context)?;
     let client = ApiClient::new(config::CliConfig::resolve(token)?);
-    let response = client
-        .events(service.project_name(), service.name(), limit)
-        .await?;
+    let response = client.events(project_id, service.name(), limit).await?;
     output::success(response)
 }
 
@@ -493,10 +493,9 @@ async fn logs(
     token: Option<String>,
 ) -> Result<()> {
     let service = context.service(service_name)?;
+    let project_id = linked_project_id(context)?;
     let client = ApiClient::new(config::CliConfig::resolve(token)?);
-    let response = client
-        .logs(service.project_name(), service.name(), limit)
-        .await?;
+    let response = client.logs(project_id, service.name(), limit).await?;
     output::success(response)
 }
 
@@ -507,10 +506,9 @@ async fn rollback(
     token: Option<String>,
 ) -> Result<()> {
     let service = context.service(service_name)?;
+    let project_id = linked_project_id(context)?;
     let client = ApiClient::new(config::CliConfig::resolve(token)?);
-    let response = client
-        .rollback(service.project_name(), service.name(), version)
-        .await?;
+    let response = client.rollback(project_id, service.name(), version).await?;
     output::success(response)
 }
 
@@ -521,10 +519,9 @@ async fn delete_version(
     token: Option<String>,
 ) -> Result<()> {
     let service = context.service(service_name)?;
+    let project_id = linked_project_id(context)?;
     let client = ApiClient::new(config::CliConfig::resolve(token)?);
-    let response = client
-        .delete_version(service.project_name(), service.name(), version)
-        .await?;
+    let response = client.delete_version(project_id, service.name(), version).await?;
     output::success(response)
 }
 
@@ -534,12 +531,11 @@ async fn env_command(
     token: Option<String>,
 ) -> Result<()> {
     let client = ApiClient::new(config::CliConfig::resolve(token)?);
+    let project_id = linked_project_id(context)?;
     let response = match command {
         ServiceEnvCommands::List { service } => {
             let service = context.service(&service)?;
-            client
-                .env_list(service.project_name(), service.name())
-                .await?
+            client.env_list(project_id, service.name()).await?
         }
         ServiceEnvCommands::Set {
             service,
@@ -547,15 +543,11 @@ async fn env_command(
             value,
         } => {
             let service = context.service(&service)?;
-            client
-                .env_set(service.project_name(), service.name(), &name, &value)
-                .await?
+            client.env_set(project_id, service.name(), &name, &value).await?
         }
         ServiceEnvCommands::Delete { service, name } => {
             let service = context.service(&service)?;
-            client
-                .env_delete(service.project_name(), service.name(), &name)
-                .await?
+            client.env_delete(project_id, service.name(), &name).await?
         }
     };
     output::success(response)
@@ -567,12 +559,11 @@ async fn secret_command(
     token: Option<String>,
 ) -> Result<()> {
     let client = ApiClient::new(config::CliConfig::resolve(token)?);
+    let project_id = linked_project_id(context)?;
     let response = match command {
         ServiceSecretCommands::List { service } => {
             let service = context.service(&service)?;
-            client
-                .secrets_list(service.project_name(), service.name())
-                .await?
+            client.secrets_list(project_id, service.name()).await?
         }
         ServiceSecretCommands::Set {
             service,
@@ -581,13 +572,13 @@ async fn secret_command(
         } => {
             let service = context.service(&service)?;
             client
-                .secrets_set(service.project_name(), service.name(), &name, &value)
+                .secrets_set(project_id, service.name(), &name, &value)
                 .await?
         }
         ServiceSecretCommands::Delete { service, name } => {
             let service = context.service(&service)?;
             client
-                .secrets_delete(service.project_name(), service.name(), &name)
+                .secrets_delete(project_id, service.name(), &name)
                 .await?
         }
     };
@@ -600,12 +591,11 @@ async fn sqlite_command(
     token: Option<String>,
 ) -> Result<()> {
     let client = ApiClient::new(config::CliConfig::resolve(token)?);
+    let project_id = linked_project_id(context)?;
     match command {
         ServiceSqliteCommands::Backup { service, out } => {
             let service = context.service(&service)?;
-            let bytes = client
-                .sqlite_backup(service.project_name(), service.name())
-                .await?;
+            let bytes = client.sqlite_backup(project_id, service.name()).await?;
             fs::write(&out, &bytes).with_context(|| format!("writing {}", out.display()))?;
             output::success(serde_json::json!({
                 "project": service.project_name(),
@@ -617,9 +607,7 @@ async fn sqlite_command(
         ServiceSqliteCommands::Restore { service, input } => {
             let service = context.service(&service)?;
             let bytes = fs::read(&input).with_context(|| format!("reading {}", input.display()))?;
-            let response = client
-                .sqlite_restore(service.project_name(), service.name(), &bytes)
-                .await?;
+            let response = client.sqlite_restore(project_id, service.name(), &bytes).await?;
             output::success(response)
         }
     }

@@ -6,6 +6,7 @@ mod config;
 mod context;
 mod output;
 mod project;
+mod project_state;
 mod service;
 mod skill;
 mod skill_bundle;

@@ -78,6 +78,14 @@ ignis.toml
 
 这个文件位于 project 根目录。所有 `ignis service ...` 命令都会从当前目录向上查找 `ignis.toml`。
 
+除了 `ignis.toml` 之外，CLI 还会在 project 根目录写入本地状态文件：
+
+```text
+.ignis/project.json
+```
+
+这个文件保存 control-plane 返回的 `project_id`，用于把本地 project 绑定到远端唯一标识。`project.name` 继续保留为展示名，不再作为远端写操作的默认覆盖键。
+
 完整配置说明见 [ignis.toml 文档](./ignis-toml.md)。
 
 ## 4. 最小工作流
@@ -182,6 +190,7 @@ ignis project create hello-project
 - 在 control-plane 创建 project
 - 创建本地目录 `./hello-project`
 - 写入空的 `ignis.toml`
+- 写入 `.ignis/project.json`，保存当前 project 的 `project_id`
 
 也可以指定目录：
 
@@ -217,8 +226,9 @@ ignis project sync --mode apply
 当前行为：
 
 - 默认 `--mode plan`，只计算同步计划，不做远端写操作
+- 如果本地还没有 `.ignis/project.json`，`plan` 会把当前 project 视为“未绑定远端项目”，不会再按 `project.name` 静默查找同名远端 project
 - `plan` 会列出 project / service 级动作，并对 manifest drift 输出字段级 diff
-- `apply` 只执行当前安全支持的动作：创建缺失的 project 和 service
+- `apply` 只执行当前安全支持的动作：创建缺失的 project 和 service；首次创建成功后会把返回的 `project_id` 写入 `.ignis/project.json`
 - 如果云端 service 已存在但 manifest 不一致，当前会生成 `repair_service_manifest` 计划项并标记为 `blocked`
 
 说明：
@@ -256,6 +266,11 @@ ignis project sync --mode apply
 ### 6.1 `ignis service new`
 
 同时创建本地 service 和云端 service。
+
+前提：
+
+- 当前 project 已经通过 `.ignis/project.json` 绑定到远端 `project_id`
+- 如果是旧 project 或手工创建的本地目录，先执行 `ignis project sync --mode apply`
 
 示例：
 
@@ -487,7 +502,15 @@ ignis service sqlite restore --service api ./backup.sqlite3
 
 这种情况下，换一个新的 `--path`，或者先清理本地目录。
 
-### 9.3 `service publish` 找不到产物
+### 9.3 project 未绑定远端 `project_id`
+
+如果你在执行 `ignis service new`、`publish`、`deploy`、`env`、`secrets`、`sqlite` 等远端操作时看到 `project_not_linked`：
+
+- 在 project 根目录执行 `ignis project sync --mode apply`
+- 确认 CLI 已经写入 `.ignis/project.json`
+- 不要再依赖 `project.name` 命中远端 project；同名 project 现在不会被自动复用
+
+### 9.4 `service publish` 找不到产物
 
 先确认：
 

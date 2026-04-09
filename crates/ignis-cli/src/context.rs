@@ -6,9 +6,12 @@ use ignis_manifest::{
     LoadedManifest, LoadedProjectManifest, PROJECT_MANIFEST_FILE, ProjectManifest, ServiceManifest,
 };
 
+use crate::project_state::ProjectState;
+
 #[derive(Debug, Clone)]
 pub struct ProjectContext {
     loaded: LoadedProjectManifest,
+    state: Option<ProjectState>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -21,7 +24,8 @@ impl ProjectContext {
     pub fn load() -> Result<Self> {
         let manifest_path = find_project_manifest_path(std::env::current_dir()?)?;
         let loaded = LoadedProjectManifest::load(&manifest_path)?;
-        Ok(Self { loaded })
+        let state = ProjectState::load_optional(&loaded.project_dir)?;
+        Ok(Self { loaded, state })
     }
 
     pub fn manifest(&self) -> &ProjectManifest {
@@ -30,6 +34,10 @@ impl ProjectContext {
 
     pub fn project_name(&self) -> &str {
         self.loaded.project_name()
+    }
+
+    pub fn project_id(&self) -> Option<&str> {
+        self.state.as_ref().and_then(ProjectState::project_id)
     }
 
     pub fn manifest_path(&self) -> &Path {
