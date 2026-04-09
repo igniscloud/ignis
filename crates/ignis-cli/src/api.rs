@@ -4,8 +4,8 @@ use std::path::Path;
 
 use anyhow::{Context, Result, bail};
 use base64::Engine;
-use reqwest::multipart::{Form, Part};
 use reqwest::StatusCode;
+use reqwest::multipart::{Form, Part};
 use serde_json::{Value, json};
 use sha2::Digest;
 
@@ -472,7 +472,9 @@ async fn request_json(builder: reqwest::RequestBuilder) -> Result<Value> {
     Ok(value)
 }
 
-async fn request_json_optional_not_found(builder: reqwest::RequestBuilder) -> Result<Option<Value>> {
+async fn request_json_optional_not_found(
+    builder: reqwest::RequestBuilder,
+) -> Result<Option<Value>> {
     let response = builder.send().await.context("sending HTTP request")?;
     let status = response.status();
     let text = response.text().await.context("reading HTTP response")?;

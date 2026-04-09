@@ -15,10 +15,10 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use anyhow::{Context, Result, anyhow, bail};
 use clap::{Parser, Subcommand, ValueEnum};
 use ignis_manifest::{
-    ComponentSignature, FrontendServiceConfig, HttpServiceConfig, LoadedManifest,
-    LoadedProjectManifest, NetworkMode, PROJECT_MANIFEST_FILE, ProjectConfig, ProjectManifest,
-    ResourceConfig, ServiceKind, ServiceManifest, SqliteConfig,
-    IGNIS_LOGIN_COMMON_SERVER_BASE_URL_ENV, sign_component_with_seed,
+    ComponentSignature, FrontendServiceConfig, HttpServiceConfig,
+    IGNIS_LOGIN_COMMON_SERVER_BASE_URL_ENV, LoadedManifest, LoadedProjectManifest, NetworkMode,
+    PROJECT_MANIFEST_FILE, ProjectConfig, ProjectManifest, ResourceConfig, ServiceKind,
+    ServiceManifest, SqliteConfig, sign_component_with_seed,
 };
 use serde::Serialize;
 use serde_json::Value;
@@ -431,7 +431,11 @@ async fn sync_project(token: Option<String>) -> Result<()> {
     let client = api::ApiClient::new(config::CliConfig::resolve(token)?);
     let project_name = context.loaded.project_name().to_owned();
     let mut project_created = false;
-    if client.project_status_optional(&project_name).await?.is_none() {
+    if client
+        .project_status_optional(&project_name)
+        .await?
+        .is_none()
+    {
         client.create_project(&project_name).await?;
         project_created = true;
     }
@@ -462,7 +466,10 @@ async fn sync_project(token: Option<String>) -> Result<()> {
                 service_results.push(ProjectSyncServiceResult {
                     service: service.name.clone(),
                     status: "unchanged",
-                    message: format!("remote service `{}` already matches local manifest", service.name),
+                    message: format!(
+                        "remote service `{}` already matches local manifest",
+                        service.name
+                    ),
                 });
             }
             Some(_) => {
@@ -821,7 +828,10 @@ struct ServiceCheckFinding {
 fn check_service(context: &ProjectContext, service_name: &str) -> Result<()> {
     let service = required_service(&context.loaded, service_name)?;
     let findings = collect_service_check_findings(service);
-    let error_count = findings.iter().filter(|finding| finding.level == "error").count();
+    let error_count = findings
+        .iter()
+        .filter(|finding| finding.level == "error")
+        .count();
     let warning_count = findings
         .iter()
         .filter(|finding| finding.level == "warning")
@@ -914,7 +924,10 @@ fn ensure_service_check_passes(service: &ServiceManifest) -> Result<()> {
         .map(|finding| format!("[{}] {}", finding.code, finding.message))
         .collect::<Vec<_>>()
         .join("\n");
-    bail!("service `{}` failed local checks:\n{messages}", service.name)
+    bail!(
+        "service `{}` failed local checks:\n{messages}",
+        service.name
+    )
 }
 
 async fn delete_service(
@@ -1800,9 +1813,11 @@ mod tests {
 
         let findings = collect_service_check_findings(&service);
 
-        assert!(findings
-            .iter()
-            .any(|finding| finding.code == "common_server_base_url_env_not_supported"));
+        assert!(
+            findings
+                .iter()
+                .any(|finding| finding.code == "common_server_base_url_env_not_supported")
+        );
     }
 
     #[test]
@@ -1812,9 +1827,11 @@ mod tests {
 
         let findings = collect_service_check_findings(&service);
 
-        assert!(findings
-            .iter()
-            .any(|finding| finding.code == "ignis_login_missing_common_server_allow"));
+        assert!(
+            findings
+                .iter()
+                .any(|finding| finding.code == "ignis_login_missing_common_server_allow")
+        );
     }
 
     #[test]
