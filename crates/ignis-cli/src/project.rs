@@ -33,7 +33,9 @@ struct RemoteServiceEntry {
 
 pub async fn handle(command: ProjectCommands, token: Option<String>) -> Result<()> {
     match command {
-        ProjectCommands::Create { name, dir, force } => create_project(name, dir, force, token).await,
+        ProjectCommands::Create { name, dir, force } => {
+            create_project(name, dir, force, token).await
+        }
         ProjectCommands::Sync => sync_project(token).await,
         ProjectCommands::List => list_projects(token).await,
         ProjectCommands::Status { project } => project_status(&project, token).await,
@@ -132,7 +134,11 @@ async fn sync_project(token: Option<String>) -> Result<()> {
     let client = ApiClient::new(config::CliConfig::resolve(token)?);
     let project_name = context.project_name().to_owned();
     let mut project_created = false;
-    if client.project_status_optional(&project_name).await?.is_none() {
+    if client
+        .project_status_optional(&project_name)
+        .await?
+        .is_none()
+    {
         client.create_project(&project_name).await?;
         project_created = true;
     }
@@ -199,9 +205,7 @@ async fn sync_project(token: Option<String>) -> Result<()> {
         Drift::for_service(
             "remote_only_service",
             service.clone(),
-            format!(
-                "remote service `{service}` is not declared locally and was left unchanged"
-            ),
+            format!("remote service `{service}` is not declared locally and was left unchanged"),
         )
     }));
 

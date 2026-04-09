@@ -49,7 +49,9 @@ pub async fn handle(command: ServiceCommands, token: Option<String>) -> Result<(
         ServiceCommands::Deployments { service, limit } => {
             deployments(&context, &service, limit, token).await
         }
-        ServiceCommands::Events { service, limit } => events(&context, &service, limit, token).await,
+        ServiceCommands::Events { service, limit } => {
+            events(&context, &service, limit, token).await
+        }
         ServiceCommands::Logs { service, limit } => logs(&context, &service, limit, token).await,
         ServiceCommands::Rollback { service, version } => {
             rollback(&context, &service, &version, token).await
@@ -82,7 +84,9 @@ async fn new_service(
     context.ensure_new_service_path_available(&service)?;
 
     let client = ApiClient::new(config::CliConfig::resolve(token)?);
-    let response = client.create_service(context.project_name(), &service).await?;
+    let response = client
+        .create_service(context.project_name(), &service)
+        .await?;
 
     let mut manifest = context.manifest().clone();
     manifest.services.push(service.clone());
@@ -138,9 +142,13 @@ fn build_new_service_manifest(
             http: None,
             frontend: Some(FrontendServiceConfig {
                 build_command: vec![
-                    "bash".to_owned(),
-                    "-lc".to_owned(),
-                    "rm -rf dist && mkdir -p dist && cp -R src/. dist/".to_owned(),
+                    "ignis".to_owned(),
+                    "internal".to_owned(),
+                    "copy-frontend-static".to_owned(),
+                    "--source-dir".to_owned(),
+                    "src".to_owned(),
+                    "--output-dir".to_owned(),
+                    "dist".to_owned(),
                 ],
                 output_dir: PathBuf::from("dist"),
                 spa_fallback: true,
@@ -251,15 +259,17 @@ fn check_service(context: &ProjectContext, service_name: &str) -> Result<()> {
         .collect::<Vec<_>>();
 
     if !errors.is_empty() {
-        return Err(CliError::new(format!("service check failed for `{}`", service.name()))
-            .code("service_check_failed")
-            .with_warnings(warnings)
-            .with_details(
-                errors
-                    .into_iter()
-                    .map(|finding| format!("[{}] {}", finding.code, finding.message)),
-            )
-            .into());
+        return Err(
+            CliError::new(format!("service check failed for `{}`", service.name()))
+                .code("service_check_failed")
+                .with_warnings(warnings)
+                .with_details(
+                    errors
+                        .into_iter()
+                        .map(|finding| format!("[{}] {}", finding.code, finding.message)),
+                )
+                .into(),
+        );
     }
 
     output::success_with(
@@ -286,14 +296,16 @@ pub fn ensure_service_check_passes(service: &ServiceManifest) -> Result<()> {
         return Ok(());
     }
 
-    Err(CliError::new(format!("service `{}` failed local checks", service.name))
-        .code("service_check_failed")
-        .with_details(
-            errors
-                .into_iter()
-                .map(|finding| format!("[{}] {}", finding.code, finding.message)),
-        )
-        .into())
+    Err(
+        CliError::new(format!("service `{}` failed local checks", service.name))
+            .code("service_check_failed")
+            .with_details(
+                errors
+                    .into_iter()
+                    .map(|finding| format!("[{}] {}", finding.code, finding.message)),
+            )
+            .into(),
+    )
 }
 
 pub fn collect_service_check_findings(service: &ServiceManifest) -> Vec<ServiceCheckFinding> {
@@ -314,12 +326,10 @@ pub fn collect_service_check_findings(service: &ServiceManifest) -> Vec<ServiceC
     }
 
     if service.ignis_login.is_some()
-        && !service
-            .network
-            .allows_authority(
-                "id.igniscloud.transairobot.com",
-                Some("id.igniscloud.transairobot.com"),
-            )
+        && !service.network.allows_authority(
+            "id.igniscloud.transairobot.com",
+            Some("id.igniscloud.transairobot.com"),
+        )
     {
         let message = if service.network.mode == NetworkMode::DenyAll {
             format!(
@@ -383,6 +393,7 @@ async fn build_service_command(
         "kind": kind_name(service.manifest().kind),
         "mode": outcome.mode,
         "output_path": outcome.output_path,
+        "validation": outcome.validation,
     }))
 }
 
@@ -395,46 +406,42 @@ async fn publish_service(
     ensure_service_check_passes(service.manifest())?;
 
     let client = ApiClient::new(config::CliConfig::resolve(token)?);
-    let response = match service.manifest().kind {
-        ServiceKind::Http => {
-            let loaded = service.http_service_manifest()?;
-            let artifact_path = loaded.component_path();
-            if !artifact_path.exists() {
-                bail!(
-                    "artifact {} does not exist; run `ignis service build --service {}` before publish",
-                    artifact_path.display(),
-                    service.name()
-                );
-            }
-            let component_signature = build::load_component_signature(&artifact_path)?;
+    let publish_artifact = build::prepare_publish_artifact(&service).await?;
+    let response = match &publish_artifact.kind {
+        build::PublishArtifactKind::Http {
+            component_path,
+            component_signature,
+        } => {
             client
                 .publish_http_service(
                     service.project_name(),
                     service.name(),
                     service.manifest(),
-                    &artifact_path,
-                    component_signature,
-                    build::build_metadata(&service).await?,
+                    component_path,
+                    component_signature.clone(),
+                    publish_artifact.metadata.clone(),
                 )
                 .await?
         }
-        ServiceKind::Frontend => {
-            let bundle_path = build::create_frontend_bundle(&service).await?;
-            let response = client
+        build::PublishArtifactKind::Frontend { bundle_path } => {
+            client
                 .publish_frontend_service(
                     service.project_name(),
                     service.name(),
                     service.manifest(),
-                    &bundle_path,
-                    build::build_metadata(&service).await?,
+                    bundle_path,
+                    publish_artifact.metadata.clone(),
                 )
-                .await;
-            let _ = fs::remove_file(&bundle_path);
-            response?
+                .await?
         }
     };
+    let validation = publish_artifact.validation.clone();
+    publish_artifact.cleanup();
 
-    output::success(response)
+    output::success(serde_json::json!({
+        "validation": validation,
+        "remote": response,
+    }))
 }
 
 async fn deploy_service(
@@ -530,7 +537,9 @@ async fn env_command(
     let response = match command {
         ServiceEnvCommands::List { service } => {
             let service = context.service(&service)?;
-            client.env_list(service.project_name(), service.name()).await?
+            client
+                .env_list(service.project_name(), service.name())
+                .await?
         }
         ServiceEnvCommands::Set {
             service,

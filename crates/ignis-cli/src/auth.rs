@@ -20,8 +20,7 @@ use crate::output::{self, Warning};
 
 const LOGIN_TIMEOUT: Duration = Duration::from_secs(300);
 const LOGIN_SUCCESS_HTML: &str = "<!doctype html><html><body><h1>Login successful</h1><p>You can close this window and return to Ignis CLI.</p><script>window.close();</script></body></html>";
-const LOGIN_FAILURE_HTML: &str =
-    "<h1>Login Failed</h1><p>Return to the terminal and retry.</p>";
+const LOGIN_FAILURE_HTML: &str = "<h1>Login Failed</h1><p>Return to the terminal and retry.</p>";
 
 #[derive(Debug)]
 struct LoopbackLoginPayload {
@@ -75,7 +74,9 @@ pub async fn login(token: Option<String>) -> Result<()> {
         )),
     };
 
-    handle.await.context("loopback login listener task panicked")?;
+    handle
+        .await
+        .context("loopback login listener task panicked")?;
     let payload = payload_result?;
 
     let mut config = config::CliConfig::load()?.unwrap_or(config::CliConfig {
@@ -179,9 +180,7 @@ async fn start_loopback_login_listener(
                     service_fn(move |request| {
                         let state = service_state.clone();
                         async move {
-                            Ok::<_, Infallible>(
-                                handle_loopback_login_request(request, state).await,
-                            )
+                            Ok::<_, Infallible>(handle_loopback_login_request(request, state).await)
                         }
                     }),
                 )
@@ -263,7 +262,11 @@ async fn process_loopback_login_request(
         );
     }
 
-    let token = match form.get("token").cloned().filter(|value| !value.trim().is_empty()) {
+    let token = match form
+        .get("token")
+        .cloned()
+        .filter(|value| !value.trim().is_empty())
+    {
         Some(token) => token,
         None => {
             return failure_response(

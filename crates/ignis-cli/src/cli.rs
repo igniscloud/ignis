@@ -37,6 +37,11 @@ pub enum Commands {
         #[command(subcommand)]
         command: ServiceCommands,
     },
+    #[command(hide = true)]
+    Internal {
+        #[command(subcommand)]
+        command: InternalCommands,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -217,5 +222,15 @@ pub enum ServiceSqliteCommands {
         #[arg(long)]
         service: String,
         input: PathBuf,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum InternalCommands {
+    CopyFrontendStatic {
+        #[arg(long, default_value = "src")]
+        source_dir: PathBuf,
+        #[arg(long, default_value = "dist")]
+        output_dir: PathBuf,
     },
 }

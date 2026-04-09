@@ -48,5 +48,6 @@ async fn run() -> Result<()> {
         } => skill::generate(format, path.as_deref(), force),
         Commands::Project { command } => project::handle(command, token).await,
         Commands::Service { command } => service::handle(command, token).await,
+        Commands::Internal { command } => build::handle_internal(command).await,
     }
 }

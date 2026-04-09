@@ -85,10 +85,10 @@ Suggested validation: `cargo check -p ignis-cli`
 Primary targets: `crates/ignis-cli/src/**`, service build/publish orchestration paths, example service packaging flows
 Suggested validation: `cargo check -p ignis-cli`
 
-- [ ] [BLD-01] Remove shell-fragile default frontend scaffolding commands and replace them with a cross-platform build strategy.
-- [ ] [BLD-02] Replace external `tar` command packaging with an internal archive path that behaves consistently across supported developer environments.
-- [ ] [BLD-03] Separate build orchestration from publish/deploy orchestration so artifact production, validation, and upload have clear boundaries.
-- [ ] [BLD-04] Introduce an explicit artifact validation stage for HTTP and frontend services before publish starts.
+- [x] [BLD-01] Remove shell-fragile default frontend scaffolding commands and replace them with a cross-platform build strategy.
+- [x] [BLD-02] Replace external `tar` command packaging with an internal archive path that behaves consistently across supported developer environments.
+- [x] [BLD-03] Separate build orchestration from publish/deploy orchestration so artifact production, validation, and upload have clear boundaries.
+- [x] [BLD-04] Introduce an explicit artifact validation stage for HTTP and frontend services before publish starts.
 - [ ] [BLD-05] Redesign `ignis project sync` around an explicit plan/apply model so manifest drift is inspectable and eventually repairable rather than merely reported.
 
 ## Section 3: Manifest And Domain Modeling

@@ -1,21 +1,80 @@
 use std::collections::BTreeMap;
 use std::fs;
+use std::fs::File;
+use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, anyhow, bail};
+use flate2::Compression;
+use flate2::write::GzEncoder;
 use ignis_manifest::{ComponentSignature, LoadedManifest, ServiceKind, sign_component_with_seed};
 use serde::Serialize;
+use tar::Builder;
 use tokio::process::Command;
 use tracing::info;
 
+use crate::cli::InternalCommands;
 use crate::context::ServiceContext;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct BuildOutcome {
     pub mode: &'static str,
     pub output_path: PathBuf,
+    pub validation: ArtifactValidation,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ArtifactValidation {
+    pub kind: &'static str,
+    pub artifact_path: PathBuf,
+    pub checks: Vec<ValidationCheck>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ValidationCheck {
+    pub name: &'static str,
+    pub detail: String,
+}
+
+#[derive(Debug)]
+pub struct PublishArtifact {
+    pub metadata: BTreeMap<String, String>,
+    pub validation: ArtifactValidation,
+    pub kind: PublishArtifactKind,
+}
+
+#[derive(Debug)]
+pub enum PublishArtifactKind {
+    Http {
+        component_path: PathBuf,
+        component_signature: Option<ComponentSignature>,
+    },
+    Frontend {
+        bundle_path: PathBuf,
+    },
+}
+
+impl PublishArtifact {
+    pub fn cleanup(self) {
+        if let PublishArtifactKind::Frontend { bundle_path } = self.kind {
+            let _ = fs::remove_file(bundle_path);
+        }
+    }
+}
+
+pub async fn handle_internal(command: InternalCommands) -> Result<()> {
+    match command {
+        InternalCommands::CopyFrontendStatic {
+            source_dir,
+            output_dir,
+        } => copy_frontend_static_site(
+            &std::env::current_dir().context("reading current directory failed")?,
+            &source_dir,
+            &output_dir,
+        ),
+    }
 }
 
 pub async fn build_service(service: &ServiceContext<'_>, release: bool) -> Result<BuildOutcome> {
@@ -23,16 +82,20 @@ pub async fn build_service(service: &ServiceContext<'_>, release: bool) -> Resul
         ServiceKind::Http => {
             let loaded = service.http_service_manifest()?;
             let output_path = build_http_service(&loaded, release).await?;
+            let validation = validate_http_artifact(&loaded)?;
             Ok(BuildOutcome {
                 mode: "cargo-build-wasm32-wasip2",
                 output_path,
+                validation,
             })
         }
         ServiceKind::Frontend => {
             let output_path = build_frontend_service(service).await?;
+            let validation = validate_frontend_output_dir(service)?;
             Ok(BuildOutcome {
-                mode: "frontend-build-command",
+                mode: frontend_build_mode(service.manifest()),
                 output_path,
+                validation,
             })
         }
     }
@@ -59,28 +122,38 @@ pub async fn build_metadata(service: &ServiceContext<'_>) -> Result<BTreeMap<Str
         "build_mode".to_owned(),
         match service.manifest().kind {
             ServiceKind::Http => "cargo-build-wasm32-wasip2".to_owned(),
-            ServiceKind::Frontend => "frontend-build-command".to_owned(),
+            ServiceKind::Frontend => frontend_build_mode(service.manifest()).to_owned(),
         },
     );
     Ok(metadata)
 }
 
-pub async fn create_frontend_bundle(service: &ServiceContext<'_>) -> Result<PathBuf> {
-    let frontend = service.manifest().frontend.as_ref().ok_or_else(|| {
-        anyhow!(
-            "frontend service `{}` is missing frontend config",
-            service.name()
-        )
-    })?;
-    let output_dir = service.service_dir().join(&frontend.output_dir);
-    if !output_dir.exists() {
-        bail!(
-            "frontend output directory {} does not exist; run `ignis service build --service {}` before publish",
-            output_dir.display(),
-            service.name()
-        );
+pub async fn prepare_publish_artifact(service: &ServiceContext<'_>) -> Result<PublishArtifact> {
+    match service.manifest().kind {
+        ServiceKind::Http => {
+            let loaded = service.http_service_manifest()?;
+            let validation = validate_http_artifact(&loaded)?;
+            let component_path = loaded.component_path();
+            let component_signature = load_component_signature(&component_path)?;
+            Ok(PublishArtifact {
+                metadata: build_metadata(service).await?,
+                validation,
+                kind: PublishArtifactKind::Http {
+                    component_path,
+                    component_signature,
+                },
+            })
+        }
+        ServiceKind::Frontend => {
+            let validation = validate_frontend_output_dir(service)?;
+            let bundle_path = create_frontend_bundle(service, &validation.artifact_path).await?;
+            Ok(PublishArtifact {
+                metadata: build_metadata(service).await?,
+                validation,
+                kind: PublishArtifactKind::Frontend { bundle_path },
+            })
+        }
     }
-    create_tarball(&output_dir, service.name()).await
 }
 
 pub fn load_component_signature(artifact_path: &Path) -> Result<Option<ComponentSignature>> {
@@ -134,7 +207,12 @@ async fn build_frontend_service(service: &ServiceContext<'_>) -> Result<PathBuf>
             service.name()
         )
     })?;
-    run_command(&service_dir, program, args.iter().map(String::as_str)).await?;
+    if is_internal_frontend_copy_command(program, args) {
+        let (source_dir, output_dir) = parse_internal_frontend_copy_args(args)?;
+        copy_frontend_static_site(&service_dir, &source_dir, &output_dir)?;
+    } else {
+        run_command(&service_dir, program, args.iter().map(String::as_str)).await?;
+    }
     let output_dir = service_dir.join(&frontend.output_dir);
     if !output_dir.exists() {
         bail!(
@@ -196,18 +274,17 @@ async fn create_tarball(output_dir: &Path, service_name: &str) -> Result<PathBuf
         .unwrap_or_default();
     let bundle_name = format!("ignis-{service_name}-{nanos}.tar.gz");
     let bundle_path = std::env::temp_dir().join(bundle_name);
-    run_command(
-        output_dir,
-        "tar",
-        [
-            "-czf",
-            bundle_path
-                .to_str()
-                .ok_or_else(|| anyhow!("temporary tarball path is not valid UTF-8"))?,
-            ".",
-        ],
-    )
-    .await?;
+    let file = File::create(&bundle_path)
+        .with_context(|| format!("creating {}", bundle_path.display()))?;
+    let encoder = GzEncoder::new(file, Compression::default());
+    let mut archive = Builder::new(encoder);
+    archive
+        .append_dir_all(".", output_dir)
+        .with_context(|| format!("archiving {}", output_dir.display()))?;
+    let encoder = archive
+        .into_inner()
+        .context("finalizing tar archive writer failed")?;
+    encoder.finish().context("finalizing gzip archive failed")?;
     Ok(bundle_path)
 }
 
@@ -216,4 +293,236 @@ fn kind_name(kind: ServiceKind) -> &'static str {
         ServiceKind::Http => "http",
         ServiceKind::Frontend => "frontend",
     }
+}
+
+fn frontend_build_mode(service: &ignis_manifest::ServiceManifest) -> &'static str {
+    let Some(frontend) = &service.frontend else {
+        return "frontend-build-command";
+    };
+    let Some(program) = frontend.build_command.first() else {
+        return "frontend-build-command";
+    };
+    if is_internal_frontend_copy_command(program, &frontend.build_command[1..]) {
+        "ignis-internal-copy-static-site"
+    } else {
+        "frontend-build-command"
+    }
+}
+
+fn validate_http_artifact(loaded: &LoadedManifest) -> Result<ArtifactValidation> {
+    let component_path = loaded.component_path();
+    let metadata = fs::metadata(&component_path)
+        .with_context(|| format!("reading {}", component_path.display()))?;
+    if !metadata.is_file() {
+        bail!(
+            "component artifact {} exists but is not a file",
+            component_path.display()
+        );
+    }
+    if metadata.len() == 0 {
+        bail!("component artifact {} is empty", component_path.display());
+    }
+    if component_path.extension().and_then(|ext| ext.to_str()) != Some("wasm") {
+        bail!(
+            "component artifact {} must end with .wasm",
+            component_path.display()
+        );
+    }
+    Ok(ArtifactValidation {
+        kind: "http-component",
+        artifact_path: component_path,
+        checks: vec![
+            ValidationCheck {
+                name: "exists",
+                detail: "component artifact exists".to_owned(),
+            },
+            ValidationCheck {
+                name: "file",
+                detail: "component artifact is a regular file".to_owned(),
+            },
+            ValidationCheck {
+                name: "non_empty",
+                detail: format!("component artifact size is {} bytes", metadata.len()),
+            },
+            ValidationCheck {
+                name: "extension",
+                detail: "component artifact uses .wasm extension".to_owned(),
+            },
+        ],
+    })
+}
+
+fn validate_frontend_output_dir(service: &ServiceContext<'_>) -> Result<ArtifactValidation> {
+    let frontend = service.manifest().frontend.as_ref().ok_or_else(|| {
+        anyhow!(
+            "frontend service `{}` is missing frontend config",
+            service.name()
+        )
+    })?;
+    let output_dir = service.service_dir().join(&frontend.output_dir);
+    let metadata =
+        fs::metadata(&output_dir).with_context(|| format!("reading {}", output_dir.display()))?;
+    if !metadata.is_dir() {
+        bail!(
+            "frontend output path {} exists but is not a directory",
+            output_dir.display()
+        );
+    }
+
+    let mut file_count = 0usize;
+    count_files(&output_dir, &mut file_count)?;
+    if file_count == 0 {
+        bail!(
+            "frontend output directory {} does not contain any files",
+            output_dir.display()
+        );
+    }
+
+    let index_path = output_dir.join("index.html");
+    if !index_path.exists() {
+        bail!(
+            "frontend output directory {} is missing index.html",
+            output_dir.display()
+        );
+    }
+
+    Ok(ArtifactValidation {
+        kind: "frontend-static-site",
+        artifact_path: output_dir,
+        checks: vec![
+            ValidationCheck {
+                name: "exists",
+                detail: "frontend output directory exists".to_owned(),
+            },
+            ValidationCheck {
+                name: "directory",
+                detail: "frontend output path is a directory".to_owned(),
+            },
+            ValidationCheck {
+                name: "non_empty",
+                detail: format!("frontend output directory contains {file_count} files"),
+            },
+            ValidationCheck {
+                name: "entrypoint",
+                detail: "frontend output directory contains index.html".to_owned(),
+            },
+        ],
+    })
+}
+
+async fn create_frontend_bundle(
+    service: &ServiceContext<'_>,
+    output_dir: &Path,
+) -> Result<PathBuf> {
+    create_tarball(output_dir, service.name()).await
+}
+
+fn is_internal_frontend_copy_command(program: &str, args: &[String]) -> bool {
+    program == "ignis"
+        && args.first().map(String::as_str) == Some("internal")
+        && args.get(1).map(String::as_str) == Some("copy-frontend-static")
+}
+
+fn parse_internal_frontend_copy_args(args: &[String]) -> Result<(PathBuf, PathBuf)> {
+    let mut source_dir = None;
+    let mut output_dir = None;
+    let mut index = 2usize;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--source-dir" => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| anyhow!("missing value for --source-dir"))?;
+                source_dir = Some(PathBuf::from(value));
+            }
+            "--output-dir" => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| anyhow!("missing value for --output-dir"))?;
+                output_dir = Some(PathBuf::from(value));
+            }
+            other => bail!("unexpected ignis internal frontend build argument `{other}`"),
+        }
+        index += 1;
+    }
+
+    Ok((
+        source_dir.unwrap_or_else(|| PathBuf::from("src")),
+        output_dir.unwrap_or_else(|| PathBuf::from("dist")),
+    ))
+}
+
+fn copy_frontend_static_site(
+    service_dir: &Path,
+    source_dir: &Path,
+    output_dir: &Path,
+) -> Result<()> {
+    let source_path = service_dir.join(source_dir);
+    let output_path = service_dir.join(output_dir);
+    if !source_path.exists() {
+        bail!(
+            "frontend source directory {} does not exist",
+            source_path.display()
+        );
+    }
+    if !source_path.is_dir() {
+        bail!(
+            "frontend source path {} is not a directory",
+            source_path.display()
+        );
+    }
+    if output_path.exists() {
+        fs::remove_dir_all(&output_path)
+            .with_context(|| format!("removing {}", output_path.display()))?;
+    }
+    fs::create_dir_all(&output_path)
+        .with_context(|| format!("creating {}", output_path.display()))?;
+    copy_dir_contents(&source_path, &output_path)
+}
+
+fn copy_dir_contents(source_dir: &Path, output_dir: &Path) -> Result<()> {
+    for entry in
+        fs::read_dir(source_dir).with_context(|| format!("reading {}", source_dir.display()))?
+    {
+        let entry = entry.with_context(|| format!("reading {}", source_dir.display()))?;
+        let source_path = entry.path();
+        let destination_path = output_dir.join(entry.file_name());
+        let file_type = entry
+            .file_type()
+            .with_context(|| format!("reading {}", source_path.display()))?;
+        if file_type.is_dir() {
+            fs::create_dir_all(&destination_path)
+                .with_context(|| format!("creating {}", destination_path.display()))?;
+            copy_dir_contents(&source_path, &destination_path)?;
+        } else if file_type.is_file() {
+            fs::copy(&source_path, &destination_path).with_context(|| {
+                format!(
+                    "copying {} -> {}",
+                    source_path.display(),
+                    destination_path.display()
+                )
+            })?;
+        } else if file_type.is_symlink() {
+            bail!(
+                "frontend source path {} contains a symlink; static frontend build only supports regular files and directories",
+                source_path.display()
+            );
+        }
+    }
+    Ok(())
+}
+
+fn count_files(path: &Path, count: &mut usize) -> io::Result<()> {
+    for entry in fs::read_dir(path)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        if file_type.is_dir() {
+            count_files(&entry.path(), count)?;
+        } else if file_type.is_file() {
+            *count += 1;
+        }
+    }
+    Ok(())
 }
