@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ignis Login Example</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f3ead5;
+        --panel: rgba(255, 252, 246, 0.88);
+        --ink: #13211d;
+        --muted: #62736e;
+        --line: rgba(19, 33, 29, 0.11);
+        --primary: #0f6d51;
+        --primary-2: #184e77;
+        --warning: #a85820;
+        --shadow: 0 28px 90px rgba(19, 33, 29, 0.14);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(216, 164, 74, 0.24), transparent 30%),
+          radial-gradient(circle at 82% 15%, rgba(15, 109, 81, 0.22), transparent 26%),
+          linear-gradient(160deg, #efe4ca 0%, #f5eedc 46%, #efe7d5 100%);
+      }
+      .shell {
+        width: min(1120px, 100%);
+        margin: 0 auto;
+        padding: 28px 20px 48px;
+      }
+      .hero {
+        display: grid;
+        grid-template-columns: 1.25fr 0.95fr;
+        gap: 20px;
+        align-items: stretch;
+      }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 30px;
+        backdrop-filter: blur(18px);
+        box-shadow: var(--shadow);
+      }
+      .hero-copy {
+        padding: 34px;
+      }
+      .eyebrow {
+        margin: 0 0 10px;
+        color: var(--primary);
+        font-size: 0.84rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+      h1 {
+        margin: 0 0 14px;
+        font-size: clamp(3rem, 7vw, 5.8rem);
+        line-height: 0.93;
+        letter-spacing: -0.05em;
+      }
+      .lede,
+      .muted {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.7;
+      }
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 42px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: rgba(19, 33, 29, 0.06);
+        margin-bottom: 18px;
+      }
+      .status.live {
+        background: rgba(15, 109, 81, 0.12);
+      }
+      .actions {
+        margin-top: 28px;
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .button {
+        appearance: none;
+        border: 0;
+        cursor: pointer;
+        min-height: 52px;
+        padding: 0 22px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        font-weight: 800;
+        letter-spacing: 0.01em;
+        text-decoration: none;
+      }
+      .button.primary {
+        color: white;
+        background: linear-gradient(135deg, var(--primary), var(--primary-2));
+        box-shadow: 0 16px 42px rgba(15, 109, 81, 0.24);
+      }
+      .button.secondary {
+        color: var(--ink);
+        background: rgba(19, 33, 29, 0.07);
+      }
+      .button[hidden] {
+        display: none;
+      }
+      .side {
+        padding: 24px;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.36)),
+          linear-gradient(145deg, rgba(216, 164, 74, 0.18), rgba(24, 78, 119, 0.1));
+      }
+      .grid {
+        margin-top: 20px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+      }
+      .card {
+        padding: 24px;
+      }
+      .card h2 {
+        margin: 0 0 10px;
+        font-size: 1.55rem;
+      }
+      .details {
+        display: grid;
+        gap: 12px;
+        margin-top: 18px;
+      }
+      .details div {
+        padding-top: 12px;
+        border-top: 1px solid var(--line);
+      }
+      .details dt {
+        color: var(--muted);
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        margin-bottom: 4px;
+      }
+      .details dd {
+        margin: 0;
+        word-break: break-word;
+      }
+      .profile {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+      }
+      .avatar {
+        width: 72px;
+        height: 72px;
+        border-radius: 24px;
+        object-fit: cover;
+        background: rgba(15, 109, 81, 0.1);
+        border: 3px solid rgba(15, 109, 81, 0.18);
+      }
+      .flash {
+        margin-top: 18px;
+        padding: 14px 16px;
+        border-radius: 18px;
+        background: rgba(168, 88, 32, 0.12);
+        border: 1px solid rgba(168, 88, 32, 0.2);
+        color: var(--warning);
+      }
+      .flash[hidden] {
+        display: none;
+      }
+      code {
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 0.92em;
+      }
+      @media (max-width: 840px) {
+        .hero,
+        .grid {
+          grid-template-columns: 1fr;
+        }
+        .hero-copy {
+          padding: 26px;
+        }
+        .profile {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <section class="panel hero-copy">
+          <div id="status" class="status">Checking session…</div>
+          <p class="eyebrow">Ignis Login Example</p>
+          <h1>Frontend At <br />The Root, Auth In <br />The API.</h1>
+          <p class="lede">
+            This version is split into two services. The frontend lives at <code>/</code>.
+            The backend handles hosted login, OAuth code exchange, session cookies, and the current
+            user lookup under <code>/api</code>.
+          </p>
+          <div class="actions">
+            <a id="loginButton" class="button primary" href="/api/auth/start">Continue With Google</a>
+            <button id="logoutButton" class="button secondary" type="button" hidden>Sign Out</button>
+          </div>
+          <div id="flash" class="flash" hidden></div>
+        </section>
+        <aside class="panel side">
+          <p class="eyebrow">Route Model</p>
+          <h2>Single Host, Split Responsibilities</h2>
+          <p class="muted">
+            <strong>Web:</strong> <code>/</code><br />
+            <strong>API:</strong> <code>/api</code><br />
+            <strong>Login entry:</strong> <code>/api/auth/start</code><br />
+            <strong>Callback:</strong> <code>/api/auth/callback</code>
+          </p>
+        </aside>
+      </section>
+
+      <section class="grid">
+        <section class="panel card">
+          <p class="eyebrow">Current Session</p>
+          <div class="profile">
+            <div>
+              <h2 id="nickname">Not signed in</h2>
+              <p id="profileLead" class="muted">
+                Once login completes, the frontend will load your nickname from <code>/api/me</code>.
+              </p>
+            </div>
+            <img id="avatar" class="avatar" alt="user avatar" hidden />
+          </div>
+          <dl class="details">
+            <div>
+              <dt>Nickname</dt>
+              <dd id="nicknameValue">Unavailable</dd>
+            </div>
+            <div>
+              <dt>Subject</dt>
+              <dd id="subjectValue">Unavailable</dd>
+            </div>
+            <div>
+              <dt>Session State</dt>
+              <dd id="sessionState">Loading</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="panel card">
+          <p class="eyebrow">Frontend Behavior</p>
+          <h2>What The Browser Does</h2>
+          <dl class="details">
+            <div>
+              <dt>Boot</dt>
+              <dd>Calls <code>GET /api/me</code> to determine whether the user is already signed in.</dd>
+            </div>
+            <div>
+              <dt>Login</dt>
+              <dd>Uses a normal navigation to <code>/api/auth/start</code> so the backend owns PKCE and state.</dd>
+            </div>
+            <div>
+              <dt>Logout</dt>
+              <dd>Calls <code>POST /api/logout</code>, clears the session cookie, then reloads the session view.</dd>
+            </div>
+          </dl>
+        </section>
+      </section>
+    </main>
+
+    <script>
+      const state = {
+        loginButton: document.getElementById("loginButton"),
+        logoutButton: document.getElementById("logoutButton"),
+        status: document.getElementById("status"),
+        flash: document.getElementById("flash"),
+        nickname: document.getElementById("nickname"),
+        nicknameValue: document.getElementById("nicknameValue"),
+        subjectValue: document.getElementById("subjectValue"),
+        sessionState: document.getElementById("sessionState"),
+        profileLead: document.getElementById("profileLead"),
+        avatar: document.getElementById("avatar"),
+      };
+
+      async function loadSession() {
+        setFlash(new URLSearchParams(window.location.search).get("error"));
+        state.status.textContent = "Checking session…";
+        state.status.classList.remove("live");
+
+        try {
+          const response = await fetch("/api/me", {
+            method: "GET",
+            headers: { accept: "application/json" },
+          });
+          const payload = await response.json();
+          renderSession(payload);
+        } catch (error) {
+          setFlash(`Unable to reach /api/me: ${error}`);
+          renderSignedOut({
+            message: "API unavailable",
+          });
+        }
+      }
+
+      function renderSession(payload) {
+        if (payload.authenticated) {
+          state.status.textContent = `Logged in as ${payload.nickname}`;
+          state.status.classList.add("live");
+          state.loginButton.hidden = true;
+          state.logoutButton.hidden = false;
+          state.nickname.textContent = payload.nickname;
+          state.nicknameValue.textContent = payload.nickname;
+          state.subjectValue.textContent = payload.subject || "Unavailable";
+          state.sessionState.textContent = "Authenticated";
+          state.profileLead.textContent = "Nickname resolved from IgnisCloud ID userinfo.";
+          renderAvatar(payload.avatar_url);
+          return;
+        }
+
+        renderSignedOut(payload);
+      }
+
+      function renderSignedOut(payload) {
+        state.status.textContent = "Ready for hosted login";
+        state.status.classList.remove("live");
+        state.loginButton.hidden = false;
+        state.logoutButton.hidden = true;
+        state.nickname.textContent = "Not signed in";
+        state.nicknameValue.textContent = "Unavailable";
+        state.subjectValue.textContent = "Unavailable";
+        state.sessionState.textContent = "Signed out";
+        state.profileLead.textContent = payload.message || "Click the login button to start hosted login.";
+        state.avatar.hidden = true;
+        state.avatar.removeAttribute("src");
+      }
+
+      function renderAvatar(url) {
+        if (!url) {
+          state.avatar.hidden = true;
+          state.avatar.removeAttribute("src");
+          return;
+        }
+        state.avatar.src = url;
+        state.avatar.hidden = false;
+      }
+
+      function setFlash(message) {
+        if (!message) {
+          state.flash.hidden = true;
+          state.flash.textContent = "";
+          return;
+        }
+        state.flash.hidden = false;
+        state.flash.textContent = message;
+      }
+
+      state.logoutButton.addEventListener("click", async () => {
+        try {
+          await fetch("/api/logout", {
+            method: "POST",
+            headers: { accept: "application/json" },
+          });
+        } catch (error) {
+          setFlash(`Logout request failed: ${error}`);
+          return;
+        }
+        history.replaceState({}, "", "/");
+        await loadSession();
+      });
+
+      loadSession();
+    </script>
+  </body>
+</html>

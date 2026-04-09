@@ -1,5 +1,5 @@
 [project]
-name = "ignis_login_example"
+name = "sqlite-example"
 
 [[services]]
 name = "api"
@@ -11,23 +11,12 @@ prefix = "/api"
 component = "target/wasm32-wasip2/release/api.wasm"
 base_path = "/"
 
-[services.ignis_login]
-display_name = "ignis-login-example"
-redirect_path = "/auth/callback"
-providers = ["google", "test_password"]
-
-[services.env]
-
-[services.secrets]
-
 [services.sqlite]
-enabled = false
+enabled = true
 
 [services.resources]
-
-[services.network]
-mode = "allow_list"
-allow = ["id.igniscloud.transairobot.com"]
+cpu_time_limit_ms = 5000
+memory_limit_bytes = 134217728
 
 [[services]]
 name = "web"
@@ -43,16 +32,3 @@ build_command = [
 ]
 output_dir = "dist"
 spa_fallback = true
-
-[services.env]
-
-[services.secrets]
-
-[services.sqlite]
-enabled = false
-
-[services.resources]
-
-[services.network]
-mode = "deny_all"
-allow = []

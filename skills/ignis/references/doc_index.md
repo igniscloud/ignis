@@ -1,0 +1,14 @@
+# 文档索引
+
+- `integration.md`
+  从 service 开发者和平台开发者两个角度说明如何接入 Ignis
+- `ignis-toml.md`
+  独立说明 `ignis.toml` 的配置项、默认值、校验规则和示例配置
+- `ignis-sdk/`
+  `mddoc` 生成的 `ignis-sdk` Markdown API 文档树
+- `cli.md`
+  说明 `ignis` CLI 的安装、配置、命令、签名、SQLite 和常见问题
+- `examples/hello-fullstack/`
+  完整 `hello-fullstack` example 项目，包含 `README.md`、`ignis.toml`、后端源码、前端源码和 `wit`
+- `examples/sqlite-example/`
+  完整 `sqlite-example` 项目，包含 `README.md`、`ignis.toml`、SQLite 后端源码、前端源码和 `wit`

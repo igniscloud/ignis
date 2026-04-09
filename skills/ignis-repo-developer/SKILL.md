@@ -37,7 +37,7 @@ description: Use for contributing to the ignis repository itself, including igni
 
 - 不要猜测当前 manifest 字段、CLI 行为或 SDK API；以源码和 `docs/` 为准。
 - `docs/ignis-sdk/` 是生成产物，优先通过 `mddoc` 重建，不要手工逐页维护。
-- skill 的职责要明确：仓库开发者相关内容放这里，使用者视角内容放 `ignis-user`。
+- skill 的职责要明确：仓库开发者相关内容放这里，使用者视角内容放 `ignis` 与 `ignis-login`。
 - 示例和用户文档要面向外部使用者，不要把仓库内部维护细节写进去。
 
 ## 参考资料

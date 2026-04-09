@@ -22,7 +22,7 @@ ignis gen-skill --format codex
 codex exec "Build a video-to-GIF website with Ignis. Users should sign in with a username and password, with no email required. The conversion feature must only be available after login. Use Vue SSG for the frontend. Read the skill first before implementing anything."
 ```
 
-That will generate `.codex/skills/ignis-user/SKILL.md` in the current directory, so Codex can read the Ignis workflow before it starts building.
+That will generate both `.codex/skills/ignis/SKILL.md` and `.codex/skills/ignis-login/SKILL.md` in the current directory, so Codex can pick the right Ignis workflow before it starts building.
 
 If you use OpenCode instead of Codex:
 
@@ -60,11 +60,11 @@ ignis --help
 - Add `http` or `frontend` services with `ignis service new`
 - Build a service artifact and publish/deploy it with `ignis service build`, `ignis service publish`, and `ignis service deploy`
 - Log in and publish/deploy services to a compatible igniscloud environment
-- Generate the `ignis-user` skill package for Codex, OpenCode, or raw Markdown
+- Generate the bundled `ignis` and `ignis-login` skills for Codex, OpenCode, or raw Markdown
 
 ## Generate Skill
 
-Generate the bundled `ignis-user` skill:
+Generate the bundled official skills:
 
 ```bash
 ignis gen-skill --format codex
@@ -72,11 +72,11 @@ ignis gen-skill --format codex
 
 Supported formats:
 
-- `codex` -> `.codex/skills/ignis-user/SKILL.md`
-- `opencode` -> `.opencode/skills/ignis-user/SKILL.md`
-- `raw` -> `ignis-user/skill.md`
+- `codex` -> `.codex/skills/ignis/SKILL.md` and `.codex/skills/ignis-login/SKILL.md`
+- `opencode` -> `.opencode/skills/ignis/SKILL.md` and `.opencode/skills/ignis-login/SKILL.md`
+- `raw` -> `./ignis/skill.md` and `./ignis-login/skill.md`
 
-All formats include the required `references/` documents.
+All formats include the required `references/` documents for each skill.
 
 ## Examples
 

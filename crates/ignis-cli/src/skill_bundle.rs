@@ -3,32 +3,57 @@ pub struct BundledFile {
     pub contents: &'static str,
 }
 
-const IGNIS_USER_SKILL: &str = include_str!("../../../skills/ignis-user/SKILL.md");
+pub struct BundledSkill {
+    pub name: &'static str,
+    pub markdown: &'static str,
+    pub files: &'static [BundledFile],
+}
 
-const IGNIS_USER_FILES: &[BundledFile] = &[
+impl BundledSkill {
+    pub fn raw_markdown(&self) -> &'static str {
+        strip_frontmatter(self.markdown)
+    }
+}
+
+const IGNIS_SKILL: &str = include_str!("../../../skills/ignis/SKILL.md");
+const IGNIS_LOGIN_SKILL: &str = include_str!("../../../skills/ignis-login/SKILL.md");
+
+const IGNIS_FILES: &[BundledFile] = &[
     BundledFile {
         path: "SKILL.md",
-        contents: IGNIS_USER_SKILL,
-    },
-    BundledFile {
-        path: "references/api.md",
-        contents: include_str!("../../../docs/api.md"),
+        contents: IGNIS_SKILL,
     },
     BundledFile {
         path: "references/cli.md",
         contents: include_str!("../../../docs/cli.md"),
     },
     BundledFile {
-        path: "references/igniscloud-id-public-api.md",
-        contents: include_str!("../../../skills/ignis-user/references/igniscloud-id-public-api.md"),
-    },
-    BundledFile {
         path: "references/doc_index.md",
-        contents: include_str!("../../../skills/ignis-user/references/doc_index.md"),
+        contents: include_str!("../../../skills/ignis/references/doc_index.md"),
     },
     BundledFile {
-        path: "references/hello-service.rs",
-        contents: include_str!("../../../skills/ignis-user/references/hello-service.rs"),
+        path: "references/examples/hello-fullstack/README.md",
+        contents: include_str!("../../../examples/hello-fullstack/README.md"),
+    },
+    BundledFile {
+        path: "references/examples/hello-fullstack/ignis.toml",
+        contents: include_str!("../../../examples/hello-fullstack/ignis.toml"),
+    },
+    BundledFile {
+        path: "references/examples/hello-fullstack/services/api/Cargo.toml",
+        contents: include_str!("../../../examples/hello-fullstack/services/api/Cargo.toml"),
+    },
+    BundledFile {
+        path: "references/examples/hello-fullstack/services/api/src/lib.rs",
+        contents: include_str!("../../../examples/hello-fullstack/services/api/src/lib.rs"),
+    },
+    BundledFile {
+        path: "references/examples/hello-fullstack/services/api/wit/world.wit",
+        contents: include_str!("../../../examples/hello-fullstack/services/api/wit/world.wit"),
+    },
+    BundledFile {
+        path: "references/examples/hello-fullstack/services/web/src/index.html",
+        contents: include_str!("../../../examples/hello-fullstack/services/web/src/index.html"),
     },
     BundledFile {
         path: "references/ignis-toml.md",
@@ -39,12 +64,28 @@ const IGNIS_USER_FILES: &[BundledFile] = &[
         contents: include_str!("../../../docs/integration.md"),
     },
     BundledFile {
-        path: "references/readme.md",
-        contents: include_str!("../../../README.md"),
+        path: "references/examples/sqlite-example/README.md",
+        contents: include_str!("../../../examples/sqlite-example/README.md"),
     },
     BundledFile {
-        path: "references/sqlite-service.rs",
-        contents: include_str!("../../../skills/ignis-user/references/sqlite-service.rs"),
+        path: "references/examples/sqlite-example/ignis.toml",
+        contents: include_str!("../../../examples/sqlite-example/ignis.toml"),
+    },
+    BundledFile {
+        path: "references/examples/sqlite-example/services/api/Cargo.toml",
+        contents: include_str!("../../../examples/sqlite-example/services/api/Cargo.toml"),
+    },
+    BundledFile {
+        path: "references/examples/sqlite-example/services/api/src/lib.rs",
+        contents: include_str!("../../../examples/sqlite-example/services/api/src/lib.rs"),
+    },
+    BundledFile {
+        path: "references/examples/sqlite-example/services/api/wit/world.wit",
+        contents: include_str!("../../../examples/sqlite-example/services/api/wit/world.wit"),
+    },
+    BundledFile {
+        path: "references/examples/sqlite-example/services/web/src/index.html",
+        contents: include_str!("../../../examples/sqlite-example/services/web/src/index.html"),
     },
     BundledFile {
         path: "references/ignis-sdk/index.md",
@@ -132,12 +173,56 @@ const IGNIS_USER_FILES: &[BundledFile] = &[
     },
 ];
 
-pub fn ignis_user_files() -> &'static [BundledFile] {
-    IGNIS_USER_FILES
-}
+const IGNIS_LOGIN_FILES: &[BundledFile] = &[
+    BundledFile {
+        path: "SKILL.md",
+        contents: IGNIS_LOGIN_SKILL,
+    },
+    BundledFile {
+        path: "references/igniscloud-id-public-api.md",
+        contents: include_str!("../../../skills/ignis-login/references/igniscloud-id-public-api.md"),
+    },
+    BundledFile {
+        path: "references/examples/ignis-login-example/README.md",
+        contents: include_str!("../../../examples/ignis-login-example/README.md"),
+    },
+    BundledFile {
+        path: "references/examples/ignis-login-example/ignis.toml",
+        contents: include_str!("../../../examples/ignis-login-example/ignis.toml"),
+    },
+    BundledFile {
+        path: "references/examples/ignis-login-example/services/api/Cargo.toml",
+        contents: include_str!("../../../examples/ignis-login-example/services/api/Cargo.toml"),
+    },
+    BundledFile {
+        path: "references/examples/ignis-login-example/services/api/src/lib.rs",
+        contents: include_str!("../../../examples/ignis-login-example/services/api/src/lib.rs"),
+    },
+    BundledFile {
+        path: "references/examples/ignis-login-example/services/api/wit/world.wit",
+        contents: include_str!("../../../examples/ignis-login-example/services/api/wit/world.wit"),
+    },
+    BundledFile {
+        path: "references/examples/ignis-login-example/services/web/src/index.html",
+        contents: include_str!("../../../examples/ignis-login-example/services/web/src/index.html"),
+    },
+];
 
-pub fn raw_ignis_user_markdown() -> &'static str {
-    strip_frontmatter(IGNIS_USER_SKILL)
+const BUNDLED_SKILLS: &[BundledSkill] = &[
+    BundledSkill {
+        name: "ignis",
+        markdown: IGNIS_SKILL,
+        files: IGNIS_FILES,
+    },
+    BundledSkill {
+        name: "ignis-login",
+        markdown: IGNIS_LOGIN_SKILL,
+        files: IGNIS_LOGIN_FILES,
+    },
+];
+
+pub fn bundled_skills() -> &'static [BundledSkill] {
+    BUNDLED_SKILLS
 }
 
 fn strip_frontmatter(markdown: &'static str) -> &'static str {
