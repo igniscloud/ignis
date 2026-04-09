@@ -73,8 +73,9 @@ cd ignis
 ignis login
 ignis project create hello-project
 cd hello-project
-ignis project sync
 ignis service new --service api --kind http --path services/api
+ignis project sync --mode plan
+ignis project sync --mode apply
 ```
 
 默认会生成：
@@ -98,7 +99,8 @@ ignis service build --service api
 构建完成后，直接走发布和部署：
 
 ```bash
-ignis project sync
+ignis project sync --mode plan
+ignis project sync --mode apply
 ignis service check --service api
 ignis service publish --service api
 ignis service deploy --service api <version>

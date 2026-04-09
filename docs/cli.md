@@ -87,8 +87,9 @@ ignis.toml
 ignis login
 ignis project create hello-project
 cd hello-project
-ignis project sync
 ignis service new --service api --kind http --path services/api
+ignis project sync --mode plan
+ignis project sync --mode apply
 ignis service check --service api
 ignis service build --service api
 ignis service publish --service api
@@ -148,7 +149,7 @@ ignis gen-skill --format codex --path ./internal-skills/ignis-user
 一级命令：
 
 - `ignis project create <name>`
-- `ignis project sync`
+- `ignis project sync --mode <plan|apply>`
 - `ignis project list`
 - `ignis project status <name>`
 - `ignis project delete <name>`
@@ -191,25 +192,27 @@ ignis project token create hello-project
 
 ### 5.3 `ignis project sync`
 
-在本地已有 `ignis.toml` 的 project 目录里，把 project 和缺失的 services 同步到云端。
+在本地已有 `ignis.toml` 的 project 目录里，先生成同步计划，再按需把 project 和缺失的 services 应用到云端。
 
 示例：
 
 ```bash
 cd hello-project
 ignis project sync
+ignis project sync --mode plan
+ignis project sync --mode apply
 ```
 
 当前行为：
 
-- 如果云端 project 不存在，先创建 project
-- 如果某个本地 service 还没在云端创建，自动创建该 service
-- 如果云端 service 已存在且 manifest 一致，标记为 `unchanged`
-- 如果云端 service 已存在但 manifest 不一致，标记为 `drift`
+- 默认 `--mode plan`，只计算同步计划，不做远端写操作
+- `plan` 会列出 project / service 级动作，并对 manifest drift 输出字段级 diff
+- `apply` 只执行当前安全支持的动作：创建缺失的 project 和 service
+- 如果云端 service 已存在但 manifest 不一致，当前会生成 `repair_service_manifest` 计划项并标记为 `blocked`
 
 说明：
 
-- 当前 `sync` 只创建缺失资源，不会覆盖已存在的云端 service manifest
+- 当前 control-plane API 还没有 service manifest update 接口，所以 drift 已经可审阅，但还不会在 `apply` 里被自动修复
 - `sync` 执行前会先运行本地 service 检查；如果存在 `error` 级问题，会直接失败
 
 ## 6. `ignis service`

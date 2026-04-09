@@ -53,7 +53,10 @@ pub enum ProjectCommands {
         #[arg(long)]
         force: bool,
     },
-    Sync,
+    Sync {
+        #[arg(long, value_enum, default_value_t = ProjectSyncMode::Plan)]
+        mode: ProjectSyncMode,
+    },
     List,
     Status {
         project: String,
@@ -78,6 +81,12 @@ pub enum ProjectTokenCommands {
         project: String,
         token_id: String,
     },
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
+pub enum ProjectSyncMode {
+    Plan,
+    Apply,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
