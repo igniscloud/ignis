@@ -97,6 +97,22 @@
         flex-wrap: wrap;
         margin-top: 24px;
       }
+      .welcome {
+        margin-top: 22px;
+        padding: 18px 20px;
+        border-radius: 24px;
+        background: rgba(20, 99, 86, 0.08);
+        border: 1px solid rgba(20, 99, 86, 0.12);
+      }
+      .welcome-title {
+        margin: 0;
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: var(--brand);
+      }
+      .welcome-copy {
+        margin-top: 6px;
+      }
       .button {
         appearance: none;
         border: 0;
@@ -187,6 +203,12 @@
             <a class="button secondary" href="/admin">Open Admin</a>
             <button class="button secondary" type="button" @click="loadAll">Reload</button>
           </div>
+          <div class="welcome" v-if="session.authenticated">
+            <p class="welcome-title">Signed in as {{ displayName }}</p>
+            <p class="muted welcome-copy">
+              Your Google login is active on this host, and the admin page will see the same user.
+            </p>
+          </div>
           <div class="flash" v-if="flash">{{ flash }}</div>
         </section>
         <aside class="panel hero-side">
@@ -256,13 +278,18 @@
               registered_user_count: 0,
             },
             flash: "",
+            ready: false,
           };
         },
         computed: {
+          displayName() {
+            return this.session.nickname || this.session.subject || "Unknown user";
+          },
           sessionStatus() {
-            return this.session.authenticated
-              ? `Signed in as ${this.session.nickname || this.session.subject}`
-              : "Checking session";
+            if (!this.ready) {
+              return "Checking session";
+            }
+            return this.session.authenticated ? `Signed in as ${this.displayName}` : "Not signed in";
           },
         },
         methods: {
@@ -286,6 +313,8 @@
               await Promise.all([this.loadHello(), this.loadSession()]);
             } catch (error) {
               this.flash = error instanceof Error ? error.message : String(error);
+            } finally {
+              this.ready = true;
             }
           },
           async logout() {

@@ -36,7 +36,7 @@ services = [
     ignis_login = {
       display_name = "ignis-login-example"
       redirect_path = "/auth/callback"
-      providers = ["google", "test_password"]
+      providers = ["google"]
     }
   },
   {

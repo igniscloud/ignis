@@ -68,6 +68,18 @@
         flex-wrap: wrap;
         margin-top: 22px;
       }
+      .viewer-banner {
+        margin-top: 22px;
+        padding: 18px 20px;
+        border-radius: 24px;
+        background: rgba(49, 92, 82, 0.08);
+        border: 1px solid rgba(49, 92, 82, 0.12);
+      }
+      .viewer-name {
+        font-size: 1.4rem;
+        font-weight: 800;
+        color: var(--brand);
+      }
       .button {
         appearance: none;
         border: 0;
@@ -183,6 +195,12 @@
           <a class="button secondary" href="/">Open User App</a>
           <button class="button secondary" type="button" @click="loadUsers">Reload</button>
         </div>
+        <div class="viewer-banner" v-if="authenticated">
+          <div class="viewer-name">Signed in as {{ viewerName }}</div>
+          <p class="muted" style="margin-top: 6px">
+            This admin frontend is using the same login session and can read the shared user list.
+          </p>
+        </div>
       </section>
 
       <section class="table-wrap">
@@ -248,6 +266,11 @@
             users: [],
             flash: "",
           };
+        },
+        computed: {
+          viewerName() {
+            return this.viewer.nickname || this.viewer.subject || "Unknown user";
+          },
         },
         methods: {
           formatTime(value) {

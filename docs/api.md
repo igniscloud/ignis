@@ -232,7 +232,6 @@ fn read_counter() -> Result<i64, String> {
 - 本地 `serve` 会启动一个 HTTP/1 server
 - CPU 限制通过 epoch interruption 生效
 - 内存限制通过 store limits 生效
-- 出站 HTTP 请求受 `network` 策略控制
 - `base_path` 会在请求进入 guest 前被重写
 
 ### 1.4 `ignis-platform-host`
