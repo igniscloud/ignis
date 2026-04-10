@@ -1,6 +1,6 @@
 ---
 name: ignis
-description: Use for building and operating Ignis projects with ignis-cli, ignis-sdk, ignis.toml, SQLite, service build/publish/deploy, and example-driven project setup.
+description: Use for building and operating Ignis projects with ignis-cli, ignis-sdk, ignis.hcl, SQLite, service build/publish/deploy, and example-driven project setup.
 ---
 
 # Ignis
@@ -11,7 +11,7 @@ description: Use for building and operating Ignis projects with ignis-cli, ignis
 
 - 使用 `ignis-cli` 初始化、构建、发布和部署 service
 - 使用 `ignis-sdk` 的 HTTP Router、中间件、响应 helper、SQLite 和 migration
-- 编写或排查 `ignis.toml`
+- 编写或排查 `ignis.hcl`
 - 使用 examples 里的最小项目结构快速起步
 
 不适用范围：
@@ -25,7 +25,7 @@ description: Use for building and operating Ignis projects with ignis-cli, ignis
 
 1. 先读 `references/integration.md`，确认完整接入路径。
 2. 如果任务偏 CLI 或发布部署，继续读 `references/cli.md`。
-3. 如果任务偏 `ignis.toml` 字段、默认值或示例配置，读 `references/ignis-toml.md`。
+3. 如果任务偏 `ignis.hcl` 字段、默认值或示例配置，读 `references/ignis-hcl.md`。
 4. 如果任务偏 `ignis-sdk` API，用 `references/ignis-sdk/index.md` 作为入口，只继续打开当前需要的模块或 item 页面。
 5. 如果任务涉及登录或 `[services.ignis_login]`，切到 `ignis-login` skill。
 6. 如果需要最小 HTTP / SQLite 模板，优先读整个 example 项目：
@@ -33,8 +33,8 @@ description: Use for building and operating Ignis projects with ignis-cli, ignis
 
 ## 工作规则
 
-- 把 `ignis.toml` 文档和 `ignis-sdk` 生成文档当作配置/API 的事实来源。
-- 不要猜测 `ignis.toml` 字段、CLI 命令名、`ignis-sdk` 方法或 secret 约定。
+- 把 `ignis.hcl` 文档和 `ignis-sdk` 生成文档当作配置/API 的事实来源。
+- 不要猜测 `ignis.hcl` 字段、CLI 命令名、`ignis-sdk` 方法或 secret 约定。
 - 当前推荐工作流是：`ignis login -> ignis project create -> ignis service new -> ignis service build -> ignis service publish -> ignis service deploy`。
 - 当前 CLI 不再把本地 `dev` 作为主工作流；默认以构建、发布、部署为准。
 - 简单 handler 可以直接用 `wstd::http`，但多路由、中间件、统一响应、SQLite 通常优先用 `ignis-sdk`。
@@ -47,7 +47,7 @@ description: Use for building and operating Ignis projects with ignis-cli, ignis
 
 - 接入流程：`references/integration.md`
 - CLI：`references/cli.md`
-- `ignis.toml`：`references/ignis-toml.md`
+- `ignis.hcl`：`references/ignis-hcl.md`
 - `ignis-sdk` 生成文档入口：`references/ignis-sdk/index.md`
 - 最小 HTTP 示例项目：`references/examples/hello-fullstack/`
 - SQLite 示例项目：`references/examples/sqlite-example/`

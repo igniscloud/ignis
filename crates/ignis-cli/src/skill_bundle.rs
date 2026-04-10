@@ -36,8 +36,8 @@ const IGNIS_FILES: &[BundledFile] = &[
         contents: include_str!("../../../examples/hello-fullstack/README.md"),
     },
     BundledFile {
-        path: "references/examples/hello-fullstack/ignis.toml",
-        contents: include_str!("../../../examples/hello-fullstack/ignis.toml"),
+        path: "references/examples/hello-fullstack/ignis.hcl",
+        contents: include_str!("../../../examples/hello-fullstack/ignis.hcl"),
     },
     BundledFile {
         path: "references/examples/hello-fullstack/services/api/Cargo.toml",
@@ -56,8 +56,8 @@ const IGNIS_FILES: &[BundledFile] = &[
         contents: include_str!("../../../examples/hello-fullstack/services/web/src/index.html"),
     },
     BundledFile {
-        path: "references/ignis-toml.md",
-        contents: include_str!("../../../docs/ignis-toml.md"),
+        path: "references/ignis-hcl.md",
+        contents: include_str!("../../../docs/ignis-hcl.md"),
     },
     BundledFile {
         path: "references/integration.md",
@@ -68,8 +68,8 @@ const IGNIS_FILES: &[BundledFile] = &[
         contents: include_str!("../../../examples/sqlite-example/README.md"),
     },
     BundledFile {
-        path: "references/examples/sqlite-example/ignis.toml",
-        contents: include_str!("../../../examples/sqlite-example/ignis.toml"),
+        path: "references/examples/sqlite-example/ignis.hcl",
+        contents: include_str!("../../../examples/sqlite-example/ignis.hcl"),
     },
     BundledFile {
         path: "references/examples/sqlite-example/services/api/Cargo.toml",
@@ -180,15 +180,17 @@ const IGNIS_LOGIN_FILES: &[BundledFile] = &[
     },
     BundledFile {
         path: "references/igniscloud-id-public-api.md",
-        contents: include_str!("../../../skills/ignis-login/references/igniscloud-id-public-api.md"),
+        contents: include_str!(
+            "../../../skills/ignis-login/references/igniscloud-id-public-api.md"
+        ),
     },
     BundledFile {
         path: "references/examples/ignis-login-example/README.md",
         contents: include_str!("../../../examples/ignis-login-example/README.md"),
     },
     BundledFile {
-        path: "references/examples/ignis-login-example/ignis.toml",
-        contents: include_str!("../../../examples/ignis-login-example/ignis.toml"),
+        path: "references/examples/ignis-login-example/ignis.hcl",
+        contents: include_str!("../../../examples/ignis-login-example/ignis.hcl"),
     },
     BundledFile {
         path: "references/examples/ignis-login-example/services/api/Cargo.toml",

@@ -2,7 +2,7 @@
 
 本文说明如何接入 `ignis`。这里的“接入”分成两类：
 
-- 作为 service 开发者，使用 `ignis-cli`、`ignis-sdk`、`ignis.toml` 开发一个 project 下的 `http` 或 `frontend` service
+- 作为 service 开发者，使用 `ignis-cli`、`ignis-sdk`、`ignis.hcl` 开发一个 project 下的 `http` 或 `frontend` service
 - 作为平台开发者，把 `ignis-manifest`、`ignis-runtime`、`ignis-platform-host` 组装进你自己的宿主或控制面
 
 `ignis` 当前不包含公开的控制面实现或节点编排系统，但已经包含 project/service 构建、发布和部署所需的 CLI、manifest、运行时和第一个平台宿主模块。
@@ -14,7 +14,7 @@
 - 写一个运行在 Wasm 里的 HTTP service
 - 在本地快速调试 `wasi:http` worker
 - 在你自己的平台里嵌入 Wasm 运行时
-- 复用 `ignis.toml`、签名、SQLite host import、路由 SDK
+- 复用 `ignis.hcl`、签名、SQLite host import、路由 SDK
 
 那么 `ignis` 已经可以作为基础。
 
@@ -32,7 +32,7 @@
 - `ignis-cli`
   用于创建 project、创建 service、本地构建/调试，以及调用兼容的外部控制面 API
 - `ignis-manifest`
-  负责 `ignis.toml` / 派生 worker manifest 的解析、校验、渲染和组件签名
+  负责 `ignis.hcl` / 派生 worker manifest 的解析、校验、渲染和组件签名
 - `ignis-sdk`
   提供 guest 侧 Rust SDK，包括 HTTP Router 和 SQLite helper
 - `ignis-runtime`
@@ -82,11 +82,11 @@ ignis project sync --mode apply
 
 - `ignis project create hello-project` 会创建远端 project，并把返回的 `project_id` 写入 `hello-project/.ignis/project.json`
 - 后续所有 `ignis service ...` 的远端调用都会使用这个 `project_id`
-- 如果你拿到的是一个只包含 `ignis.toml` 的现有仓库副本，没有 `.ignis/project.json`，先在 project 根目录执行 `ignis project sync --mode apply`
+- 如果你拿到的是一个只包含 `ignis.hcl` 的现有仓库副本，没有 `.ignis/project.json`，先在 project 根目录执行 `ignis project sync --mode apply`
 
 默认会生成：
 
-- `ignis.toml`
+- `ignis.hcl`
 - `services/api/Cargo.toml`
 - `services/api/src/lib.rs`
 - `services/api/wit/world.wit`
@@ -122,23 +122,34 @@ ignis service deploy --service api <version>
 ignis service check --service api
 ```
 
-如果某个 `http` service 需要接入 `IgnisCloud ID` OAuth，推荐在该 service 下声明：
+如果某个 `http` service 需要接入 `IgnisCloud ID` OAuth，推荐在 `ignis.hcl` 里声明：
 
-```toml
-[[services]]
-name = "api"
-kind = "http"
-path = "services/api"
-prefix = "/api"
+```hcl
+exposes = [
+  {
+    name = "api"
+    listener = "public"
+    service = "api"
+    path = "/api"
+  }
+]
 
-[services.http]
-component = "target/wasm32-wasip2/release/api.wasm"
-base_path = "/"
-
-[services.ignis_login]
-display_name = "hello-project"
-redirect_path = "/auth/common/callback"
-providers = ["google"]
+services = [
+  {
+    name = "api"
+    kind = "http"
+    path = "services/api"
+    http = {
+      component = "target/wasm32-wasip2/release/api.wasm"
+      base_path = "/"
+    }
+    ignis_login = {
+      display_name = "hello-project"
+      redirect_path = "/auth/common/callback"
+      providers = ["google"]
+    }
+  }
+]
 ```
 
 第一版规则是：
@@ -148,7 +159,6 @@ providers = ["google"]
 - 浏览器首入口统一走 `IgnisCloud ID` hosted `GET /login`
 - control-plane 会把 `IGNIS_LOGIN_CLIENT_ID` / `IGNIS_LOGIN_CLIENT_SECRET` 作为保留 secret 托管
 - 当前 igniscloud hosted login 公网地址固定为 `https://id.igniscloud.transairobot.com`，不要把 `IGNISCLOUD_ID_BASE_URL` 设计成 env 依赖
-- 如果 service 使用 `ignis_login` 并配置了 `network.mode = "allow_list"`，必须允许 `id.igniscloud.transairobot.com`
 - 不支持 `public`
 - 不支持直接注入到 `frontend`
 - `providers` 当前支持 `google` 和 `test_password`
@@ -157,9 +167,9 @@ providers = ["google"]
 
 关于测试登录：
 
-- `test_password` 已经是 `ignis.toml` 的正式 provider。
+- `test_password` 已经是 `ignis.hcl` 的正式 provider。
 - 推荐测试流程是：
-  1. 在测试环境的 `ignis.toml` 里临时声明 `providers = ["google", "test_password"]`，或只声明 `["test_password"]`
+  1. 在测试环境的 `ignis.hcl` 里临时声明 `providers = ["google", "test_password"]`，或只声明 `["test_password"]`
   2. 正常 `publish / deploy`，让 control-plane 创建并同步对应的 `IgnisCloud ID` confidential app
   3. 之后 hosted `GET /login` 页面会自动显示测试账号入口，默认账号密码是 `test / testtest`
   4. 正式上线前把 `test_password` 从 `providers` 移除，再重新 `publish / deploy`
@@ -211,47 +221,63 @@ fn build_router() -> Router {
 }
 ```
 
-### 3.5 使用 `ignis.toml`
+### 3.5 使用 `ignis.hcl`
 
-`ignis.toml` 是 Ignis 当前的 project 配置文件。最常见的一份配置如下：
+`ignis.hcl` 是 Ignis 当前的 project 配置文件。最常见的一份配置如下：
 
-```toml
-[project]
-name = "hello-project"
+```hcl
+project = {
+  name = "hello-project"
+}
 
-[[services]]
-name = "api"
-kind = "http"
-path = "services/api"
-prefix = "/api"
+listeners = [
+  {
+    name = "public"
+    protocol = "http"
+  }
+]
 
-[services.http]
-component = "target/wasm32-wasip2/release/api.wasm"
-base_path = "/"
+exposes = [
+  {
+    name = "api"
+    listener = "public"
+    service = "api"
+    path = "/api"
+  }
+]
 
-[services.ignis_login]
-display_name = "hello-project"
-redirect_path = "/auth/common/callback"
-providers = ["google"]
-
-[services.env]
-APP_NAME = "hello-project"
-
-[services.secrets]
-OPENAI_API_KEY = "secret://openai-api-key"
-
-[services.sqlite]
-enabled = true
-
-[services.resources]
-cpu_time_limit_ms = 5000
-memory_limit_bytes = 134217728
-
-[services.network]
-mode = "deny_all"
+services = [
+  {
+    name = "api"
+    kind = "http"
+    path = "services/api"
+    http = {
+      component = "target/wasm32-wasip2/release/api.wasm"
+      base_path = "/"
+    }
+    ignis_login = {
+      display_name = "hello-project"
+      redirect_path = "/auth/common/callback"
+      providers = ["google"]
+    }
+    env = {
+      APP_NAME = "hello-project"
+    }
+    secrets = {
+      OPENAI_API_KEY = "secret://openai-api-key"
+    }
+    sqlite = {
+      enabled = true
+    }
+    resources = {
+      cpu_time_limit_ms = 5000
+      memory_limit_bytes = 134217728
+    }
+  }
+]
 ```
 
-完整字段说明、默认值、校验规则和更多示例见 [ignis.toml 文档](./ignis-toml.md)。
+完整字段说明、默认值、校验规则和更多示例见 [ignis.hcl 文档](./ignis-hcl.md)。
 
 这些字段控制：
 
@@ -265,7 +291,6 @@ mode = "deny_all"
 - secret 映射
 - SQLite 能力开关
 - 资源限制
-- 出站网络策略
 
 ### 3.6 发布到兼容控制面
 
@@ -300,7 +325,7 @@ ignis service status --service api
 
 如果你要把 Ignis 嵌进自己的平台，最小接入通常是：
 
-1. 使用 `ignis-manifest` 读取并校验 `ignis.toml`
+1. 使用 `ignis-manifest` 读取并校验 `ignis.hcl`
 2. 从 project 中选中一个 `http` service，并派生运行时需要的 worker manifest
 3. 使用 `ignis-runtime` 装载组件并转发 HTTP 请求
 4. 使用 `ignis-platform-host` 提供当前的 SQLite host imports
@@ -311,12 +336,12 @@ ignis service status --service api
 ```rust
 use ignis_manifest::LoadedProjectManifest;
 
-let loaded = LoadedProjectManifest::load("./ignis.toml")?;
+let loaded = LoadedProjectManifest::load("./ignis.hcl")?;
 ```
 
 `LoadedProjectManifest` 会：
 
-- 自动解析 `ignis.toml`
+- 自动解析 `ignis.hcl`
 - 校验配置合法性
 - 推导 `project_dir`
 - 提供 service 查询和 service 目录解析
@@ -333,7 +358,7 @@ use ignis_runtime::{DevServerConfig, serve};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let project = LoadedProjectManifest::load("./ignis.toml")?;
+    let project = LoadedProjectManifest::load("./ignis.hcl")?;
     let manifest = project.http_service_manifest("api")?;
     serve(
         manifest,
@@ -355,7 +380,7 @@ use std::sync::Arc;
 use ignis_manifest::LoadedProjectManifest;
 use ignis_runtime::WorkerRuntime;
 
-let project = LoadedProjectManifest::load("./ignis.toml")?;
+let project = LoadedProjectManifest::load("./ignis.hcl")?;
 let manifest = project.http_service_manifest("api")?;
 let runtime = Arc::new(WorkerRuntime::load(manifest)?);
 runtime.warm().await?;
@@ -378,7 +403,7 @@ runtime.warm().await?;
 
 当前 SQLite host 的行为是：
 
-- `ignis.toml` 中目标 `http` service 的 `[services.sqlite].enabled = true` 时允许访问数据库
+- `ignis.hcl` 中目标 `http` service 的 `sqlite.enabled = true` 时允许访问数据库
 - 数据库默认落在该 service 目录下的 `.ignis/sqlite/default.sqlite3`
 - 宿主会把 WIT 中定义的 SQLite imports 链接到 Wasmtime 组件里
 
@@ -400,7 +425,7 @@ runtime.warm().await?;
 如果你是 worker 开发者：
 
 1. 先看 [CLI 文档](./cli.md)
-2. 再看 [API 文档](./api.md) 中的 `ignis-sdk` 和 `ignis.toml`
+2. 再看 [API 文档](./api.md) 中的 `ignis-sdk` 和 `ignis.hcl`
 3. 最后参考 `examples/`
 
 如果你是平台开发者：

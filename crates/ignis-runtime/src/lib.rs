@@ -18,7 +18,7 @@ use http_body_util::{BodyExt, Full};
 use hyper::body::Incoming;
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
-use ignis_manifest::{LoadedManifest, NetworkConfig};
+use ignis_manifest::LoadedManifest;
 use ignis_platform_host::{HostBindings, SqliteHost};
 use tokio::net::TcpListener;
 use tracing::{error, info};
@@ -28,7 +28,6 @@ use wasmtime_wasi::{WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
 use wasmtime_wasi_http::WasiHttpCtx;
 use wasmtime_wasi_http::io::TokioIo;
 use wasmtime_wasi_http::p2::bindings::ProxyPre;
-use wasmtime_wasi_http::p2::bindings::http::types::ErrorCode;
 use wasmtime_wasi_http::p2::bindings::http::types::Scheme;
 use wasmtime_wasi_http::p2::body::HyperOutgoingBody;
 use wasmtime_wasi_http::p2::{
@@ -272,7 +271,7 @@ impl<H: HostBindings> StoreState<H> {
             wasi: builder.build(),
             http: WasiHttpCtx::new(),
             host: H::from_manifest(manifest)?,
-            network: NetworkHooks::new(manifest.manifest.network.clone()),
+            network: NetworkHooks,
             limits: build_store_limits(manifest)?,
         })
     }
@@ -316,15 +315,7 @@ fn engine_config() -> Result<Config> {
     Ok(config)
 }
 
-struct NetworkHooks {
-    policy: NetworkConfig,
-}
-
-impl NetworkHooks {
-    fn new(policy: NetworkConfig) -> Self {
-        Self { policy }
-    }
-}
+struct NetworkHooks;
 
 impl WasiHttpHooks for NetworkHooks {
     fn send_request(
@@ -332,15 +323,6 @@ impl WasiHttpHooks for NetworkHooks {
         request: hyper::Request<HyperOutgoingBody>,
         config: types::OutgoingRequestConfig,
     ) -> HttpResult<types::HostFutureIncomingResponse> {
-        let Some(authority) = request.uri().authority().map(|value| value.as_str()) else {
-            return Err(ErrorCode::HttpRequestDenied.into());
-        };
-        if !self
-            .policy
-            .allows_authority(authority, request.uri().host())
-        {
-            return Err(ErrorCode::HttpRequestDenied.into());
-        }
         Ok(default_send_request(request, config))
     }
 }

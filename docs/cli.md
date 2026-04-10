@@ -73,12 +73,12 @@ CLI 会读取：
 Ignis 当前使用 project 级配置文件：
 
 ```text
-ignis.toml
+ignis.hcl
 ```
 
-这个文件位于 project 根目录。所有 `ignis service ...` 命令都会从当前目录向上查找 `ignis.toml`。
+这个文件位于 project 根目录。所有 `ignis service ...` 命令都会从当前目录向上查找 `ignis.hcl`。
 
-除了 `ignis.toml` 之外，CLI 还会在 project 根目录写入本地状态文件：
+除了 `ignis.hcl` 之外，CLI 还会在 project 根目录写入本地状态文件：
 
 ```text
 .ignis/project.json
@@ -89,13 +89,13 @@ ignis.toml
 需要特别区分两类标识：
 
 - `project.name`
-  写在 `ignis.toml` 的展示名，也是 `ignis project create <name>` 里的输入
+  写在 `ignis.hcl` 的展示名，也是 `ignis project create <name>` 里的输入
 - `project_id`
   由 control-plane 在创建远端 project 时分配，并写入 `.ignis/project.json`
 
 当前 CLI 的 `ignis service new`、`publish`、`deploy`、`env`、`secrets`、`sqlite` 等远端 service 操作，都会使用 `.ignis/project.json` 里的 `project_id`，不再按 `project.name` 猜测或回退命中远端项目。
 
-完整配置说明见 [ignis.toml 文档](./ignis-toml.md)。
+完整配置说明见 [ignis.hcl 文档](./ignis-hcl.md)。
 
 ## 4. 最小工作流
 
@@ -117,7 +117,7 @@ ignis service deploy --service api <version>
 说明：
 
 - `ignis project create` 会立即创建远端 project，并把返回的 `project_id` 写入 `.ignis/project.json`
-- 如果这个 project 是从 Git 拉下来的、目录里只有 `ignis.toml` 而没有 `.ignis/project.json`，先执行 `ignis project sync --mode apply` 完成远端绑定，再执行任何远端 service 操作
+- 如果这个 project 是从 Git 拉下来的、目录里只有 `ignis.hcl` 而没有 `.ignis/project.json`，先执行 `ignis project sync --mode apply` 完成远端绑定，再执行任何远端 service 操作
 - `ignis service deploy --service api <version>` 里的 `<version>` 来自前一步 `ignis service publish --service api` 的返回结果
 
 如果你要创建前端 service：
@@ -204,10 +204,10 @@ ignis project create hello-project
 
 - 在 control-plane 创建 project
 - 创建本地目录 `./hello-project`
-- 写入空的 `ignis.toml`
+- 写入空的 `ignis.hcl`
 - 写入 `.ignis/project.json`，保存当前 project 的 `project_id`
 
-如果 control-plane 的创建响应没有返回 `project_id`，CLI 仍会创建本地目录和 `ignis.toml`，但后续 `ignis service ...` 远端操作会因为缺少绑定而失败。这种情况下先修复 control-plane 响应，再重新执行 `ignis project sync --mode apply`。
+如果 control-plane 的创建响应没有返回 `project_id`，CLI 仍会创建本地目录和 `ignis.hcl`，但后续 `ignis service ...` 远端操作会因为缺少绑定而失败。这种情况下先修复 control-plane 响应，再重新执行 `ignis project sync --mode apply`。
 
 也可以指定目录：
 
@@ -229,7 +229,7 @@ ignis project token create hello-project
 
 ### 5.3 `ignis project sync`
 
-在本地已有 `ignis.toml` 的 project 目录里，先生成同步计划，再按需把 project 和缺失的 services 应用到云端。
+在本地已有 `ignis.hcl` 的 project 目录里，先生成同步计划，再按需把 project 和缺失的 services 应用到云端。
 
 示例：
 
@@ -277,7 +277,7 @@ ignis project sync --mode apply
 约束：
 
 - 所有 `service` 命令都必须在 project 目录内执行
-- CLI 会从当前目录向上查找 `ignis.toml`
+- CLI 会从当前目录向上查找 `ignis.hcl`
 - 除 `service list` 外，所有操作都必须显式指定 `--service`
 
 ### 6.1 `ignis service new`
@@ -301,9 +301,32 @@ ignis service new --service api --kind http --path services/api
 ignis service new --service web --kind frontend --path services/web
 ```
 
+执行时会：
+
+1. 读取当前 project 的 `ignis.hcl`
+2. 校验 service 名不能重复
+3. 校验 `path` 是相对路径
+4. 校验 `path` 没有和已有 service 冲突
+5. 拒绝写入已存在且非空的目录
+6. 先创建云端 service
+7. 再更新本地 `ignis.hcl`
+8. 生成模板文件
+
+`http` 模板会生成：
+
+- `Cargo.toml`
+- `src/lib.rs`
+- `wit/world.wit`
+- `.gitignore`
+
+`frontend` 模板会生成：
+
+- `src/index.html`
+- `.gitignore`
+
 ### 6.2 `ignis service delete`
 
-删除云端 service，并从本地 `ignis.toml` 里移除该 service 条目：
+删除云端 service，并从本地 `ignis.hcl` 里移除该 service 条目：
 
 ```bash
 ignis service delete --service api
@@ -314,27 +337,9 @@ ignis service delete --service api
 - 如果该 service 还有 active deployment，control-plane 会拒绝删除
 - CLI 不会自动删除本地 service 目录
 
-执行时会：
-
-1. 读取当前 project 的 `ignis.toml`
-2. 校验 service 名不能重复
-3. 校验 `path` 是相对路径
-4. 校验 `path` 没有和已有 service 冲突
-5. 拒绝写入已存在且非空的目录
-6. 先创建云端 service
-7. 再更新本地 `ignis.toml`
-8. 生成模板文件
-
-`http` 模板会生成：
-
-- `Cargo.toml`
-- `src/lib.rs`
-- `wit/world.wit`
-- `.gitignore`
-
 ### 6.3 `ignis service check`
 
-检查当前本地 `ignis.toml` 里的单个 service，输出常见配置异常。
+检查当前本地 `ignis.hcl` 里的单个 service，输出常见配置异常。
 
 示例：
 
@@ -351,20 +356,15 @@ ignis service check --service api
 
 `ignis service publish` 也会在真正上传构件前自动执行同一套本地检查。
 
-`frontend` 模板会生成：
+### 6.4 `ignis service list`
 
-- `src/index.html`
-- `.gitignore`
-
-### 6.2 `ignis service list`
-
-列出当前 project 在 `ignis.toml` 中声明的 services：
+列出当前 project 在 `ignis.hcl` 中声明的 services：
 
 ```bash
 ignis service list
 ```
 
-### 6.3 `ignis service build`
+### 6.5 `ignis service build`
 
 构建单个 service。
 
@@ -388,7 +388,7 @@ ignis service build --service web
 
 - 在 service 目录执行 `frontend.build_command`
 
-### 6.4 `ignis service publish`
+### 6.6 `ignis service publish`
 
 发布当前 service 的新版本。
 
@@ -410,7 +410,7 @@ ignis service publish --service api
 - `build_metadata`
 - `site_bundle`
 
-### 6.5 `ignis service deploy`
+### 6.7 `ignis service deploy`
 
 把某个版本部署成当前运行版本：
 
@@ -418,7 +418,7 @@ ignis service publish --service api
 ignis service deploy --service api <version>
 ```
 
-### 6.6 `ignis service status`
+### 6.8 `ignis service status`
 
 查看 service 当前状态：
 
@@ -426,7 +426,7 @@ ignis service deploy --service api <version>
 ignis service status --service api
 ```
 
-### 6.7 查询命令
+### 6.9 查询命令
 
 部署历史：
 
@@ -502,13 +502,13 @@ ignis service sqlite restore --service api ./backup.sqlite3
 
 ## 9. 常见问题
 
-### 9.1 找不到 `ignis.toml`
+### 9.1 找不到 `ignis.hcl`
 
-如果你在执行 `ignis service ...` 时看到找不到 `ignis.toml`：
+如果你在执行 `ignis service ...` 时看到找不到 `ignis.hcl`：
 
 - 确认当前目录位于 project 根目录或其子目录
 - 确认已经先执行过 `ignis project create ...`
-- 确认 `ignis.toml` 没有被删掉
+- 确认 `ignis.hcl` 没有被删掉
 
 ### 9.2 `service new` 报路径冲突
 
@@ -548,4 +548,4 @@ ignis service sqlite restore --service api ./backup.sqlite3
 
 - [接入文档](./integration.md)
 - [API 文档](./api.md)
-- [ignis.toml 文档](./ignis-toml.md)
+- [ignis.hcl 文档](./ignis-hcl.md)

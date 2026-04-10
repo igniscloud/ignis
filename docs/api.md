@@ -11,12 +11,12 @@
 
 ### 1.1 `ignis-manifest`
 
-`ignis-manifest` 负责 `ignis.toml`、派生 worker manifest 和组件签名。
+`ignis-manifest` 负责 `ignis.hcl`、派生 worker manifest 和组件签名。
 
 #### 常量
 
 - `MANIFEST_FILE = "worker.toml"`
-- `PROJECT_MANIFEST_FILE = "ignis.toml"`
+- `PROJECT_MANIFEST_FILE = "ignis.hcl"`
 
 说明：
 
@@ -25,6 +25,15 @@
 
 #### 主要类型
 
+- `ProjectSpec`
+- `ListenerSpec`
+- `ExposeSpec`
+- `ServiceSpec`
+- `BindingSpec`
+- `CompiledProjectPlan`
+- `CompiledServicePlan`
+- `CompiledExposurePlan`
+- `ServiceActivationPlan`
 - `ProjectManifest`
 - `ProjectConfig`
 - `ServiceManifest`
@@ -35,7 +44,6 @@
 - `SqliteConfig`
 - `ResourceConfig`
 - `NetworkConfig`
-- `NetworkMode`
 - `ComponentSignature`
 - `TrustedSigner`
 - `LoadedProjectManifest`
@@ -44,7 +52,9 @@
 #### 主要能力
 
 - `LoadedProjectManifest::load(path)`
-  从目录或显式文件路径读取 `ignis.toml`
+  从目录或显式文件路径读取 `ignis.hcl`
+- `LoadedProjectManifest::compiled_plan()`
+  返回当前 `ignis.hcl` 编译后的内部项目计划
 - `LoadedProjectManifest::find_service(name)`
   查找 project 中的 service
 - `LoadedProjectManifest::service_dir(service)`
@@ -64,9 +74,9 @@
 - `verify_component_signature(component, signature, trusted_signers)`
   验证组件签名
 
-#### `ignis.toml` 字段
+#### `ignis.hcl` 字段
 
-`ignis.toml` 的完整字段说明、默认值、校验规则和示例配置见 [ignis.toml 文档](./ignis-toml.md)。
+`ignis.hcl` 的完整字段说明、默认值、校验规则和示例配置见 [ignis.hcl 文档](./ignis-hcl.md)。
 
 ### 1.2 `ignis-sdk`
 
@@ -292,7 +302,7 @@ CLI 会读取响应中的：
 
 - `POST /v1/projects` 的成功响应应返回远端唯一标识 `data.project_id`，或兼容地返回 `data.id`
 - 当前 CLI 会把这个值保存到 `.ignis/project.json`
-- 下文 service 相关接口中的路径参数虽然仍记作 `{project}`，但当前 CLI 实际上传递的是 `.ignis/project.json` 中保存的 `project_id`，而不是 `ignis.toml` 里的 `project.name`
+- 下文 service 相关接口中的路径参数虽然仍记作 `{project}`，但当前 CLI 实际上传递的是 `.ignis/project.json` 中保存的 `project_id`，而不是 `ignis.hcl` 里的 `project.name`
 
 #### `POST /v1/projects`
 
@@ -358,7 +368,7 @@ CLI 会读取响应中的：
 
 请求 JSON：
 
-- 内容为 `ignis.toml` 中单个 `ServiceManifest`
+- 内容为 `ignis.hcl` 编译后的单个 `ServiceManifest`
 
 #### `GET /v1/projects/{project}/services/{service}`
 

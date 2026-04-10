@@ -8,11 +8,12 @@
 
 ## Project
 
-这个 example 的 `ignis.toml` 指向 project：
+这个 example 的 `ignis.hcl` 指向 project：
 
-```toml
-[project]
-name = "test"
+```hcl
+project = {
+  name = "test"
+}
 ```
 
 ## 本地运行

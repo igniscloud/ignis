@@ -87,6 +87,7 @@ All formats include the required `references/` documents for each skill.
 
 - [Integration Guide](./docs/integration.md)
 - [CLI Guide](./docs/cli.md)
-- [ignis.toml Guide](./docs/ignis-toml.md)
+- [ignis.hcl Guide](./docs/ignis-hcl.md)
+- [Ignis Service Link](./docs/ignis-service-link.md)
 - [API Reference](./docs/api.md)
 - [Ignis SDK Markdown Reference](./docs/ignis-sdk/index.md)

@@ -24,7 +24,7 @@ copy_example_project() {
 
     reset_dir "$skill_example_dir"
     copy_file "$ROOT_DIR/examples/$example_name/README.md" "$skill_example_dir/README.md"
-    copy_file "$ROOT_DIR/examples/$example_name/ignis.toml" "$skill_example_dir/ignis.toml"
+    copy_file "$ROOT_DIR/examples/$example_name/ignis.hcl" "$skill_example_dir/ignis.hcl"
     copy_file "$ROOT_DIR/examples/$example_name/services/api/Cargo.toml" "$skill_example_dir/services/api/Cargo.toml"
     copy_file "$ROOT_DIR/examples/$example_name/services/api/src/lib.rs" "$skill_example_dir/services/api/src/lib.rs"
     copy_file "$ROOT_DIR/examples/$example_name/services/api/wit/world.wit" "$skill_example_dir/services/api/wit/world.wit"
@@ -32,7 +32,7 @@ copy_example_project() {
 }
 
 copy_file "$ROOT_DIR/docs/cli.md" "$ROOT_DIR/skills/ignis/references/cli.md"
-copy_file "$ROOT_DIR/docs/ignis-toml.md" "$ROOT_DIR/skills/ignis/references/ignis-toml.md"
+copy_file "$ROOT_DIR/docs/ignis-hcl.md" "$ROOT_DIR/skills/ignis/references/ignis-hcl.md"
 copy_file "$ROOT_DIR/docs/integration.md" "$ROOT_DIR/skills/ignis/references/integration.md"
 
 reset_dir "$ROOT_DIR/skills/ignis/references/ignis-sdk"

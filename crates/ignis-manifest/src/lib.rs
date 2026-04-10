@@ -5,6 +5,8 @@
 //! - manifest validation
 //! - component signing and verification helpers
 
+mod project_hcl;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -15,7 +17,7 @@ use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 
 pub const MANIFEST_FILE: &str = "worker.toml";
-pub const PROJECT_MANIFEST_FILE: &str = "ignis.toml";
+pub const PROJECT_MANIFEST_FILE: &str = "ignis.hcl";
 pub const MAX_RESOURCE_NAME_LEN: usize = 48;
 pub const IGNIS_LOGIN_IGNISCLOUD_ID_BASE_URL_ENV: &str = "IGNISCLOUD_ID_BASE_URL";
 pub const IGNIS_LOGIN_CLIENT_ID_SECRET: &str = "IGNIS_LOGIN_CLIENT_ID";
@@ -24,6 +26,12 @@ pub const IGNIS_LOGIN_RESERVED_SECRETS: [&str; 2] = [
     IGNIS_LOGIN_CLIENT_ID_SECRET,
     IGNIS_LOGIN_CLIENT_SECRET_SECRET,
 ];
+
+pub use project_hcl::{
+    BindingKind, BindingSpec, CompiledExposurePlan, CompiledProjectPlan, CompiledServicePlan,
+    ExposeSpec, ListenerProtocol, ListenerSpec, ProjectSpec, ResolvedDependencyGraph,
+    ServiceActivationPlan, ServiceSpec,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct WorkerManifest {
@@ -142,27 +150,14 @@ pub struct ResourceConfig {
     pub memory_limit_bytes: Option<u64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct NetworkConfig {
-    #[serde(default)]
-    pub mode: NetworkMode,
-    #[serde(default)]
-    pub allow: Vec<String>,
-}
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(deny_unknown_fields)]
+pub struct NetworkConfig {}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct IgnisCloudConfig {
     #[serde(default)]
     pub service: Option<String>,
-}
-
-impl Default for NetworkConfig {
-    fn default() -> Self {
-        Self {
-            mode: NetworkMode::DenyAll,
-            allow: Vec::new(),
-        }
-    }
 }
 
 impl IgnisCloudConfig {
@@ -172,15 +167,6 @@ impl IgnisCloudConfig {
             .map(|value| value.trim().is_empty())
             .unwrap_or(true)
     }
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum NetworkMode {
-    #[default]
-    DenyAll,
-    AllowList,
-    AllowAll,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -206,6 +192,7 @@ pub struct LoadedManifest {
 pub struct LoadedProjectManifest {
     pub manifest_path: PathBuf,
     pub project_dir: PathBuf,
+    pub spec: ProjectSpec,
     pub manifest: ProjectManifest,
 }
 
@@ -263,10 +250,6 @@ impl ProjectManifest {
         }
         Ok(())
     }
-
-    pub fn render(&self) -> Result<String> {
-        toml::to_string_pretty(self).context("rendering ignis.toml")
-    }
 }
 
 impl LoadedManifest {
@@ -317,56 +300,6 @@ impl LoadedManifest {
             project_dir: project_dir.into(),
             manifest,
         })
-    }
-}
-
-impl LoadedProjectManifest {
-    pub fn load(path: impl AsRef<Path>) -> Result<Self> {
-        let input = path.as_ref();
-        let manifest_path = if input.is_dir() {
-            input.join(PROJECT_MANIFEST_FILE)
-        } else {
-            input.to_path_buf()
-        };
-        let raw = fs::read_to_string(&manifest_path)
-            .with_context(|| format!("reading manifest at {}", manifest_path.display()))?;
-        let manifest: ProjectManifest = toml::from_str(&raw)
-            .with_context(|| format!("parsing manifest at {}", manifest_path.display()))?;
-        manifest.validate()?;
-        let project_dir = manifest_path
-            .parent()
-            .ok_or_else(|| anyhow!("manifest path has no parent: {}", manifest_path.display()))?
-            .to_path_buf();
-        Ok(Self {
-            manifest_path,
-            project_dir,
-            manifest,
-        })
-    }
-
-    pub fn project_name(&self) -> &str {
-        self.manifest.project.name.trim()
-    }
-
-    pub fn find_service(&self, name: &str) -> Option<&ServiceManifest> {
-        let name = name.trim();
-        self.manifest
-            .services
-            .iter()
-            .find(|service| service.name == name)
-    }
-
-    pub fn service_dir(&self, service: &ServiceManifest) -> PathBuf {
-        self.project_dir.join(&service.path)
-    }
-
-    pub fn http_service_manifest(&self, service_name: &str) -> Result<LoadedManifest> {
-        let service = self
-            .find_service(service_name)
-            .ok_or_else(|| anyhow!("service `{service_name}` not found"))?;
-        let manifest = service.http_worker_manifest()?;
-        let service_dir = self.service_dir(service);
-        LoadedManifest::from_parts(&self.manifest_path, service_dir, manifest)
     }
 }
 
@@ -509,43 +442,11 @@ impl FrontendServiceConfig {
 
 impl NetworkConfig {
     pub fn validate(&self) -> Result<()> {
-        match self.mode {
-            NetworkMode::DenyAll | NetworkMode::AllowAll => {
-                if !self.allow.is_empty() {
-                    bail!(
-                        "manifest field `network.allow` may only be set when `network.mode = \"allow_list\"`"
-                    );
-                }
-            }
-            NetworkMode::AllowList => {
-                if self.allow.is_empty() {
-                    bail!(
-                        "manifest field `network.allow` cannot be empty when `network.mode = \"allow_list\"`"
-                    );
-                }
-                for entry in &self.allow {
-                    validate_network_allow_entry(entry)?;
-                }
-            }
-        }
         Ok(())
     }
 
-    pub fn allows_authority(&self, authority: &str, host: Option<&str>) -> bool {
-        match self.mode {
-            NetworkMode::AllowAll => true,
-            NetworkMode::DenyAll => false,
-            NetworkMode::AllowList => {
-                let authority = authority.trim().to_ascii_lowercase();
-                let host = host
-                    .unwrap_or(authority.as_str())
-                    .trim()
-                    .to_ascii_lowercase();
-                self.allow.iter().any(|rule| {
-                    authority_matches_rule(&authority, &host, &rule.to_ascii_lowercase())
-                })
-            }
-        }
+    pub fn allows_authority(&self, _authority: &str, _host: Option<&str>) -> bool {
+        true
     }
 }
 
@@ -706,22 +607,6 @@ fn validate_resource_name(name: &str, field_name: &str) -> Result<()> {
     Ok(())
 }
 
-fn validate_network_allow_entry(entry: &str) -> Result<()> {
-    let trimmed = entry.trim();
-    if trimmed.is_empty() {
-        bail!("manifest field `network.allow` cannot contain empty entries");
-    }
-    let valid = trimmed
-        .chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | ':' | '[' | ']'));
-    if !valid {
-        bail!(
-            "manifest field `network.allow` contains invalid entry `{trimmed}`; use host, host:port, .suffix or [ipv6]:port"
-        );
-    }
-    Ok(())
-}
-
 fn validate_relative_service_path(path: &Path) -> Result<()> {
     if path.as_os_str().is_empty() {
         bail!("service field `path` cannot be empty");
@@ -778,16 +663,6 @@ fn normalize_service_prefix(prefix: &str) -> Result<String> {
     Ok(trimmed.to_owned())
 }
 
-fn authority_matches_rule(authority: &str, host: &str, rule: &str) -> bool {
-    if rule == authority || rule == host {
-        return true;
-    }
-    if let Some(suffix) = rule.strip_prefix('.') {
-        return host == suffix || host.ends_with(&format!(".{suffix}"));
-    }
-    false
-}
-
 fn decode_private_seed_bytes(value: &str) -> Result<[u8; 32]> {
     decode_fixed_bytes(value, "signing key seed")
 }
@@ -825,10 +700,7 @@ mod tests {
                 cpu_time_limit_ms: Some(5_000),
                 memory_limit_bytes: Some(64 * 1024 * 1024),
             },
-            network: NetworkConfig {
-                mode: NetworkMode::AllowList,
-                allow: vec!["api.example.com:443".to_owned()],
-            },
+            network: NetworkConfig::default(),
             igniscloud: IgnisCloudConfig {
                 service: Some("hello-worker".to_owned()),
             },
@@ -859,7 +731,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_invalid_network_policy() {
+    fn accepts_default_network_policy() {
         let manifest = WorkerManifest {
             name: "hello_worker".to_owned(),
             component: PathBuf::from("app.wasm"),
@@ -868,14 +740,11 @@ mod tests {
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),
             resources: ResourceConfig::default(),
-            network: NetworkConfig {
-                mode: NetworkMode::AllowList,
-                allow: Vec::new(),
-            },
+            network: NetworkConfig::default(),
             igniscloud: IgnisCloudConfig::default(),
         };
 
-        assert!(manifest.validate().is_err());
+        manifest.validate().unwrap();
     }
 
     #[test]

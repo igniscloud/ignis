@@ -84,7 +84,11 @@ fn write_bundled_skill_dir(
     Ok(())
 }
 
-fn write_raw_skill_dir(root: &Path, files: &[skill_bundle::BundledFile], markdown: &str) -> Result<()> {
+fn write_raw_skill_dir(
+    root: &Path,
+    files: &[skill_bundle::BundledFile],
+    markdown: &str,
+) -> Result<()> {
     fs::create_dir_all(root.join("references"))
         .with_context(|| format!("creating {}", root.join("references").display()))?;
     for file in files {
@@ -99,7 +103,8 @@ fn write_raw_skill_dir(root: &Path, files: &[skill_bundle::BundledFile], markdow
             .with_context(|| format!("writing {}", destination.display()))?;
     }
     let entrypoint = root.join("skill.md");
-    fs::write(&entrypoint, markdown).with_context(|| format!("writing {}", entrypoint.display()))?;
+    fs::write(&entrypoint, markdown)
+        .with_context(|| format!("writing {}", entrypoint.display()))?;
     Ok(())
 }
 
@@ -138,6 +143,9 @@ mod tests {
             gen_skill_output_root(SkillFormat::Opencode, None),
             Path::new(".opencode").join("skills")
         );
-        assert_eq!(gen_skill_output_root(SkillFormat::Raw, None), Path::new("."));
+        assert_eq!(
+            gen_skill_output_root(SkillFormat::Raw, None),
+            Path::new(".")
+        );
     }
 }

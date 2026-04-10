@@ -177,8 +177,8 @@ async fn sync_project(mode: ProjectSyncMode, token: Option<String>) -> Result<()
         Some(project_id) => client.project_status_optional(project_id).await?.is_none(),
         None => true,
     };
-    let remote_manifests = fetch_remote_manifests(&client, project_id.as_deref(), project_missing)
-        .await?;
+    let remote_manifests =
+        fetch_remote_manifests(&client, project_id.as_deref(), project_missing).await?;
     let plan = build_sync_plan(
         &context,
         &project_name,
@@ -427,10 +427,7 @@ fn plan_advisories(plan: &SyncPlan) -> (Vec<Warning>, Vec<Drift>) {
                 }
             }
             "create_project" if action.message.contains(".ignis/project.json") => {
-                warnings.push(Warning::new(
-                    "project_not_linked",
-                    action.message.clone(),
-                ));
+                warnings.push(Warning::new("project_not_linked", action.message.clone()));
             }
             _ => {}
         }

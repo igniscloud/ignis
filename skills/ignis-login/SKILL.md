@@ -25,7 +25,7 @@ description: Use for Ignis login integration with services. Covers [services.ign
 
 1. 先读 `references/igniscloud-id-public-api.md`。
 2. 如果需要实际代码参考，读整个 `references/examples/ignis-login-example/` 项目。
-3. 如果任务扩展到通用 service 集成、SQLite 或 `ignis.toml` 细节，切回 `ignis`。
+3. 如果任务扩展到通用 service 集成、SQLite 或 `ignis.hcl` 细节，切回 `ignis`。
 
 ## 工作规则
 

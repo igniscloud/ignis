@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use ignis_manifest::{
-    FrontendServiceConfig, HttpServiceConfig, IGNIS_LOGIN_IGNISCLOUD_ID_BASE_URL_ENV, NetworkMode,
+    FrontendServiceConfig, HttpServiceConfig, IGNIS_LOGIN_IGNISCLOUD_ID_BASE_URL_ENV,
     ResourceConfig, ServiceKind, ServiceManifest, SqliteConfig,
 };
 use serde::Serialize;
@@ -236,9 +236,7 @@ async fn service_status(
     let service = context.service(service_name)?;
     let client = ApiClient::new(config::CliConfig::resolve(token)?);
     let project_id = linked_project_id(context)?;
-    let response = client
-        .service_status(project_id, service.name())
-        .await?;
+    let response = client.service_status(project_id, service.name()).await?;
     output::success(response)
 }
 
@@ -326,40 +324,6 @@ pub fn collect_service_check_findings(service: &ServiceManifest) -> Vec<ServiceC
         });
     }
 
-    if service.ignis_login.is_some()
-        && !service.network.allows_authority(
-            "id.igniscloud.transairobot.com",
-            Some("id.igniscloud.transairobot.com"),
-        )
-    {
-        let message = if service.network.mode == NetworkMode::DenyAll {
-            format!(
-                "service `{}` configures `ignis_login` but `[services.network]` is `deny_all`; hosted login, token exchange, and userinfo need outbound access to `id.igniscloud.transairobot.com`",
-                service.name
-            )
-        } else if service
-            .network
-            .allow
-            .iter()
-            .any(|entry| entry.eq_ignore_ascii_case("id.igniscloud.transairobot.com:443"))
-        {
-            format!(
-                "service `{}` configures `ignis_login` but `[services.network].allow` only lists `id.igniscloud.transairobot.com:443`; add `id.igniscloud.transairobot.com` explicitly",
-                service.name
-            )
-        } else {
-            format!(
-                "service `{}` configures `ignis_login` but `[services.network]` does not allow `id.igniscloud.transairobot.com`",
-                service.name
-            )
-        };
-        findings.push(ServiceCheckFinding {
-            level: "error",
-            code: "ignis_login_missing_igniscloud_id_allow",
-            message,
-        });
-    }
-
     findings
 }
 
@@ -371,9 +335,7 @@ async fn delete_service(
     let service = context.service(service_name)?;
     let project_id = linked_project_id(context)?;
     let client = ApiClient::new(config::CliConfig::resolve(token)?);
-    let response = client
-        .delete_service(project_id, service.name())
-        .await?;
+    let response = client.delete_service(project_id, service.name()).await?;
 
     let mut manifest = context.manifest().clone();
     manifest.services.retain(|item| item.name != service.name());
@@ -456,7 +418,9 @@ async fn deploy_service(
     let service = context.service(service_name)?;
     let project_id = linked_project_id(context)?;
     let client = ApiClient::new(config::CliConfig::resolve(token)?);
-    let response = client.deploy_service(project_id, service.name(), version).await?;
+    let response = client
+        .deploy_service(project_id, service.name(), version)
+        .await?;
     output::success(response)
 }
 
@@ -469,7 +433,9 @@ async fn deployments(
     let service = context.service(service_name)?;
     let project_id = linked_project_id(context)?;
     let client = ApiClient::new(config::CliConfig::resolve(token)?);
-    let response = client.deployments(project_id, service.name(), limit).await?;
+    let response = client
+        .deployments(project_id, service.name(), limit)
+        .await?;
     output::success(response)
 }
 
@@ -521,7 +487,9 @@ async fn delete_version(
     let service = context.service(service_name)?;
     let project_id = linked_project_id(context)?;
     let client = ApiClient::new(config::CliConfig::resolve(token)?);
-    let response = client.delete_version(project_id, service.name(), version).await?;
+    let response = client
+        .delete_version(project_id, service.name(), version)
+        .await?;
     output::success(response)
 }
 
@@ -543,7 +511,9 @@ async fn env_command(
             value,
         } => {
             let service = context.service(&service)?;
-            client.env_set(project_id, service.name(), &name, &value).await?
+            client
+                .env_set(project_id, service.name(), &name, &value)
+                .await?
         }
         ServiceEnvCommands::Delete { service, name } => {
             let service = context.service(&service)?;
@@ -607,7 +577,9 @@ async fn sqlite_command(
         ServiceSqliteCommands::Restore { service, input } => {
             let service = context.service(&service)?;
             let bytes = fs::read(&input).with_context(|| format!("reading {}", input.display()))?;
-            let response = client.sqlite_restore(project_id, service.name(), &bytes).await?;
+            let response = client
+                .sqlite_restore(project_id, service.name(), &bytes)
+                .await?;
             output::success(response)
         }
     }
@@ -623,8 +595,8 @@ fn kind_name(kind: ServiceKind) -> &'static str {
 #[cfg(test)]
 mod tests {
     use ignis_manifest::{
-        HttpServiceConfig, IgnisLoginConfig, IgnisLoginProvider, NetworkConfig, NetworkMode,
-        ResourceConfig, ServiceKind, ServiceManifest, SqliteConfig,
+        HttpServiceConfig, IgnisLoginConfig, IgnisLoginProvider, NetworkConfig, ResourceConfig,
+        ServiceKind, ServiceManifest, SqliteConfig,
     };
     use std::path::PathBuf;
 
@@ -650,10 +622,7 @@ mod tests {
             secrets: Default::default(),
             sqlite: SqliteConfig::default(),
             resources: ResourceConfig::default(),
-            network: NetworkConfig {
-                mode: NetworkMode::AllowList,
-                allow: vec!["id.igniscloud.transairobot.com".to_owned()],
-            },
+            network: NetworkConfig::default(),
         }
     }
 
@@ -671,20 +640,6 @@ mod tests {
             findings
                 .iter()
                 .any(|finding| finding.code == "igniscloud_id_base_url_env_not_supported")
-        );
-    }
-
-    #[test]
-    fn service_check_flags_ignis_login_allow_rule_with_only_port_specific_host() {
-        let mut service = sample_http_service();
-        service.network.allow = vec!["id.igniscloud.transairobot.com:443".to_owned()];
-
-        let findings = collect_service_check_findings(&service);
-
-        assert!(
-            findings
-                .iter()
-                .any(|finding| finding.code == "ignis_login_missing_igniscloud_id_allow")
         );
     }
 
