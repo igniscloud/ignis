@@ -3,7 +3,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, anyhow, bail};
-use ignis_manifest::{PROJECT_MANIFEST_FILE, ProjectConfig, ProjectManifest, ServiceManifest};
+use ignis_manifest::{
+    BindingKind, CompiledServicePlan, PROJECT_MANIFEST_FILE, ProjectConfig, ProjectManifest,
+    ServiceKind, ServiceManifest,
+};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -223,6 +226,12 @@ fn build_sync_plan(
     remote_manifests: &BTreeMap<String, ServiceManifest>,
 ) -> Result<SyncPlan> {
     let mut actions = Vec::new();
+    let compiled_services = context
+        .compiled_plan()
+        .services
+        .iter()
+        .map(|service| (service.name.as_str(), service))
+        .collect::<BTreeMap<_, _>>();
 
     if project_missing {
         let message = match project_id {
@@ -246,6 +255,26 @@ fn build_sync_plan(
     let mut local_service_names = BTreeSet::new();
     for service in &context.manifest().services {
         local_service_names.insert(service.name.clone());
+        let compiled_service = compiled_services
+            .get(service.name.as_str())
+            .ok_or_else(|| {
+                anyhow!(
+                    "compiled plan is missing service `{}` declared in {}",
+                    service.name,
+                    context.manifest_path().display()
+                )
+            })?;
+        if let Some(message) = unsupported_remote_binding_message(compiled_service) {
+            actions.push(SyncAction {
+                kind: "unsupported_compiled_plan",
+                status: "blocked",
+                apply_supported: false,
+                message,
+                service: Some(service.name.clone()),
+                diffs: Vec::new(),
+            });
+            continue;
+        }
         match remote_manifests.get(&service.name) {
             None => {
                 actions.push(SyncAction {
@@ -376,7 +405,10 @@ async fn apply_sync_plan(
                     ..action.clone()
                 });
             }
-            "repair_service_manifest" | "noop" | "remote_only_service" => {
+            "repair_service_manifest"
+            | "noop"
+            | "remote_only_service"
+            | "unsupported_compiled_plan" => {
                 applied_actions.push(action.clone());
             }
             other => bail!("unsupported sync action `{other}`"),
@@ -407,6 +439,21 @@ fn plan_advisories(plan: &SyncPlan) -> (Vec<Warning>, Vec<Drift>) {
 
     for action in &plan.actions {
         match action.kind {
+            "unsupported_compiled_plan" => {
+                if let Some(service) = &action.service {
+                    warnings.push(Warning::new(
+                        "compiled_plan_remote_sync_unsupported",
+                        format!(
+                            "service `{service}` uses ISL bindings that the current control-plane sync flow cannot represent; publish/deploy this service through the legacy per-service path only after the deployment API is upgraded"
+                        ),
+                    ));
+                    drift.push(Drift::for_service(
+                        "compiled_plan_remote_sync_unsupported",
+                        service.clone(),
+                        action.message.clone(),
+                    ));
+                }
+            }
             "repair_service_manifest" => {
                 if let Some(service) = &action.service {
                     drift.push(Drift::for_service(
@@ -434,6 +481,92 @@ fn plan_advisories(plan: &SyncPlan) -> (Vec<Warning>, Vec<Drift>) {
     }
 
     (warnings, drift)
+}
+
+fn unsupported_remote_binding_message(service: &CompiledServicePlan) -> Option<String> {
+    let expected = match service.kind {
+        ServiceKind::Http => ("http", BindingKind::Http),
+        ServiceKind::Frontend => ("frontend", BindingKind::Frontend),
+    };
+    if service.bindings.len() != 1 {
+        let bindings = service
+            .bindings
+            .iter()
+            .map(|binding| format!("{}:{}", binding.name, binding.protocol.as_str()))
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Some(format!(
+            "service `{}` compiles to multiple bindings [{bindings}], but remote project sync still only supports one default binding per service",
+            service.name
+        ));
+    }
+    let binding = &service.bindings[0];
+    if binding.name != expected.0 || binding.protocol != expected.1 {
+        return Some(format!(
+            "service `{}` compiles to binding `{}` kind `{}`, but remote project sync only supports the default `{}` `{}` binding for service kind `{}`",
+            service.name,
+            binding.name,
+            binding.protocol.as_str(),
+            expected.0,
+            expected.1.as_str(),
+            service.kind.as_str(),
+        ));
+    }
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ignis_manifest::CompiledBindingPlan;
+
+    fn compiled_service(
+        kind: ServiceKind,
+        bindings: Vec<(&str, BindingKind)>,
+    ) -> CompiledServicePlan {
+        CompiledServicePlan {
+            name: "api".to_owned(),
+            kind,
+            path: PathBuf::from("services/api"),
+            service_identity: "svc://demo/api".to_owned(),
+            bindings: bindings
+                .into_iter()
+                .map(|(name, protocol)| CompiledBindingPlan {
+                    name: name.to_owned(),
+                    binding_identity: format!("svc://demo/api#{name}"),
+                    protocol,
+                    public_exposures: Vec::new(),
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn accepts_default_http_binding_for_remote_sync() {
+        let service = compiled_service(ServiceKind::Http, vec![("http", BindingKind::Http)]);
+        assert_eq!(unsupported_remote_binding_message(&service), None);
+    }
+
+    #[test]
+    fn blocks_multi_binding_service_for_remote_sync() {
+        let service = compiled_service(
+            ServiceKind::Http,
+            vec![("http", BindingKind::Http), ("internal", BindingKind::Http)],
+        );
+        let message =
+            unsupported_remote_binding_message(&service).expect("message should be present");
+        assert!(message.contains("multiple bindings"));
+        assert!(message.contains("http:http"));
+        assert!(message.contains("internal:http"));
+    }
+
+    #[test]
+    fn blocks_non_default_binding_for_remote_sync() {
+        let service = compiled_service(ServiceKind::Http, vec![("internal", BindingKind::Http)]);
+        let message =
+            unsupported_remote_binding_message(&service).expect("message should be present");
+        assert!(message.contains("binding `internal` kind `http`"));
+    }
 }
 
 fn diff_service_manifests(

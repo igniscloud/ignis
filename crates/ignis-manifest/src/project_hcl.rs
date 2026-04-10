@@ -6,10 +6,10 @@ use anyhow::{Context, Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    FrontendServiceConfig, HttpServiceConfig, IgnisLoginConfig, LoadedManifest,
-    LoadedProjectManifest, NetworkConfig, ProjectConfig, ProjectManifest, ResourceConfig,
-    ServiceKind, ServiceManifest, SqliteConfig, validate_relative_service_path,
-    validate_resource_name, validate_service_prefix_like_path,
+    FrontendServiceConfig, HttpServiceConfig, INTERNAL_ONLY_MANIFEST_PREFIX_BASE,
+    IgnisLoginConfig, LoadedManifest, LoadedProjectManifest, ProjectConfig, ProjectManifest,
+    ResourceConfig, ServiceKind, ServiceManifest, SqliteConfig,
+    validate_relative_service_path, validate_resource_name, validate_service_prefix_like_path,
 };
 
 const DEFAULT_LISTENER_NAME: &str = "public";
@@ -64,8 +64,6 @@ pub struct ServiceSpec {
     pub sqlite: SqliteConfig,
     #[serde(default, skip_serializing_if = "ResourceConfig::is_default")]
     pub resources: ResourceConfig,
-    #[serde(default, skip_serializing_if = "NetworkConfig::is_default")]
-    pub network: NetworkConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -86,8 +84,6 @@ pub enum ListenerProtocol {
 pub enum BindingKind {
     Http,
     Frontend,
-    Grpc,
-    Rpc,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -112,7 +108,40 @@ pub struct CompiledServicePlan {
     pub kind: ServiceKind,
     pub path: PathBuf,
     pub service_identity: String,
-    pub binding: BindingSpec,
+    pub bindings: Vec<CompiledBindingPlan>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PublishedServicePlan {
+    pub name: String,
+    pub kind: ServiceKind,
+    pub service_identity: String,
+    pub bindings: Vec<PublishedBindingPlan>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PublishedBindingPlan {
+    pub name: String,
+    pub binding_identity: String,
+    pub protocol: BindingKind,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub public_exposures: Vec<PublishedExposurePlan>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PublishedExposurePlan {
+    pub name: String,
+    pub listener: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CompiledBindingPlan {
+    pub name: String,
+    pub binding_identity: String,
+    pub protocol: BindingKind,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub public_exposures: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -120,7 +149,9 @@ pub struct CompiledExposurePlan {
     pub name: String,
     pub listener: String,
     pub service: String,
+    pub service_identity: String,
     pub binding: String,
+    pub binding_identity: String,
     pub path: String,
 }
 
@@ -129,7 +160,12 @@ pub struct ServiceActivationPlan {
     pub service: String,
     pub service_identity: String,
     pub binding: String,
-    pub route_prefix: String,
+    pub binding_identity: String,
+    pub protocol: BindingKind,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub public_exposures: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub route_prefix: Option<String>,
     pub service_kind: ServiceKind,
 }
 
@@ -159,7 +195,6 @@ impl ProjectSpec {
 
         let mut expose_names = BTreeSet::new();
         let mut listener_paths = BTreeMap::<(String, String), String>::new();
-        let mut service_exposures = BTreeMap::<String, String>::new();
         for expose in &self.exposes {
             expose.validate()?;
             if !expose_names.insert(expose.name.clone()) {
@@ -189,37 +224,19 @@ impl ProjectSpec {
                     expose.name
                 );
             }
-            if let Some(existing) =
-                service_exposures.insert(expose.service.clone(), expose.name.clone())
-            {
-                bail!(
-                    "service `{}` is exposed by both `{existing}` and `{}`; current runtime only supports one public exposure per service",
-                    expose.service,
-                    expose.name
-                );
-            }
 
             let binding_name = expose
                 .binding
                 .as_deref()
                 .unwrap_or_else(|| service.default_binding_name());
             let binding = service.binding(binding_name)?;
-            if binding.kind != service.required_binding_kind() {
+            if binding.kind != service.public_exposure_binding_kind() {
                 bail!(
                     "exposure `{}` binding `{}` is incompatible with service `{}` kind `{}`",
                     expose.name,
                     binding.name,
                     service.name,
                     service.kind.as_str()
-                );
-            }
-        }
-
-        for service in &self.services {
-            if !service_exposures.contains_key(&service.name) {
-                bail!(
-                    "service `{}` does not declare an exposure; current runtime still requires one public exposure per service",
-                    service.name
                 );
             }
         }
@@ -236,10 +253,10 @@ impl ProjectSpec {
             .map(|service| (service.name.as_str(), service))
             .collect::<BTreeMap<_, _>>();
 
-        let mut compiled_services = Vec::with_capacity(self.services.len());
         let mut compiled_exposures = Vec::with_capacity(self.exposes.len());
-        let mut activations = Vec::with_capacity(self.exposes.len());
-        let mut manifest_services = Vec::with_capacity(self.services.len());
+        let mut exposures_by_binding =
+            BTreeMap::<(String, String), Vec<CompiledExposurePlan>>::new();
+        let mut manifest_prefixes = BTreeMap::<String, String>::new();
 
         for expose in &self.exposes {
             let service = services_by_name
@@ -252,29 +269,75 @@ impl ProjectSpec {
                 .unwrap_or_else(|| service.default_binding_name().to_owned());
             let binding = service.binding(&binding_name)?;
             let service_identity = format!("svc://{}/{}", self.project.name, service.name);
+            let binding_identity = format!("{service_identity}#{}", binding.name);
 
-            compiled_exposures.push(CompiledExposurePlan {
+            let compiled_exposure = CompiledExposurePlan {
                 name: expose.name.clone(),
                 listener: expose.listener.clone(),
                 service: service.name.clone(),
-                binding: binding.name.clone(),
-                path: normalized_path.clone(),
-            });
-            activations.push(ServiceActivationPlan {
-                service: service.name.clone(),
                 service_identity: service_identity.clone(),
                 binding: binding.name.clone(),
-                route_prefix: normalized_path.clone(),
-                service_kind: service.kind,
-            });
+                binding_identity: binding_identity.clone(),
+                path: normalized_path.clone(),
+            };
+            compiled_exposures.push(compiled_exposure.clone());
+            exposures_by_binding
+                .entry((service.name.clone(), binding.name.clone()))
+                .or_default()
+                .push(compiled_exposure);
+            manifest_prefixes
+                .entry(service.name.clone())
+                .or_insert(normalized_path);
+        }
+
+        let mut manifest_services = Vec::with_capacity(self.services.len());
+        let mut compiled_services = Vec::with_capacity(self.services.len());
+        let mut activations = Vec::new();
+        for service in &self.services {
+            let service_identity = format!("svc://{}/{}", self.project.name, service.name);
+            let manifest_prefix = manifest_prefixes
+                .get(&service.name)
+                .cloned()
+                .unwrap_or_else(|| internal_only_manifest_prefix(&service.name));
+            manifest_services.push(service.clone().into_manifest(manifest_prefix));
+            let mut compiled_bindings = Vec::new();
+            for binding in service.bindings_for_compile() {
+                let binding_identity = format!("{service_identity}#{}", binding.name);
+                let public_exposures = exposures_by_binding
+                    .get(&(service.name.clone(), binding.name.clone()))
+                    .cloned()
+                    .unwrap_or_default();
+                let public_exposure_names = public_exposures
+                    .iter()
+                    .map(|exposure| exposure.name.clone())
+                    .collect::<Vec<_>>();
+                let route_prefix = public_exposures
+                    .first()
+                    .map(|exposure| exposure.path.clone());
+                compiled_bindings.push(CompiledBindingPlan {
+                    name: binding.name.clone(),
+                    binding_identity: binding_identity.clone(),
+                    protocol: binding.kind,
+                    public_exposures: public_exposure_names.clone(),
+                });
+                activations.push(ServiceActivationPlan {
+                    service: service.name.clone(),
+                    service_identity: service_identity.clone(),
+                    binding: binding.name.clone(),
+                    binding_identity,
+                    protocol: binding.kind,
+                    public_exposures: public_exposure_names,
+                    route_prefix,
+                    service_kind: service.kind,
+                });
+            }
             compiled_services.push(CompiledServicePlan {
                 name: service.name.clone(),
                 kind: service.kind,
                 path: service.path.clone(),
                 service_identity,
-                binding,
+                bindings: compiled_bindings,
             });
-            manifest_services.push((*service).clone().into_manifest(normalized_path));
         }
 
         let manifest = ProjectManifest {
@@ -301,22 +364,24 @@ impl ProjectSpec {
         manifest.validate()?;
 
         let mut services = Vec::with_capacity(manifest.services.len());
-        let mut exposes = Vec::with_capacity(manifest.services.len());
+        let mut exposes = Vec::new();
         for service in &manifest.services {
             let binding_name = service.default_binding_name().to_owned();
             services.push(ServiceSpec::from_manifest(service, &binding_name));
-            exposes.push(ExposeSpec {
-                name: service.name.clone(),
-                listener: DEFAULT_LISTENER_NAME.to_owned(),
-                service: service.name.clone(),
-                binding: Some(binding_name),
-                path: service.prefix.clone(),
-            });
+            if !is_internal_only_manifest_prefix(&service.prefix) {
+                exposes.push(ExposeSpec {
+                    name: service.name.clone(),
+                    listener: DEFAULT_LISTENER_NAME.to_owned(),
+                    service: service.name.clone(),
+                    binding: Some(binding_name),
+                    path: service.prefix.clone(),
+                });
+            }
         }
 
         Ok(Self {
             project: manifest.project.clone(),
-            listeners: if manifest.services.is_empty() {
+            listeners: if exposes.is_empty() {
                 Vec::new()
             } else {
                 vec![ListenerSpec {
@@ -326,6 +391,44 @@ impl ProjectSpec {
             },
             exposes,
             services,
+        })
+    }
+}
+
+impl CompiledProjectPlan {
+    pub fn published_service_plan(&self, service_name: &str) -> Result<PublishedServicePlan> {
+        let service = self
+            .services
+            .iter()
+            .find(|service| service.name == service_name)
+            .ok_or_else(|| anyhow!("compiled plan does not contain service `{service_name}`"))?;
+        let bindings = service
+            .bindings
+            .iter()
+            .map(|binding| PublishedBindingPlan {
+                name: binding.name.clone(),
+                binding_identity: binding.binding_identity.clone(),
+                protocol: binding.protocol,
+                public_exposures: self
+                    .exposures
+                    .iter()
+                    .filter(|exposure| {
+                        exposure.service == service.name && exposure.binding == binding.name
+                    })
+                    .map(|exposure| PublishedExposurePlan {
+                        name: exposure.name.clone(),
+                        listener: exposure.listener.clone(),
+                        path: exposure.path.clone(),
+                    })
+                    .collect(),
+            })
+            .collect();
+
+        Ok(PublishedServicePlan {
+            name: service.name.clone(),
+            kind: service.kind,
+            service_identity: service.service_identity.clone(),
+            bindings,
         })
     }
 }
@@ -349,7 +452,6 @@ impl ServiceSpec {
     fn validate(&self) -> Result<()> {
         validate_resource_name(&self.name, "service field `name`")?;
         validate_relative_service_path(&self.path)?;
-        let expected_kind = self.required_binding_kind();
 
         if self.bindings.is_empty() {
             let _ = self.synthetic_manifest("/_validate")?;
@@ -366,7 +468,7 @@ impl ServiceSpec {
                     binding.name
                 );
             }
-            if binding.kind != expected_kind {
+            if !self.supports_binding_kind(binding.kind) {
                 bail!(
                     "service `{}` binding `{}` kind `{}` is not supported for service kind `{}`",
                     self.name,
@@ -394,7 +496,7 @@ impl ServiceSpec {
             path: service.path.clone(),
             bindings: vec![BindingSpec {
                 name: binding_name.to_owned(),
-                kind: service.required_binding_kind(),
+                kind: service.public_exposure_binding_kind(),
             }],
             http: service.http.clone(),
             frontend: service.frontend.clone(),
@@ -403,7 +505,6 @@ impl ServiceSpec {
             secrets: service.secrets.clone(),
             sqlite: service.sqlite.clone(),
             resources: service.resources.clone(),
-            network: service.network.clone(),
         }
     }
 
@@ -420,7 +521,6 @@ impl ServiceSpec {
             secrets: self.secrets,
             sqlite: self.sqlite,
             resources: self.resources,
-            network: self.network,
         }
     }
 
@@ -428,7 +528,7 @@ impl ServiceSpec {
         if self.bindings.is_empty() && name == self.default_binding_name() {
             return Ok(BindingSpec {
                 name: name.to_owned(),
-                kind: self.required_binding_kind(),
+                kind: self.public_exposure_binding_kind(),
             });
         }
 
@@ -446,10 +546,28 @@ impl ServiceSpec {
         }
     }
 
-    fn required_binding_kind(&self) -> BindingKind {
+    fn public_exposure_binding_kind(&self) -> BindingKind {
         match self.kind {
             ServiceKind::Http => BindingKind::Http,
             ServiceKind::Frontend => BindingKind::Frontend,
+        }
+    }
+
+    fn supports_binding_kind(&self, kind: BindingKind) -> bool {
+        match self.kind {
+            ServiceKind::Http => matches!(kind, BindingKind::Http),
+            ServiceKind::Frontend => matches!(kind, BindingKind::Frontend),
+        }
+    }
+
+    fn bindings_for_compile(&self) -> Vec<BindingSpec> {
+        if self.bindings.is_empty() {
+            vec![BindingSpec {
+                name: self.default_binding_name().to_owned(),
+                kind: self.public_exposure_binding_kind(),
+            }]
+        } else {
+            self.bindings.clone()
         }
     }
 }
@@ -459,8 +577,6 @@ impl BindingKind {
         match self {
             Self::Http => "http",
             Self::Frontend => "frontend",
-            Self::Grpc => "grpc",
-            Self::Rpc => "rpc",
         }
     }
 }
@@ -494,12 +610,6 @@ impl ResourceConfig {
     }
 }
 
-impl NetworkConfig {
-    pub(crate) fn is_default(&self) -> bool {
-        self == &Self::default()
-    }
-}
-
 impl ServiceManifest {
     fn default_binding_name(&self) -> &'static str {
         match self.kind {
@@ -508,7 +618,7 @@ impl ServiceManifest {
         }
     }
 
-    fn required_binding_kind(&self) -> BindingKind {
+    fn public_exposure_binding_kind(&self) -> BindingKind {
         match self.kind {
             ServiceKind::Http => BindingKind::Http,
             ServiceKind::Frontend => BindingKind::Frontend,
@@ -543,12 +653,13 @@ impl LoadedProjectManifest {
             manifest_path,
             project_dir,
             spec,
+            compiled_plan: compiled.clone(),
             manifest: compiled.manifest,
         })
     }
 
     pub fn compiled_plan(&self) -> Result<CompiledProjectPlan> {
-        self.spec.compile()
+        Ok(self.compiled_plan.clone())
     }
 
     pub fn project_name(&self) -> &str {
@@ -587,6 +698,22 @@ fn normalize_expose_path(path: &str) -> Result<String> {
         return Ok(trimmed.trim_end_matches('/').to_owned());
     }
     Ok(trimmed.to_owned())
+}
+
+fn internal_only_manifest_prefix(service_name: &str) -> String {
+    format!(
+        "{}/{}",
+        INTERNAL_ONLY_MANIFEST_PREFIX_BASE,
+        service_name.trim().trim_matches('/')
+    )
+}
+
+fn is_internal_only_manifest_prefix(prefix: &str) -> bool {
+    prefix == INTERNAL_ONLY_MANIFEST_PREFIX_BASE
+        || prefix
+            .strip_prefix(INTERNAL_ONLY_MANIFEST_PREFIX_BASE)
+            .map(|suffix| suffix.starts_with('/'))
+            .unwrap_or(false)
 }
 
 #[cfg(test)]
@@ -645,7 +772,6 @@ mod tests {
                     secrets: BTreeMap::new(),
                     sqlite: SqliteConfig::default(),
                     resources: ResourceConfig::default(),
-                    network: NetworkConfig::default(),
                 },
                 ServiceSpec {
                     name: "web".to_owned(),
@@ -666,7 +792,6 @@ mod tests {
                     secrets: BTreeMap::new(),
                     sqlite: SqliteConfig::default(),
                     resources: ResourceConfig::default(),
-                    network: NetworkConfig::default(),
                 },
             ],
         };
@@ -675,11 +800,21 @@ mod tests {
         assert_eq!(compiled.manifest.services.len(), 2);
         assert_eq!(compiled.manifest.services[0].prefix, "/api");
         assert_eq!(compiled.manifest.services[1].prefix, "/");
+        assert_eq!(compiled.services.len(), 2);
+        assert_eq!(compiled.services[0].bindings.len(), 1);
+        assert_eq!(
+            compiled.services[0].bindings[0].binding_identity,
+            "svc://demo/api#http"
+        );
         assert_eq!(compiled.activations[0].service_identity, "svc://demo/api");
+        assert_eq!(
+            compiled.activations[0].route_prefix.as_deref(),
+            Some("/api")
+        );
     }
 
     #[test]
-    fn rejects_service_without_exposure() {
+    fn allows_service_without_public_exposure() {
         let spec = ProjectSpec {
             project: ProjectConfig {
                 name: "demo".to_owned(),
@@ -707,11 +842,129 @@ mod tests {
                 secrets: BTreeMap::new(),
                 sqlite: SqliteConfig::default(),
                 resources: ResourceConfig::default(),
-                network: NetworkConfig::default(),
             }],
         };
 
-        assert!(spec.validate().is_err());
+        let compiled = spec.compile().unwrap();
+        assert_eq!(compiled.services.len(), 1);
+        assert!(compiled.exposures.is_empty());
+        assert_eq!(compiled.manifest.services.len(), 1);
+        assert_eq!(compiled.manifest.services[0].prefix, "/_ignis_internal/api");
+    }
+
+    #[test]
+    fn builds_published_service_plan_with_binding_exposure_details() {
+        let spec = ProjectSpec {
+            project: ProjectConfig {
+                name: "demo".to_owned(),
+            },
+            listeners: vec![ListenerSpec {
+                name: "public".to_owned(),
+                protocol: ListenerProtocol::Http,
+            }],
+            exposes: vec![ExposeSpec {
+                name: "api".to_owned(),
+                listener: "public".to_owned(),
+                service: "api".to_owned(),
+                binding: Some("http".to_owned()),
+                path: "/api".to_owned(),
+            }],
+            services: vec![ServiceSpec {
+                name: "api".to_owned(),
+                kind: ServiceKind::Http,
+                path: PathBuf::from("services/api"),
+                bindings: vec![
+                    BindingSpec {
+                        name: "http".to_owned(),
+                        kind: BindingKind::Http,
+                    },
+                ],
+                http: Some(HttpServiceConfig {
+                    component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
+                    base_path: "/".to_owned(),
+                }),
+                frontend: None,
+                ignis_login: None,
+                env: BTreeMap::new(),
+                secrets: BTreeMap::new(),
+                sqlite: SqliteConfig::default(),
+                resources: ResourceConfig::default(),
+            }],
+        };
+
+        let compiled = spec.compile().unwrap();
+        let published = compiled.published_service_plan("api").unwrap();
+
+        assert_eq!(published.service_identity, "svc://demo/api");
+        assert_eq!(published.bindings.len(), 1);
+        assert_eq!(published.bindings[0].name, "http");
+        assert_eq!(published.bindings[0].public_exposures.len(), 1);
+        assert_eq!(published.bindings[0].public_exposures[0].listener, "public");
+        assert_eq!(published.bindings[0].public_exposures[0].path, "/api");
+    }
+
+    #[test]
+    fn allows_multiple_public_exposures_for_same_service_binding() {
+        let spec = ProjectSpec {
+            project: ProjectConfig {
+                name: "demo".to_owned(),
+            },
+            listeners: vec![ListenerSpec {
+                name: "public".to_owned(),
+                protocol: ListenerProtocol::Http,
+            }],
+            exposes: vec![
+                ExposeSpec {
+                    name: "api".to_owned(),
+                    listener: "public".to_owned(),
+                    service: "api".to_owned(),
+                    binding: Some("http".to_owned()),
+                    path: "/api".to_owned(),
+                },
+                ExposeSpec {
+                    name: "api-v2".to_owned(),
+                    listener: "public".to_owned(),
+                    service: "api".to_owned(),
+                    binding: Some("http".to_owned()),
+                    path: "/v2/api".to_owned(),
+                },
+            ],
+            services: vec![ServiceSpec {
+                name: "api".to_owned(),
+                kind: ServiceKind::Http,
+                path: PathBuf::from("services/api"),
+                bindings: vec![BindingSpec {
+                    name: "http".to_owned(),
+                    kind: BindingKind::Http,
+                }],
+                http: Some(HttpServiceConfig {
+                    component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
+                    base_path: "/".to_owned(),
+                }),
+                frontend: None,
+                ignis_login: None,
+                env: BTreeMap::new(),
+                secrets: BTreeMap::new(),
+                sqlite: SqliteConfig::default(),
+                resources: ResourceConfig::default(),
+            }],
+        };
+
+        let compiled = spec.compile().unwrap();
+        assert_eq!(compiled.exposures.len(), 2);
+        assert_eq!(compiled.services.len(), 1);
+        assert_eq!(compiled.services[0].bindings.len(), 1);
+        assert_eq!(
+            compiled.services[0].bindings[0].public_exposures,
+            vec!["api".to_owned(), "api-v2".to_owned()]
+        );
+        assert_eq!(
+            compiled.activations[0].route_prefix.as_deref(),
+            Some("/api")
+        );
+        let published = compiled.published_service_plan("api").unwrap();
+        assert_eq!(published.bindings[0].public_exposures.len(), 2);
+        assert_eq!(published.bindings[0].public_exposures[1].path, "/v2/api");
     }
 
     #[test]
@@ -731,5 +984,35 @@ mod tests {
                 .unwrap_or_else(|error| panic!("failed to load {}: {error:#}", path.display()));
             assert!(!loaded.manifest.services.is_empty(), "{}", path.display());
         }
+    }
+
+    #[test]
+    fn render_round_trips_internal_only_service_without_exposure() {
+        let manifest = ProjectManifest {
+            project: ProjectConfig {
+                name: "demo".to_owned(),
+            },
+            services: vec![ServiceManifest {
+                name: "api".to_owned(),
+                kind: ServiceKind::Http,
+                path: PathBuf::from("services/api"),
+                prefix: "/_ignis_internal/api".to_owned(),
+                http: Some(HttpServiceConfig {
+                    component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
+                    base_path: "/".to_owned(),
+                }),
+                frontend: None,
+                ignis_login: None,
+                env: BTreeMap::new(),
+                secrets: BTreeMap::new(),
+                sqlite: SqliteConfig::default(),
+                resources: ResourceConfig::default(),
+            }],
+        };
+
+        let rendered = ProjectSpec::from_project_manifest(&manifest).unwrap();
+        assert!(rendered.exposes.is_empty());
+        assert!(rendered.listeners.is_empty());
+        assert_eq!(rendered.services.len(), 1);
     }
 }

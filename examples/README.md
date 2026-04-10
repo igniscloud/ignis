@@ -31,6 +31,15 @@ A minimal `ignis_login` example showing:
 - auto-managed `IGNIS_LOGIN_CLIENT_ID` and `IGNIS_LOGIN_CLIENT_SECRET`
 - a single `ignis.hcl` project with one service mounted at `/`
 
+## `dual-frontend-login-example`
+
+A multi-frontend login example showing:
+
+- one `http` API service with `ignis_login` and SQLite-backed user persistence
+- one Vue user app mounted at `/`
+- one Vue admin app mounted at `/admin`
+- same-origin login, callback, session, and registered-user listing through `/api`
+
 ## Validation
 
 ```bash
@@ -39,4 +48,5 @@ cd ignis
 cargo check --manifest-path examples/hello-fullstack/services/api/Cargo.toml
 cargo check --manifest-path examples/sqlite-example/services/api/Cargo.toml
 cargo check --manifest-path examples/ignis-login-example/services/api/Cargo.toml
+cargo check --manifest-path examples/dual-frontend-login-example/services/api/Cargo.toml
 ```

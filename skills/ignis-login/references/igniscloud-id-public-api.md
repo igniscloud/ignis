@@ -4,7 +4,7 @@
 
 文档约定：
 
-- 地址是https://id.igniscloud.transairobot.com
+- 地址是https://id.igniscloud.dev
 - JSON 接口成功时统一返回 `{"data": ...}`
 - JSON 接口失败时统一返回 `{"error": "错误信息"}`
 - 时间字段使用 RFC3339 UTC 字符串

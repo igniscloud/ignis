@@ -3,7 +3,8 @@ use std::path::{Component, Path, PathBuf};
 
 use anyhow::{Context, Result, anyhow, bail};
 use ignis_manifest::{
-    LoadedManifest, LoadedProjectManifest, PROJECT_MANIFEST_FILE, ProjectManifest, ServiceManifest,
+    CompiledProjectPlan, LoadedManifest, LoadedProjectManifest, PROJECT_MANIFEST_FILE,
+    ProjectManifest, ServiceManifest,
 };
 
 use crate::project_state::ProjectState;
@@ -30,6 +31,10 @@ impl ProjectContext {
 
     pub fn manifest(&self) -> &ProjectManifest {
         &self.loaded.manifest
+    }
+
+    pub fn compiled_plan(&self) -> &CompiledProjectPlan {
+        &self.loaded.compiled_plan
     }
 
     pub fn project_name(&self) -> &str {

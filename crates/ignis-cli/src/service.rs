@@ -131,7 +131,6 @@ fn build_new_service_manifest(
                     cpu_time_limit_ms: Some(5_000),
                     memory_limit_bytes: Some(128 * 1024 * 1024),
                 },
-                network: Default::default(),
             }
         }
         CliServiceKind::Frontend => ServiceManifest {
@@ -158,7 +157,6 @@ fn build_new_service_manifest(
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),
             resources: ResourceConfig::default(),
-            network: Default::default(),
         },
     }
 }
@@ -595,8 +593,8 @@ fn kind_name(kind: ServiceKind) -> &'static str {
 #[cfg(test)]
 mod tests {
     use ignis_manifest::{
-        HttpServiceConfig, IgnisLoginConfig, IgnisLoginProvider, NetworkConfig, ResourceConfig,
-        ServiceKind, ServiceManifest, SqliteConfig,
+        HttpServiceConfig, IgnisLoginConfig, IgnisLoginProvider, ResourceConfig, ServiceKind,
+        ServiceManifest, SqliteConfig,
     };
     use std::path::PathBuf;
 
@@ -622,7 +620,6 @@ mod tests {
             secrets: Default::default(),
             sqlite: SqliteConfig::default(),
             resources: ResourceConfig::default(),
-            network: NetworkConfig::default(),
         }
     }
 
@@ -631,7 +628,7 @@ mod tests {
         let mut service = sample_http_service();
         service.env.insert(
             "IGNISCLOUD_ID_BASE_URL".to_owned(),
-            "https://id.igniscloud.transairobot.com".to_owned(),
+            "https://id.igniscloud.dev".to_owned(),
         );
 
         let findings = collect_service_check_findings(&service);

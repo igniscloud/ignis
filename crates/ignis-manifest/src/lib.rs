@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 pub const MANIFEST_FILE: &str = "worker.toml";
 pub const PROJECT_MANIFEST_FILE: &str = "ignis.hcl";
 pub const MAX_RESOURCE_NAME_LEN: usize = 48;
+pub const INTERNAL_ONLY_MANIFEST_PREFIX_BASE: &str = "/_ignis_internal";
 pub const IGNIS_LOGIN_IGNISCLOUD_ID_BASE_URL_ENV: &str = "IGNISCLOUD_ID_BASE_URL";
 pub const IGNIS_LOGIN_CLIENT_ID_SECRET: &str = "IGNIS_LOGIN_CLIENT_ID";
 pub const IGNIS_LOGIN_CLIENT_SECRET_SECRET: &str = "IGNIS_LOGIN_CLIENT_SECRET";
@@ -26,10 +27,12 @@ pub const IGNIS_LOGIN_RESERVED_SECRETS: [&str; 2] = [
     IGNIS_LOGIN_CLIENT_ID_SECRET,
     IGNIS_LOGIN_CLIENT_SECRET_SECRET,
 ];
+pub const PUBLISHED_SERVICE_PLAN_BUILD_METADATA_KEY: &str = "ignis.published_service_plan";
 
 pub use project_hcl::{
-    BindingKind, BindingSpec, CompiledExposurePlan, CompiledProjectPlan, CompiledServicePlan,
-    ExposeSpec, ListenerProtocol, ListenerSpec, ProjectSpec, ResolvedDependencyGraph,
+    BindingKind, BindingSpec, CompiledBindingPlan, CompiledExposurePlan, CompiledProjectPlan,
+    CompiledServicePlan, ExposeSpec, ListenerProtocol, ListenerSpec, ProjectSpec,
+    PublishedBindingPlan, PublishedExposurePlan, PublishedServicePlan, ResolvedDependencyGraph,
     ServiceActivationPlan, ServiceSpec,
 };
 
@@ -47,8 +50,6 @@ pub struct WorkerManifest {
     pub sqlite: SqliteConfig,
     #[serde(default)]
     pub resources: ResourceConfig,
-    #[serde(default)]
-    pub network: NetworkConfig,
     #[serde(default, skip_serializing_if = "IgnisCloudConfig::is_empty")]
     pub igniscloud: IgnisCloudConfig,
 }
@@ -109,8 +110,6 @@ pub struct ServiceManifest {
     pub sqlite: SqliteConfig,
     #[serde(default)]
     pub resources: ResourceConfig,
-    #[serde(default)]
-    pub network: NetworkConfig,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -151,10 +150,6 @@ pub struct ResourceConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-#[serde(deny_unknown_fields)]
-pub struct NetworkConfig {}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct IgnisCloudConfig {
     #[serde(default)]
     pub service: Option<String>,
@@ -193,6 +188,7 @@ pub struct LoadedProjectManifest {
     pub manifest_path: PathBuf,
     pub project_dir: PathBuf,
     pub spec: ProjectSpec,
+    pub compiled_plan: CompiledProjectPlan,
     pub manifest: ProjectManifest,
 }
 
@@ -219,7 +215,6 @@ impl WorkerManifest {
         validate_binding_names(self.env.keys(), "env")?;
         validate_binding_names(self.secrets.keys(), "secrets")?;
         self.resources.validate()?;
-        self.network.validate()?;
         Ok(())
     }
 
@@ -338,7 +333,6 @@ impl ServiceManifest {
                 validate_binding_names(self.env.keys(), "services.env")?;
                 validate_binding_names(self.secrets.keys(), "services.secrets")?;
                 self.resources.validate()?;
-                self.network.validate()?;
             }
             ServiceKind::Frontend => {
                 let frontend = self.frontend.as_ref().ok_or_else(|| {
@@ -380,12 +374,6 @@ impl ServiceManifest {
                         self.name
                     );
                 }
-                if self.network != NetworkConfig::default() {
-                    bail!(
-                        "frontend service `{}` cannot define `[services.network]`",
-                        self.name
-                    );
-                }
                 frontend.validate(&self.name)?;
             }
         }
@@ -408,7 +396,6 @@ impl ServiceManifest {
             secrets: self.secrets.clone(),
             sqlite: self.sqlite.clone(),
             resources: self.resources.clone(),
-            network: self.network.clone(),
             igniscloud: IgnisCloudConfig::default(),
         })
     }
@@ -437,16 +424,6 @@ impl FrontendServiceConfig {
             bail!("frontend service `{service_name}` field `frontend.output_dir` cannot be empty");
         }
         Ok(())
-    }
-}
-
-impl NetworkConfig {
-    pub fn validate(&self) -> Result<()> {
-        Ok(())
-    }
-
-    pub fn allows_authority(&self, _authority: &str, _host: Option<&str>) -> bool {
-        true
     }
 }
 
@@ -700,7 +677,6 @@ mod tests {
                 cpu_time_limit_ms: Some(5_000),
                 memory_limit_bytes: Some(64 * 1024 * 1024),
             },
-            network: NetworkConfig::default(),
             igniscloud: IgnisCloudConfig {
                 service: Some("hello-worker".to_owned()),
             },
@@ -723,28 +699,10 @@ mod tests {
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),
             resources: ResourceConfig::default(),
-            network: NetworkConfig::default(),
             igniscloud: IgnisCloudConfig::default(),
         };
 
         assert!(manifest.validate().is_err());
-    }
-
-    #[test]
-    fn accepts_default_network_policy() {
-        let manifest = WorkerManifest {
-            name: "hello_worker".to_owned(),
-            component: PathBuf::from("app.wasm"),
-            base_path: "/".to_owned(),
-            env: BTreeMap::new(),
-            secrets: BTreeMap::new(),
-            sqlite: SqliteConfig::default(),
-            resources: ResourceConfig::default(),
-            network: NetworkConfig::default(),
-            igniscloud: IgnisCloudConfig::default(),
-        };
-
-        manifest.validate().unwrap();
     }
 
     #[test]
@@ -757,7 +715,6 @@ mod tests {
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),
             resources: ResourceConfig::default(),
-            network: NetworkConfig::default(),
             igniscloud: IgnisCloudConfig {
                 service: Some("a".repeat(MAX_RESOURCE_NAME_LEN + 1)),
             },
@@ -811,7 +768,6 @@ mod tests {
                         cpu_time_limit_ms: Some(5_000),
                         memory_limit_bytes: Some(64 * 1024 * 1024),
                     },
-                    network: NetworkConfig::default(),
                 },
                 ServiceManifest {
                     name: "web".to_owned(),
@@ -829,7 +785,6 @@ mod tests {
                     secrets: BTreeMap::new(),
                     sqlite: SqliteConfig::default(),
                     resources: ResourceConfig::default(),
-                    network: NetworkConfig::default(),
                 },
             ],
         };
@@ -862,7 +817,6 @@ mod tests {
                     secrets: BTreeMap::new(),
                     sqlite: SqliteConfig::default(),
                     resources: ResourceConfig::default(),
-                    network: NetworkConfig::default(),
                 },
                 ServiceManifest {
                     name: "web".to_owned(),
@@ -880,7 +834,6 @@ mod tests {
                     secrets: BTreeMap::new(),
                     sqlite: SqliteConfig::default(),
                     resources: ResourceConfig::default(),
-                    network: NetworkConfig::default(),
                 },
             ],
         };
@@ -906,7 +859,6 @@ mod tests {
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),
             resources: ResourceConfig::default(),
-            network: NetworkConfig::default(),
         };
 
         assert!(service.validate().is_err());
@@ -929,7 +881,6 @@ mod tests {
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),
             resources: ResourceConfig::default(),
-            network: NetworkConfig::default(),
         };
 
         assert!(service.validate().is_err());
@@ -960,7 +911,6 @@ mod tests {
                 secrets: BTreeMap::new(),
                 sqlite: SqliteConfig::default(),
                 resources: ResourceConfig::default(),
-                network: NetworkConfig::default(),
             }],
         };
 
@@ -992,7 +942,6 @@ mod tests {
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),
             resources: ResourceConfig::default(),
-            network: NetworkConfig::default(),
         };
 
         assert!(service.validate().is_err());
@@ -1022,7 +971,6 @@ mod tests {
             )]),
             sqlite: SqliteConfig::default(),
             resources: ResourceConfig::default(),
-            network: NetworkConfig::default(),
         };
 
         assert!(service.validate().is_err());
@@ -1047,12 +995,11 @@ mod tests {
             }),
             env: BTreeMap::from([(
                 String::from(IGNIS_LOGIN_IGNISCLOUD_ID_BASE_URL_ENV),
-                String::from("https://id.igniscloud.transairobot.com"),
+                String::from("https://id.igniscloud.dev"),
             )]),
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),
             resources: ResourceConfig::default(),
-            network: NetworkConfig::default(),
         };
 
         assert!(service.validate().is_err());
@@ -1079,7 +1026,6 @@ mod tests {
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),
             resources: ResourceConfig::default(),
-            network: NetworkConfig::default(),
         };
 
         assert!(service.validate().is_err());
@@ -1106,7 +1052,6 @@ mod tests {
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),
             resources: ResourceConfig::default(),
-            network: NetworkConfig::default(),
         };
 
         assert!(service.validate().is_err());

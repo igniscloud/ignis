@@ -32,6 +32,7 @@
 - `BindingSpec`
 - `CompiledProjectPlan`
 - `CompiledServicePlan`
+- `CompiledBindingPlan`
 - `CompiledExposurePlan`
 - `ServiceActivationPlan`
 - `ProjectManifest`
@@ -43,7 +44,6 @@
 - `WorkerManifest`
 - `SqliteConfig`
 - `ResourceConfig`
-- `NetworkConfig`
 - `ComponentSignature`
 - `TrustedSigner`
 - `LoadedProjectManifest`
@@ -272,13 +272,13 @@ CLI 默认通过浏览器登录拿到一个可持久化的 CLI token。登录时
 CLI 当前固定访问：
 
 ```text
-https://igniscloud.transairobot.com/api
+https://igniscloud.dev/api
 ```
 
 例如 project 列表接口是：
 
 ```text
-https://igniscloud.transairobot.com/api/v1/projects
+https://igniscloud.dev/api/v1/projects
 ```
 
 ### 2.3 身份接口

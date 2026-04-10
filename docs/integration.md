@@ -158,7 +158,7 @@ services = [
 - 只对声明了 `ignis_login` 的 `http` service 生效
 - 浏览器首入口统一走 `IgnisCloud ID` hosted `GET /login`
 - control-plane 会把 `IGNIS_LOGIN_CLIENT_ID` / `IGNIS_LOGIN_CLIENT_SECRET` 作为保留 secret 托管
-- 当前 igniscloud hosted login 公网地址固定为 `https://id.igniscloud.transairobot.com`，不要把 `IGNISCLOUD_ID_BASE_URL` 设计成 env 依赖
+- 当前 igniscloud hosted login 公网地址固定为 `https://id.igniscloud.dev`，不要把 `IGNISCLOUD_ID_BASE_URL` 设计成 env 依赖
 - 不支持 `public`
 - 不支持直接注入到 `frontend`
 - `providers` 当前支持 `google` 和 `test_password`

@@ -11,7 +11,7 @@ This project is now a minimal fullstack `ignis_login` example:
   - `IGNIS_LOGIN_CLIENT_ID`
   - `IGNIS_LOGIN_CLIENT_SECRET`
 - the backend uses the current igniscloud hosted login base URL directly:
-  - `https://id.igniscloud.transairobot.com`
+  - `https://id.igniscloud.dev`
 
 The frontend:
 

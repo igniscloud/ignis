@@ -9,7 +9,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::{Context, Result, anyhow, bail};
 use flate2::Compression;
 use flate2::write::GzEncoder;
-use ignis_manifest::{ComponentSignature, LoadedManifest, ServiceKind, sign_component_with_seed};
+use ignis_manifest::{
+    ComponentSignature, LoadedManifest, PUBLISHED_SERVICE_PLAN_BUILD_METADATA_KEY, ServiceKind,
+    sign_component_with_seed,
+};
 use serde::Serialize;
 use tar::Builder;
 use tokio::process::Command;
@@ -103,6 +106,10 @@ pub async fn build_service(service: &ServiceContext<'_>, release: bool) -> Resul
 
 pub async fn build_metadata(service: &ServiceContext<'_>) -> Result<BTreeMap<String, String>> {
     let mut metadata = BTreeMap::new();
+    let published_plan = service
+        .project()
+        .compiled_plan()
+        .published_service_plan(service.name())?;
     metadata.insert("builder".to_owned(), "ignis-cli".to_owned());
     metadata.insert(
         "project_manifest_path".to_owned(),
@@ -124,6 +131,10 @@ pub async fn build_metadata(service: &ServiceContext<'_>) -> Result<BTreeMap<Str
             ServiceKind::Http => "cargo-build-wasm32-wasip2".to_owned(),
             ServiceKind::Frontend => frontend_build_mode(service.manifest()).to_owned(),
         },
+    );
+    metadata.insert(
+        PUBLISHED_SERVICE_PLAN_BUILD_METADATA_KEY.to_owned(),
+        serde_json::to_string(&published_plan).context("serializing published service plan")?,
     );
     Ok(metadata)
 }

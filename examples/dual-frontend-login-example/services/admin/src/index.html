@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dual Frontend Login Example Admin</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f1f5f0;
+        --panel: rgba(252, 255, 252, 0.92);
+        --ink: #17211d;
+        --muted: #62716a;
+        --line: rgba(23, 33, 29, 0.09);
+        --brand: #315c52;
+        --brand-2: #8c4b32;
+        --shadow: 0 24px 72px rgba(23, 33, 29, 0.12);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(49, 92, 82, 0.2), transparent 25%),
+          radial-gradient(circle at bottom right, rgba(140, 75, 50, 0.15), transparent 24%),
+          linear-gradient(165deg, #f6faf6 0%, #edf3ee 52%, #f7faf8 100%);
+      }
+      .shell {
+        width: min(1160px, 100%);
+        margin: 0 auto;
+        padding: 28px 20px 48px;
+      }
+      .hero,
+      .table-wrap {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 30px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(18px);
+      }
+      .hero {
+        padding: 32px;
+      }
+      .eyebrow {
+        margin: 0 0 10px;
+        color: var(--brand);
+        font-size: 0.84rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+      h1 {
+        margin: 0;
+        font-size: clamp(2.3rem, 5vw, 4.2rem);
+        line-height: 0.95;
+        letter-spacing: -0.05em;
+      }
+      p {
+        margin: 0;
+        line-height: 1.7;
+      }
+      .muted { color: var(--muted); }
+      .actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-top: 22px;
+      }
+      .viewer-banner {
+        margin-top: 22px;
+        padding: 18px 20px;
+        border-radius: 24px;
+        background: rgba(49, 92, 82, 0.08);
+        border: 1px solid rgba(49, 92, 82, 0.12);
+      }
+      .viewer-name {
+        font-size: 1.4rem;
+        font-weight: 800;
+        color: var(--brand);
+      }
+      .button {
+        appearance: none;
+        border: 0;
+        cursor: pointer;
+        min-height: 48px;
+        padding: 0 18px;
+        border-radius: 999px;
+        font: inherit;
+        font-weight: 800;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+      }
+      .button.primary {
+        color: white;
+        background: linear-gradient(135deg, var(--brand), var(--brand-2));
+      }
+      .button.secondary {
+        color: var(--ink);
+        background: rgba(23, 33, 29, 0.07);
+      }
+      .toolbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: flex-end;
+        margin-top: 20px;
+      }
+      .meta {
+        display: grid;
+        gap: 8px;
+      }
+      .table-wrap {
+        margin-top: 20px;
+        overflow: hidden;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        padding: 16px 18px;
+        text-align: left;
+        border-top: 1px solid var(--line);
+        vertical-align: top;
+      }
+      thead th {
+        border-top: 0;
+        font-size: 0.8rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      tbody tr:hover {
+        background: rgba(49, 92, 82, 0.05);
+      }
+      .empty {
+        padding: 24px;
+      }
+      code {
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 0.92em;
+      }
+      @media (max-width: 840px) {
+        .toolbar {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+        table,
+        thead,
+        tbody,
+        th,
+        td,
+        tr {
+          display: block;
+        }
+        thead {
+          display: none;
+        }
+        tbody tr {
+          padding: 16px;
+          border-top: 1px solid var(--line);
+        }
+        td {
+          padding: 8px 0;
+          border: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main id="app" class="shell">
+      <section class="hero">
+        <p class="eyebrow">Ignis Example</p>
+        <h1>Admin Users <br />On A Separate Frontend.</h1>
+        <p class="muted" style="margin-top: 14px">
+          This admin page is served by its own frontend service at <code>/admin</code> and reads
+          the shared user registry from the same-origin API at <code>/api/users</code>.
+        </p>
+        <div class="actions">
+          <a
+            class="button primary"
+            :href="`${apiBase}/auth/start?next=/admin`"
+            v-if="!authenticated"
+          >
+            Continue With Google
+          </a>
+          <button class="button secondary" type="button" @click="logout" v-else>
+            Sign Out
+          </button>
+          <a class="button secondary" href="/">Open User App</a>
+          <button class="button secondary" type="button" @click="loadUsers">Reload</button>
+        </div>
+        <div class="viewer-banner" v-if="authenticated">
+          <div class="viewer-name">Signed in as {{ viewerName }}</div>
+          <p class="muted" style="margin-top: 6px">
+            This admin frontend is using the same login session and can read the shared user list.
+          </p>
+        </div>
+      </section>
+
+      <section class="table-wrap">
+        <div class="toolbar" style="padding: 24px 24px 0">
+          <div class="meta">
+            <strong>{{ authenticated ? `Viewer: ${viewer.nickname}` : "Login required" }}</strong>
+            <span class="muted">{{ flash || "Everyone who finished hosted login is listed below." }}</span>
+          </div>
+          <div class="meta">
+            <span class="muted">API Base</span>
+            <strong>{{ apiBase }}</strong>
+          </div>
+        </div>
+
+        <table v-if="authenticated && users.length > 0">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Subject</th>
+              <th>First Seen</th>
+              <th>Last Login</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="user in users" :key="user.subject">
+              <td>
+                <strong>{{ user.nickname }}</strong>
+              </td>
+              <td><code>{{ user.subject }}</code></td>
+              <td>{{ formatTime(user.first_seen_at_ms) }}</td>
+              <td>{{ formatTime(user.last_login_at_ms) }}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="empty" v-else-if="authenticated">
+          <p>No registered users yet.</p>
+        </div>
+
+        <div class="empty" v-else>
+          <p>Sign in first, then this page will show the SQLite-backed user registry.</p>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const defaultApiBase = () => {
+        if (
+          window.location.hostname === "127.0.0.1" ||
+          window.location.hostname === "localhost"
+        ) {
+          return "http://127.0.0.1:3001";
+        }
+        return `${window.location.origin}/api`;
+      };
+
+      Vue.createApp({
+        data() {
+          return {
+            apiBase: defaultApiBase(),
+            authenticated: false,
+            viewer: { nickname: "", subject: "" },
+            users: [],
+            flash: "",
+          };
+        },
+        computed: {
+          viewerName() {
+            return this.viewer.nickname || this.viewer.subject || "Unknown user";
+          },
+        },
+        methods: {
+          formatTime(value) {
+            return new Date(value).toLocaleString();
+          },
+          async loadUsers() {
+            this.flash = "";
+            try {
+              const me = await fetch(`${this.apiBase}/me`, { credentials: "include" });
+              if (!me.ok) {
+                throw new Error(`session request returned ${me.status}`);
+              }
+              const session = await me.json();
+              this.authenticated = !!session.authenticated;
+              if (!this.authenticated) {
+                this.users = [];
+                return;
+              }
+
+              const response = await fetch(`${this.apiBase}/users`, { credentials: "include" });
+              if (!response.ok) {
+                const payload = await response.json().catch(() => null);
+                throw new Error(payload?.error || `users request returned ${response.status}`);
+              }
+              const payload = await response.json();
+              this.viewer = payload.viewer;
+              this.users = payload.users;
+            } catch (error) {
+              this.flash = error instanceof Error ? error.message : String(error);
+            }
+          },
+          async logout() {
+            const response = await fetch(`${this.apiBase}/logout`, {
+              method: "POST",
+              credentials: "include",
+            });
+            if (!response.ok) {
+              this.flash = `logout returned ${response.status}`;
+              return;
+            }
+            this.authenticated = false;
+            this.users = [];
+          },
+        },
+        mounted() {
+          const params = new URLSearchParams(window.location.search);
+          this.flash = params.get("error") || "";
+          this.loadUsers();
+        },
+      }).mount("#app");
+    </script>
+  </body>
+</html>

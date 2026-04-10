@@ -211,7 +211,7 @@ services = [
   - 必须以 `/` 开头
   - 同一 listener 下唯一
 
-当前运行时仍然是一 service 对应一条公开 exposure；同一个 service 不能声明多条 exposure。
+当前已经支持同一个 service 绑定多个公网 exposure，也支持不声明任何公网 exposure 的 internal-only service。
 
 ### 3.4 `services`
 
@@ -288,7 +288,7 @@ services = [
 - 说明：
   - 这是 service 级配置，不是 project 级配置
   - `client_id` / `client_secret` 由 control-plane 创建并写入当前 service 的 secrets
-  - 当前 hosted login 公网地址固定为 `https://id.igniscloud.transairobot.com`
+  - 当前 hosted login 公网地址固定为 `https://id.igniscloud.dev`
   - 不要把 `IGNISCLOUD_ID_BASE_URL` 作为 env 依赖
 
 #### `services[].ignis_login.display_name`
@@ -345,13 +345,6 @@ services = [
 - 约束：
   - 如果设置，必须大于 0
 
-#### `services[].network.mode`
-
-- 可选值：
-  - `deny_all`
-  - `allow_all`
-- 默认值：`deny_all`
-
 ### 3.6 `frontend` service 配置
 
 `frontend` service 允许这些字段：
@@ -365,7 +358,6 @@ services = [
 - `secrets`
 - `sqlite`
 - `resources`
-- `network`
 
 #### `services[].frontend.build_command`
 
@@ -397,6 +389,5 @@ services = [
 - `mounts`
 - `package`
 - `lockfile`
-- `grpc` / `rpc` 的真实运行时链路
 
 当前公开可用的 HCL 范围，仍然聚焦在 `http` / `frontend` project 配置。

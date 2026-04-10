@@ -5,7 +5,7 @@
 //! - WASI and `wasi:http` integration
 //! - request dispatch
 //! - store limits and CPU interruption
-//! - outbound HTTP policy enforcement
+//! - outbound HTTP transport hooks
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -42,12 +42,21 @@ pub struct DevServerConfig {
 #[derive(Debug, Clone)]
 pub struct WorkerRuntimeOptions {
     pub epoch_tick_interval: Duration,
+    pub internal_http_dispatch: Option<InternalHttpDispatchConfig>,
+}
+
+#[derive(Debug, Clone)]
+pub struct InternalHttpDispatchConfig {
+    pub base_url: String,
+    pub bearer_token: String,
+    pub caller_project: Option<String>,
 }
 
 impl Default for WorkerRuntimeOptions {
     fn default() -> Self {
         Self {
             epoch_tick_interval: Duration::from_millis(10),
+            internal_http_dispatch: None,
         }
     }
 }
@@ -165,7 +174,7 @@ impl<H: HostBindings> WorkerRuntime<H> {
     }
 
     pub async fn warm(&self) -> Result<()> {
-        let state = StoreState::new(&self.manifest)?;
+        let state = StoreState::new(&self.manifest, self.options.clone())?;
         let mut store = Store::new(&self.engine, state);
         configure_store_limits(&mut store);
         configure_cpu_deadline(
@@ -193,7 +202,7 @@ impl<H: HostBindings> WorkerRuntime<H> {
     ) -> Result<Response<HyperOutgoingBody>> {
         let request = rewrite_base_path(request, &self.manifest.manifest.base_path)?;
 
-        let state = StoreState::new(&self.manifest)?;
+        let state = StoreState::new(&self.manifest, self.options.clone())?;
         let mut store = Store::new(&self.engine, state);
         configure_store_limits(&mut store);
         configure_cpu_deadline(
@@ -255,12 +264,12 @@ struct StoreState<H: HostBindings> {
     wasi: WasiCtx,
     http: WasiHttpCtx,
     host: H,
-    network: NetworkHooks,
+    http_hooks: OutboundHttpHooks,
     limits: StoreLimits,
 }
 
 impl<H: HostBindings> StoreState<H> {
-    fn new(manifest: &LoadedManifest) -> Result<Self> {
+    fn new(manifest: &LoadedManifest, options: WorkerRuntimeOptions) -> Result<Self> {
         let mut builder = WasiCtxBuilder::new();
         builder.inherit_stdout().inherit_stderr();
         for (key, value) in &manifest.manifest.env {
@@ -271,7 +280,9 @@ impl<H: HostBindings> StoreState<H> {
             wasi: builder.build(),
             http: WasiHttpCtx::new(),
             host: H::from_manifest(manifest)?,
-            network: NetworkHooks,
+            http_hooks: OutboundHttpHooks {
+                internal_dispatch: options.internal_http_dispatch,
+            },
             limits: build_store_limits(manifest)?,
         })
     }
@@ -299,7 +310,7 @@ impl<H: HostBindings> WasiHttpView for StoreState<H> {
         WasiHttpCtxView {
             ctx: &mut self.http,
             table: &mut self.table,
-            hooks: &mut self.network,
+            hooks: &mut self.http_hooks,
         }
     }
 }
@@ -315,14 +326,48 @@ fn engine_config() -> Result<Config> {
     Ok(config)
 }
 
-struct NetworkHooks;
+const INTERNAL_ISL_DISPATCH_PREFIX: &str = "/__ignis_internal/isl/http-dispatch";
+const INTERNAL_SERVICE_IDENTITY_HEADER: &str = "x-ignis-service-identity";
+const INTERNAL_CALLER_PROJECT_HEADER: &str = "x-ignis-caller-project";
 
-impl WasiHttpHooks for NetworkHooks {
+struct OutboundHttpHooks {
+    internal_dispatch: Option<InternalHttpDispatchConfig>,
+}
+
+impl WasiHttpHooks for OutboundHttpHooks {
     fn send_request(
         &mut self,
-        request: hyper::Request<HyperOutgoingBody>,
+        mut request: hyper::Request<HyperOutgoingBody>,
         config: types::OutgoingRequestConfig,
     ) -> HttpResult<types::HostFutureIncomingResponse> {
+        if let Some(dispatch) = &self.internal_dispatch {
+            if let Some(service_identity) = internal_service_identity(request.uri(), dispatch)? {
+                if let Ok(rewritten_uri) =
+                    rewrite_internal_dispatch_uri(&dispatch.base_url, request.uri())
+                {
+                    *request.uri_mut() = rewritten_uri;
+                    if let Ok(value) = http::HeaderValue::from_str(&service_identity) {
+                        request
+                            .headers_mut()
+                            .insert(INTERNAL_SERVICE_IDENTITY_HEADER, value);
+                    }
+                    if let Some(project) = dispatch.caller_project.as_deref() {
+                        if let Ok(value) = http::HeaderValue::from_str(project) {
+                            request
+                                .headers_mut()
+                                .insert(INTERNAL_CALLER_PROJECT_HEADER, value);
+                        }
+                    }
+                    if let Ok(value) =
+                        http::HeaderValue::from_str(&format!("Bearer {}", dispatch.bearer_token))
+                    {
+                        request
+                            .headers_mut()
+                            .insert(http::header::AUTHORIZATION, value);
+                    }
+                }
+            }
+        }
         Ok(default_send_request(request, config))
     }
 }
@@ -439,6 +484,66 @@ fn rebuild_uri(uri: &Uri, path: &str) -> Result<Uri> {
         .context("rebuilding request URI")
 }
 
+fn internal_service_identity(
+    uri: &Uri,
+    dispatch: &InternalHttpDispatchConfig,
+) -> HttpResult<Option<String>> {
+    let Some(authority) = uri.authority().map(|authority| authority.host()) else {
+        return Ok(None);
+    };
+    let suffix = ".svc";
+    let Some(prefix) = authority.strip_suffix(suffix) else {
+        return Ok(None);
+    };
+    let Some(caller_project) = dispatch.caller_project.as_deref() else {
+        return Ok(None);
+    };
+    let (service, project) = match prefix.rsplit_once('.') {
+        Some((service, project)) if project == caller_project => (service, project),
+        Some((_, project)) => {
+            return Err(wasmtime_wasi_http::p2::bindings::http::types::ErrorCode::InternalError(
+                Some(format!(
+                    "cross-project service access denied: caller `{caller_project}` cannot access `{project}`"
+                )),
+            )
+            .into());
+        }
+        None => (prefix, caller_project),
+    };
+    if service.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(format!("svc://{project}/{service}#http")))
+}
+
+fn rewrite_internal_dispatch_uri(base_url: &str, original_uri: &Uri) -> Result<Uri> {
+    let base: Uri = base_url
+        .parse()
+        .with_context(|| format!("parsing internal dispatch base URL `{base_url}`"))?;
+    let path = original_uri.path();
+    let dispatch_path = if path == "/" {
+        INTERNAL_ISL_DISPATCH_PREFIX.to_owned()
+    } else {
+        format!("{INTERNAL_ISL_DISPATCH_PREFIX}{path}")
+    };
+    let mut builder = Uri::builder();
+    if let Some(scheme) = base.scheme_str() {
+        builder = builder.scheme(scheme);
+    }
+    if let Some(authority) = base.authority() {
+        builder = builder.authority(authority.as_str());
+    }
+    let path_and_query = if let Some(query) = original_uri.query() {
+        format!("{dispatch_path}?{query}")
+    } else {
+        dispatch_path
+    };
+    builder
+        .path_and_query(path_and_query)
+        .build()
+        .context("building internal dispatch URI")
+}
+
 fn internal_error_response(error: anyhow::Error) -> Response<HyperOutgoingBody> {
     let body = Full::new(hyper::body::Bytes::from(format!(
         "worker execution failed: {error}\n"
@@ -473,5 +578,70 @@ mod tests {
         let request = rewrite_base_path(request, "/app").unwrap();
         assert_eq!(request.uri().path(), "/hello");
         assert_eq!(request.uri().query(), Some("name=wasm"));
+    }
+
+    #[test]
+    fn derives_internal_service_identity_from_svc_authority() {
+        let uri: Uri = "http://api.svc/users?id=1".parse().unwrap();
+        let config = InternalHttpDispatchConfig {
+            base_url: "http://127.0.0.1:4031".to_owned(),
+            bearer_token: "token".to_owned(),
+            caller_project: Some("demo-project".to_owned()),
+        };
+
+        let identity = internal_service_identity(&uri, &config).unwrap();
+
+        assert_eq!(identity.as_deref(), Some("svc://demo-project/api#http"));
+    }
+
+    #[test]
+    fn rewrites_internal_dispatch_uri_to_local_node_agent() {
+        let original: Uri = "http://api.svc/users?id=1".parse().unwrap();
+
+        let rewritten = rewrite_internal_dispatch_uri("http://127.0.0.1:4031", &original).unwrap();
+
+        assert_eq!(
+            rewritten.to_string(),
+            "http://127.0.0.1:4031/__ignis_internal/isl/http-dispatch/users?id=1"
+        );
+    }
+
+    #[test]
+    fn accepts_fully_qualified_svc_authority_for_same_project() {
+        let uri: Uri = "http://api.demo-project.svc/users?id=1".parse().unwrap();
+        let config = InternalHttpDispatchConfig {
+            base_url: "http://127.0.0.1:4031".to_owned(),
+            bearer_token: "token".to_owned(),
+            caller_project: Some("demo-project".to_owned()),
+        };
+
+        let identity = internal_service_identity(&uri, &config).unwrap();
+
+        assert_eq!(identity.as_deref(), Some("svc://demo-project/api#http"));
+    }
+
+    #[test]
+    fn rejects_cross_project_svc_authority() {
+        let uri: Uri = "http://api.other-project.svc/users?id=1".parse().unwrap();
+        let config = InternalHttpDispatchConfig {
+            base_url: "http://127.0.0.1:4031".to_owned(),
+            bearer_token: "token".to_owned(),
+            caller_project: Some("demo-project".to_owned()),
+        };
+
+        let error = internal_service_identity(&uri, &config).unwrap_err();
+        let code = error.downcast().unwrap();
+
+        match code {
+            wasmtime_wasi_http::p2::bindings::http::types::ErrorCode::InternalError(Some(
+                message,
+            )) => {
+                assert_eq!(
+                    message,
+                    "cross-project service access denied: caller `demo-project` cannot access `other-project`"
+                );
+            }
+            other => panic!("unexpected error code: {other:?}"),
+        }
     }
 }

@@ -12,7 +12,7 @@ use wstd::time::Duration;
 
 const CLIENT_ID_ENV: &str = "IGNIS_LOGIN_CLIENT_ID";
 const CLIENT_SECRET_ENV: &str = "IGNIS_LOGIN_CLIENT_SECRET";
-const IGNISCLOUD_ID_BASE_URL: &str = "https://id.igniscloud.transairobot.com";
+const IGNISCLOUD_ID_BASE_URL: &str = "https://id.igniscloud.dev";
 const DEPLOYED_API_PREFIX: &str = "/api";
 const CALLBACK_PATH: &str = "/auth/callback";
 const SESSION_COOKIE: &str = "ignis_login_session";

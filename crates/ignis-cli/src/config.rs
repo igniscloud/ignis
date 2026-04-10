@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 
-pub const DEFAULT_SERVER: &str = "https://igniscloud.transairobot.com/api";
+pub const DEFAULT_SERVER: &str = "https://igniscloud.dev/api";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CliConfig {
