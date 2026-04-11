@@ -23,10 +23,24 @@ ignis
 
 ## 2. 安装与认证
 
-安装：
+稳定版安装（macOS / Linux）：
 
 ```bash
-cargo install --git https://github.com/igniscloud/ignis ignis-cli
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/igniscloud/ignis/releases/latest/download/ignis-cli-installer.sh | sh
+```
+
+稳定版安装（Windows PowerShell）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/igniscloud/ignis/releases/latest/download/ignis-cli-installer.ps1 | iex"
+```
+
+源码安装：
+
+```bash
+git clone https://github.com/igniscloud/ignis.git
+cd ignis
+cargo install --path crates/ignis-cli --force
 ```
 
 查看帮助：

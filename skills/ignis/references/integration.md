@@ -60,7 +60,7 @@ rustup target add wasm32-wasip2
 安装 CLI：
 
 ```bash
-cargo install --git https://github.com/igniscloud/ignis ignis-cli
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/igniscloud/ignis/releases/latest/download/ignis-cli-installer.sh | sh
 ```
 
 ### 3.2 初始化一个 project 和 service
