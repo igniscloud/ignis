@@ -35,12 +35,8 @@ When this service is published and deployed through igniscloud:
 1. control-plane reads `[services.ignis_login]`
 2. it creates or reuses an `IgnisCloud ID` confidential client
 3. it registers the callback URL for `/api/auth/callback`
-4. it enables the `google` and `test_password` providers
+4. it enables the `google` provider
 5. it writes `IGNIS_LOGIN_CLIENT_ID` and `IGNIS_LOGIN_CLIENT_SECRET` into the service secrets
-
-`test_password` is included here on purpose because this example is also used for login smoke tests.
-The default test credentials are `test / testtest`.
-For a production app, remove `test_password` before the final publish/deploy.
 
 ## Build
 

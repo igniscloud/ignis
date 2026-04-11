@@ -54,6 +54,8 @@ http://127.0.0.1:3001/hello
 - 前端：`https://<project-id>.<base-domain>/`
 - API：`https://<project-id>.<base-domain>/api/hello`
 
+如果你给 project 绑定了自定义域名，那么 `ignis.hcl` 里的 `project.domain` 会切到这个自定义域名，访问入口也随之切换。
+
 也就是说，当前模型是同一个 project host 下按 path prefix 分流，不再使用
 `api.<project-host>` 这种 service 子域名。页面里的 `API Base` 默认也会推导成
 同域的 `/api`。

@@ -55,4 +55,6 @@ http://127.0.0.1:3000
 - API：`https://<project-id>.<base-domain>/api`
 - 增加计数：`POST https://<project-id>.<base-domain>/api/increment`
 
+如果你给 project 绑定了自定义域名，那么 `ignis.hcl` 里的 `project.domain` 会切到这个自定义域名，入口 host 也会一起切换。
+
 当前模型是单个 project host 下按 path prefix 分流，不再需要单独的 API 子域名。
