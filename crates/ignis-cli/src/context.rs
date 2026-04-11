@@ -105,9 +105,13 @@ impl ProjectContext {
     }
 
     pub fn set_project_domain(&self, domain: &str) -> Result<()> {
-        let mut manifest = self.manifest().clone();
-        manifest.project.domain = Some(domain.trim().to_ascii_lowercase());
-        self.save_manifest(&manifest)
+        let updated = update_project_domain_in_text(
+            &fs::read_to_string(self.manifest_path())
+                .with_context(|| format!("reading {}", self.manifest_path().display()))?,
+            domain,
+        )?;
+        fs::write(self.manifest_path(), updated)
+            .with_context(|| format!("writing {}", self.manifest_path().display()))
     }
 
     pub fn ensure_new_service_path_available(&self, service: &ServiceManifest) -> Result<()> {
@@ -198,4 +202,122 @@ fn find_project_manifest_path(start: PathBuf) -> Result<PathBuf> {
     bail!(
         "could not find `{PROJECT_MANIFEST_FILE}` in the current directory or any parent directory"
     )
+}
+
+fn update_project_domain_in_text(raw: &str, domain: &str) -> Result<String> {
+    let domain = domain.trim().trim_matches('.').to_ascii_lowercase();
+    if domain.is_empty() {
+        bail!("project domain cannot be empty");
+    }
+
+    let mut lines = raw
+        .split_inclusive('\n')
+        .map(ToOwned::to_owned)
+        .collect::<Vec<_>>();
+    if lines.is_empty() {
+        bail!("ignis.hcl is empty");
+    }
+
+    let Some(project_start) = lines.iter().position(|line| {
+        let trimmed = line.trim_start();
+        trimmed.starts_with("project") && trimmed.contains('=') && trimmed.contains('{')
+    }) else {
+        bail!("ignis.hcl is missing `project = {{ ... }}`");
+    };
+
+    let mut depth = 0i32;
+    let mut project_end = None;
+    for (index, line) in lines.iter().enumerate().skip(project_start) {
+        for ch in line.chars() {
+            match ch {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        project_end = Some(index);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        if project_end.is_some() {
+            break;
+        }
+    }
+    let Some(project_end) = project_end else {
+        bail!("ignis.hcl project block is missing closing `}}`");
+    };
+
+    let name_or_domain_line = lines[project_start + 1..project_end]
+        .iter()
+        .find(|line| {
+            let trimmed = line.trim_start();
+            trimmed.starts_with("name")
+                || trimmed.starts_with("\"name\"")
+                || trimmed.starts_with("domain")
+                || trimmed.starts_with("\"domain\"")
+        });
+    let indent = name_or_domain_line
+        .map(|line| {
+            line.chars()
+                .take_while(|ch| ch.is_ascii_whitespace())
+                .collect::<String>()
+        })
+        .unwrap_or_else(|| "  ".to_owned());
+    let quoted_keys = name_or_domain_line
+        .map(|line| line.trim_start().starts_with('"'))
+        .unwrap_or(false);
+
+    let domain_line = if quoted_keys {
+        format!("{indent}\"domain\" = \"{domain}\"")
+    } else {
+        format!("{indent}domain = \"{domain}\"")
+    };
+
+    let domain_index = (project_start + 1..project_end).find(|index| {
+        let trimmed = lines[*index].trim_start();
+        trimmed.starts_with("domain") || trimmed.starts_with("\"domain\"")
+    });
+
+    if let Some(index) = domain_index {
+        let newline = if lines[index].ends_with('\n') { "\n" } else { "" };
+        lines[index] = format!("{domain_line}{newline}");
+    } else {
+        let insert_at = (project_start + 1..project_end)
+            .find(|index| {
+                let trimmed = lines[*index].trim_start();
+                trimmed.starts_with("name") || trimmed.starts_with("\"name\"")
+            })
+            .map(|index| index + 1)
+            .unwrap_or(project_end);
+        lines.insert(insert_at, format!("{domain_line}\n"));
+    }
+
+    Ok(lines.concat())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::update_project_domain_in_text;
+
+    #[test]
+    fn inserts_project_domain_without_rewriting_other_fields() {
+        let input = "project = {\n  name = \"demo\"\n}\n\nlisteners = []\n";
+        let output = update_project_domain_in_text(input, "foo.transairobot.com").unwrap();
+        assert_eq!(
+            output,
+            "project = {\n  name = \"demo\"\n  domain = \"foo.transairobot.com\"\n}\n\nlisteners = []\n"
+        );
+    }
+
+    #[test]
+    fn updates_existing_project_domain_in_place() {
+        let input = "project = {\n  name = \"demo\"\n  domain = \"old.example.com\"\n}\n";
+        let output = update_project_domain_in_text(input, "new.example.com").unwrap();
+        assert_eq!(
+            output,
+            "project = {\n  name = \"demo\"\n  domain = \"new.example.com\"\n}\n"
+        );
+    }
 }

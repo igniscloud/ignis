@@ -92,6 +92,7 @@ All formats include the required `references/` documents for each skill.
 
 ## Docs
 
+- [Quickstart](./docs/quickstart.md)
 - [Integration Guide](./docs/integration.md)
 - [CLI Guide](./docs/cli.md)
 - [ignis.hcl Guide](./docs/ignis-hcl.md)

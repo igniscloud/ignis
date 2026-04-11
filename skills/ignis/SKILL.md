@@ -7,19 +7,13 @@ description: Use for building and operating Ignis projects with ignis-cli, ignis
 
 在当前任务是“使用 Ignis 开发或发布 service”时使用这个 skill，而不是修改 Ignis 仓库本身时使用。
 
-适用范围：
-
-- 使用 `ignis-cli` 初始化、构建、发布和部署 service
+- 使用 `ignis` 初始化、构建、发布和部署 service
 - 使用 `ignis-sdk` 的 HTTP Router、中间件、响应 helper、SQLite 和 migration
 - 编写或排查 `ignis.hcl`
 - 使用 examples 里的最小项目结构快速起步
+- 你需要先查看ignis是否安装，若为安装就阅读cli文档安装
 
-不适用范围：
 
-- `ignis_login` / Hosted Login / PKCE / provider 配置细节
-  这些走 `ignis-login`
-- 修改 `ignis-cli`、`ignis-sdk`、`ignis-manifest`、`ignis-runtime`、`ignis-platform-host` 源码
-- 维护仓库 docs、skills 或生成文档
 
 ## 快速流程
 
