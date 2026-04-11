@@ -333,7 +333,41 @@ CLI 会读取响应中的：
 
 - `ignis project delete <project>`
 
-### 2.5 Project Token 接口
+### 2.5 Project Domain 接口
+
+#### `GET /v1/projects/{project}/domains`
+
+用途：
+
+- `ignis domain list <project>`
+- `ignis project create <name>` 后查询当前默认域名
+- `ignis project sync --mode apply` 校验或回填 `project.domain`
+
+说明：
+
+- 当前 CLI 在 `{project}` 位置既可能传 `project.name`，也可能传 `project_id`
+- 返回中 `default_domain.host` 是默认免费域名
+- 如果 `custom_subdomains` 非空，CLI 会把第一个自定义域名视为当前 project 的外部访问域名
+
+#### `POST /v1/projects/{project}/custom-subdomains`
+
+用途：
+
+- `ignis domain create <project> <label>`
+
+请求 JSON：
+
+```json
+{ "label": "<subdomain-label>" }
+```
+
+#### `DELETE /v1/projects/{project}/custom-subdomains/{label}`
+
+用途：
+
+- `ignis domain delete <project> <label>`
+
+### 2.6 Project Token 接口
 
 #### `POST /v1/projects/{project}/tokens`
 
@@ -353,7 +387,7 @@ CLI 会读取响应中的：
 
 - `ignis project token revoke <project> <token_id>`
 
-### 2.6 Service 与版本接口
+### 2.7 Service 与版本接口
 
 #### `POST /v1/projects/{project}/services`
 

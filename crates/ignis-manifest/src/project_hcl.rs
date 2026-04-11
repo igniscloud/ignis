@@ -6,10 +6,10 @@ use anyhow::{Context, Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    FrontendServiceConfig, HttpServiceConfig, INTERNAL_ONLY_MANIFEST_PREFIX_BASE,
-    IgnisLoginConfig, LoadedManifest, LoadedProjectManifest, ProjectConfig, ProjectManifest,
-    ResourceConfig, ServiceKind, ServiceManifest, SqliteConfig,
-    validate_relative_service_path, validate_resource_name, validate_service_prefix_like_path,
+    FrontendServiceConfig, HttpServiceConfig, INTERNAL_ONLY_MANIFEST_PREFIX_BASE, IgnisLoginConfig,
+    LoadedManifest, LoadedProjectManifest, ProjectConfig, ProjectManifest, ResourceConfig,
+    ServiceKind, ServiceManifest, SqliteConfig, validate_relative_service_path,
+    validate_resource_name, validate_service_prefix_like_path,
 };
 
 const DEFAULT_LISTENER_NAME: &str = "public";
@@ -728,6 +728,7 @@ mod tests {
         let spec = ProjectSpec {
             project: ProjectConfig {
                 name: "demo".to_owned(),
+                domain: None,
             },
             listeners: vec![ListenerSpec {
                 name: "public".to_owned(),
@@ -818,6 +819,7 @@ mod tests {
         let spec = ProjectSpec {
             project: ProjectConfig {
                 name: "demo".to_owned(),
+                domain: None,
             },
             listeners: vec![ListenerSpec {
                 name: "public".to_owned(),
@@ -857,6 +859,7 @@ mod tests {
         let spec = ProjectSpec {
             project: ProjectConfig {
                 name: "demo".to_owned(),
+                domain: None,
             },
             listeners: vec![ListenerSpec {
                 name: "public".to_owned(),
@@ -873,12 +876,10 @@ mod tests {
                 name: "api".to_owned(),
                 kind: ServiceKind::Http,
                 path: PathBuf::from("services/api"),
-                bindings: vec![
-                    BindingSpec {
-                        name: "http".to_owned(),
-                        kind: BindingKind::Http,
-                    },
-                ],
+                bindings: vec![BindingSpec {
+                    name: "http".to_owned(),
+                    kind: BindingKind::Http,
+                }],
                 http: Some(HttpServiceConfig {
                     component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
                     base_path: "/".to_owned(),
@@ -908,6 +909,7 @@ mod tests {
         let spec = ProjectSpec {
             project: ProjectConfig {
                 name: "demo".to_owned(),
+                domain: None,
             },
             listeners: vec![ListenerSpec {
                 name: "public".to_owned(),
@@ -991,6 +993,7 @@ mod tests {
         let manifest = ProjectManifest {
             project: ProjectConfig {
                 name: "demo".to_owned(),
+                domain: None,
             },
             services: vec![ServiceManifest {
                 name: "api".to_owned(),

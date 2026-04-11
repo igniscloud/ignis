@@ -46,6 +46,7 @@ ignis service build --service admin
 
 ```bash
 ignis project sync --mode apply
+ignis domain create dual_frontend_login_example myapp
 ignis service publish --service api
 ignis service publish --service app
 ignis service publish --service admin
@@ -59,6 +60,9 @@ After deploy:
 - the user app lives at `https://<project-id>.<base-domain>/`
 - the admin page lives at `https://<project-id>.<base-domain>/admin`
 - the API lives at `https://<project-id>.<base-domain>/api`
+
+If you bind a custom project domain, `project.domain` in `ignis.hcl` becomes that custom host,
+and the hosted login callback will follow that host automatically.
 
 The admin page currently has no separate role model. It only requires a valid
 login session, then shows the list of users who have completed the hosted login

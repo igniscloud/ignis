@@ -29,6 +29,20 @@ impl ProjectContext {
         Ok(Self { loaded, state })
     }
 
+    pub fn load_optional() -> Result<Option<Self>> {
+        match Self::load() {
+            Ok(context) => Ok(Some(context)),
+            Err(error)
+                if error
+                    .to_string()
+                    .contains(&format!("could not find `{PROJECT_MANIFEST_FILE}`")) =>
+            {
+                Ok(None)
+            }
+            Err(error) => Err(error),
+        }
+    }
+
     pub fn manifest(&self) -> &ProjectManifest {
         &self.loaded.manifest
     }
@@ -73,6 +87,27 @@ impl ProjectContext {
     pub fn save_manifest(&self, manifest: &ProjectManifest) -> Result<()> {
         fs::write(self.manifest_path(), manifest.render()?)
             .with_context(|| format!("writing {}", self.manifest_path().display()))
+    }
+
+    pub fn project_domain(&self) -> Option<&str> {
+        self.manifest()
+            .project
+            .domain
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+    }
+
+    pub fn matches_project_ref(&self, project_ref: &str) -> bool {
+        let project_ref = project_ref.trim();
+        !project_ref.is_empty()
+            && (self.project_name() == project_ref || self.project_id() == Some(project_ref))
+    }
+
+    pub fn set_project_domain(&self, domain: &str) -> Result<()> {
+        let mut manifest = self.manifest().clone();
+        manifest.project.domain = Some(domain.trim().to_ascii_lowercase());
+        self.save_manifest(&manifest)
     }
 
     pub fn ensure_new_service_path_available(&self, service: &ServiceManifest) -> Result<()> {

@@ -15,6 +15,7 @@ use crate::cli::{ProjectCommands, ProjectSyncMode, ProjectTokenCommands};
 use crate::config;
 use crate::context::ProjectContext;
 use crate::output::{self, CliError, Drift, Warning};
+use crate::project_domain::{effective_project_domain_from_response, normalize_domain};
 use crate::project_state::project_state_from_response;
 use crate::service;
 
@@ -94,19 +95,29 @@ async fn create_project(
 ) -> Result<()> {
     let client = ApiClient::new(config::CliConfig::resolve(token)?);
     let response = client.create_project(&name).await?;
+    let project_state = project_state_from_response(&response, &name);
+    let project_domain = load_remote_project_domain(
+        &client,
+        project_state
+            .project_id()
+            .unwrap_or(project_state.project_name.as_str()),
+    )
+    .await?;
 
     let target_dir = dir.unwrap_or_else(|| PathBuf::from(&name));
     ensure_project_dir_ready(&target_dir, force)?;
     fs::create_dir_all(&target_dir)
         .with_context(|| format!("creating {}", target_dir.display()))?;
     let manifest = ProjectManifest {
-        project: ProjectConfig { name: name.clone() },
+        project: ProjectConfig {
+            name: name.clone(),
+            domain: Some(project_domain.clone()),
+        },
         services: Vec::new(),
     };
     let manifest_path = target_dir.join(PROJECT_MANIFEST_FILE);
     fs::write(&manifest_path, manifest.render()?)
         .with_context(|| format!("writing {}", manifest_path.display()))?;
-    let project_state = project_state_from_response(&response, &name);
     let project_state_path = project_state.save(&target_dir)?;
     let mut warnings = Vec::new();
     if project_state.project_id().is_none() {
@@ -127,6 +138,7 @@ async fn create_project(
                 "project_manifest_path": manifest_path,
                 "project_state_path": project_state_path,
                 "project_id": project_state.project_id(),
+                "project_domain": project_domain,
             }
         }),
         warnings,
@@ -180,6 +192,18 @@ async fn sync_project(mode: ProjectSyncMode, token: Option<String>) -> Result<()
         Some(project_id) => client.project_status_optional(project_id).await?.is_none(),
         None => true,
     };
+    let remote_project_domain = if project_missing {
+        None
+    } else {
+        Some(
+            load_remote_project_domain(
+                &client,
+                project_id.as_deref().unwrap_or(project_name.as_str()),
+            )
+            .await?,
+        )
+    };
+    ensure_project_domain_matches_remote(&context, remote_project_domain.as_deref())?;
     let remote_manifests =
         fetch_remote_manifests(&client, project_id.as_deref(), project_missing).await?;
     let plan = build_sync_plan(
@@ -187,6 +211,7 @@ async fn sync_project(mode: ProjectSyncMode, token: Option<String>) -> Result<()
         &project_name,
         project_id.as_deref(),
         project_missing,
+        remote_project_domain.as_deref(),
         &remote_manifests,
     )?;
 
@@ -223,6 +248,7 @@ fn build_sync_plan(
     project_name: &str,
     project_id: Option<&str>,
     project_missing: bool,
+    remote_project_domain: Option<&str>,
     remote_manifests: &BTreeMap<String, ServiceManifest>,
 ) -> Result<SyncPlan> {
     let mut actions = Vec::new();
@@ -247,6 +273,22 @@ fn build_sync_plan(
             status: "planned",
             apply_supported: true,
             message,
+            service: None,
+            diffs: Vec::new(),
+        });
+    }
+
+    if context.project_domain().is_none() {
+        actions.push(SyncAction {
+            kind: "write_project_domain",
+            status: "planned",
+            apply_supported: true,
+            message: match remote_project_domain {
+                Some(domain) => format!(
+                    "local project manifest is missing `project.domain`; apply will write the current remote domain `{domain}`"
+                ),
+                None => "local project manifest is missing `project.domain`; apply will write the current remote domain after project creation".to_owned(),
+            },
             service: None,
             diffs: Vec::new(),
         });
@@ -354,6 +396,43 @@ fn output_plan(plan: SyncPlan) -> Result<()> {
     )
 }
 
+async fn load_remote_project_domain(client: &ApiClient, project_ref: &str) -> Result<String> {
+    let response = client.project_domains(project_ref).await?;
+    effective_project_domain_from_response(&response)
+        .with_context(|| format!("parsing current remote domain for project `{project_ref}`"))
+}
+
+fn ensure_project_domain_matches_remote(
+    context: &ProjectContext,
+    remote_project_domain: Option<&str>,
+) -> Result<()> {
+    let Some(local_domain) = context.project_domain() else {
+        return Ok(());
+    };
+    let Some(remote_project_domain) = remote_project_domain else {
+        return Ok(());
+    };
+    let local_domain = normalize_domain(local_domain);
+    let remote_project_domain = normalize_domain(remote_project_domain);
+    if local_domain == remote_project_domain {
+        return Ok(());
+    }
+    Err(CliError::new(format!(
+        "local `project.domain` does not match the current remote domain for project `{}`",
+        context.project_name()
+    ))
+    .code("project_domain_mismatch")
+    .with_details([
+        format!("local project.domain: {local_domain}"),
+        format!("remote current domain: {remote_project_domain}"),
+        format!(
+            "update {} so `project.domain` matches the current remote domain before syncing",
+            context.manifest_path().display()
+        ),
+    ])
+    .into())
+}
+
 async fn apply_sync_plan(
     client: &ApiClient,
     context: &ProjectContext,
@@ -371,9 +450,32 @@ async fn apply_sync_plan(
                 let project_state = project_state_from_response(&response, &plan.project);
                 project_state_path = project_state.save(context.project_dir())?;
                 remote_project_id = project_state.project_id().map(str::to_owned);
+                if context.project_domain().is_some() {
+                    let remote_project_ref = remote_project_id
+                        .as_deref()
+                        .unwrap_or(plan.project.as_str());
+                    let remote_domain =
+                        load_remote_project_domain(client, remote_project_ref).await?;
+                    ensure_project_domain_matches_remote(context, Some(&remote_domain))?;
+                }
                 project_created = true;
                 applied_actions.push(SyncAction {
                     status: "applied",
+                    ..action.clone()
+                });
+            }
+            "write_project_domain" => {
+                let remote_project_ref = remote_project_id
+                    .as_deref()
+                    .unwrap_or(plan.project.as_str());
+                let remote_domain = load_remote_project_domain(client, remote_project_ref).await?;
+                context.set_project_domain(&remote_domain)?;
+                applied_actions.push(SyncAction {
+                    status: "applied",
+                    message: format!(
+                        "wrote `project.domain = \"{remote_domain}\"` to {}",
+                        context.manifest_path().display()
+                    ),
                     ..action.clone()
                 });
             }
@@ -472,6 +574,12 @@ fn plan_advisories(plan: &SyncPlan) -> (Vec<Warning>, Vec<Drift>) {
                         ),
                     ));
                 }
+            }
+            "write_project_domain" => {
+                warnings.push(Warning::new(
+                    "project_domain_missing",
+                    action.message.clone(),
+                ));
             }
             "create_project" if action.message.contains(".ignis/project.json") => {
                 warnings.push(Warning::new("project_not_linked", action.message.clone()));

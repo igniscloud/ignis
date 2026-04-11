@@ -33,6 +33,10 @@ pub enum Commands {
         #[command(subcommand)]
         command: ProjectCommands,
     },
+    Domain {
+        #[command(subcommand)]
+        command: DomainCommands,
+    },
     Service {
         #[command(subcommand)]
         command: ServiceCommands,
@@ -94,6 +98,13 @@ pub enum SkillFormat {
     Codex,
     Opencode,
     Raw,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum DomainCommands {
+    List { project: String },
+    Create { project: String, label: String },
+    Delete { project: String, label: String },
 }
 
 #[derive(Debug, Subcommand)]

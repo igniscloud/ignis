@@ -62,6 +62,15 @@ impl ApiClient {
         .await
     }
 
+    pub async fn project_domains(&self, project: &str) -> Result<Value> {
+        self.request(
+            self.http
+                .get(self.url(&format!("/v1/projects/{project}/domains")))
+                .bearer_auth(&self.config.token),
+        )
+        .await
+    }
+
     pub async fn project_status_optional(&self, project: &str) -> Result<Option<Value>> {
         request_json_optional_not_found(
             self.http
@@ -75,6 +84,33 @@ impl ApiClient {
         self.request(
             self.http
                 .delete(self.url(&format!("/v1/projects/{project}")))
+                .bearer_auth(&self.config.token),
+        )
+        .await
+    }
+
+    pub async fn create_project_custom_subdomain(
+        &self,
+        project: &str,
+        label: &str,
+    ) -> Result<Value> {
+        self.request(
+            self.http
+                .post(self.url(&format!("/v1/projects/{project}/custom-subdomains")))
+                .bearer_auth(&self.config.token)
+                .json(&json!({ "label": label })),
+        )
+        .await
+    }
+
+    pub async fn delete_project_custom_subdomain(
+        &self,
+        project: &str,
+        label: &str,
+    ) -> Result<Value> {
+        self.request(
+            self.http
+                .delete(self.url(&format!("/v1/projects/{project}/custom-subdomains/{label}")))
                 .bearer_auth(&self.config.token),
         )
         .await

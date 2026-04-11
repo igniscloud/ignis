@@ -86,6 +86,12 @@ ignis.hcl
 
 这个文件保存 control-plane 返回的 `project_id`，用于把本地 project 绑定到远端唯一标识。`project.name` 继续保留为展示名，不再作为远端写操作的默认覆盖键。
 
+同时，`ignis.hcl` 里的 `project.domain` 会保存当前线上访问域名：
+
+- 没有自定义域名时，值通常是默认域名 `<project_id>.<base-domain>`
+- 绑定了自定义域名后，值会切到当前自定义域名
+- 这个字段由 CLI 在 `project create`、`project sync --mode apply`、`domain create`、`domain delete` 时自动维护
+
 需要特别区分两类标识：
 
 - `project.name`
@@ -117,6 +123,7 @@ ignis service deploy --service api <version>
 说明：
 
 - `ignis project create` 会立即创建远端 project，并把返回的 `project_id` 写入 `.ignis/project.json`
+- `ignis project create` 还会查询当前线上域名，并把它写入 `ignis.hcl` 的 `project.domain`
 - 如果这个 project 是从 Git 拉下来的、目录里只有 `ignis.hcl` 而没有 `.ignis/project.json`，先执行 `ignis project sync --mode apply` 完成远端绑定，再执行任何远端 service 操作
 - `ignis service deploy --service api <version>` 里的 `<version>` 来自前一步 `ignis service publish --service api` 的返回结果
 
@@ -206,6 +213,7 @@ ignis project create hello-project
 - 创建本地目录 `./hello-project`
 - 写入空的 `ignis.hcl`
 - 写入 `.ignis/project.json`，保存当前 project 的 `project_id`
+- 查询当前线上域名，并写入 `ignis.hcl` 的 `project.domain`
 
 如果 control-plane 的创建响应没有返回 `project_id`，CLI 仍会创建本地目录和 `ignis.hcl`，但后续 `ignis service ...` 远端操作会因为缺少绑定而失败。这种情况下先修复 control-plane 响应，再重新执行 `ignis project sync --mode apply`。
 
@@ -246,12 +254,37 @@ ignis project sync --mode apply
 - 如果本地还没有 `.ignis/project.json`，`plan` 会把当前 project 视为“未绑定远端项目”，不会再按 `project.name` 静默查找同名远端 project
 - `plan` 会列出 project / service 级动作，并对 manifest drift 输出字段级 diff
 - `apply` 只执行当前安全支持的动作：创建缺失的 project 和 service；首次创建成功后会把返回的 `project_id` 写入 `.ignis/project.json`
+- 如果本地缺少 `project.domain`，`apply` 会把线上当前域名写回 `ignis.hcl`
+- 如果本地 `project.domain` 和线上当前域名不一致，`sync` 会直接失败
 - 如果云端 service 已存在但 manifest 不一致，当前会生成 `repair_service_manifest` 计划项并标记为 `blocked`
 
 说明：
 
 - 当前 control-plane API 还没有 service manifest update 接口，所以 drift 已经可审阅，但还不会在 `apply` 里被自动修复
 - `sync` 执行前会先运行本地 service 检查；如果存在 `error` 级问题，会直接失败
+
+### 5.4 `ignis domain`
+
+一级命令：
+
+- `ignis domain list <project>`
+- `ignis domain create <project> <label>`
+- `ignis domain delete <project> <label>`
+
+示例：
+
+```bash
+ignis domain list hello-project
+ignis domain create hello-project helloexample
+ignis domain delete hello-project helloexample
+```
+
+当前行为：
+
+- `list` 会返回默认域名、自定义域名、当前价格和剩余额度
+- `create` 只需要传子域名前缀 `label`；平台会生成完整 host
+- `delete` 删除的是当前 project 上的自定义域名，不影响默认域名
+- 如果命令是在目标 project 目录里执行，CLI 还会同步更新 `ignis.hcl` 的 `project.domain`
 
 ## 6. `ignis service`
 
@@ -543,6 +576,14 @@ ignis service sqlite restore --service api ./backup.sqlite3
 - `http` service 的 `services.http.component` 路径是否正确
 - `frontend` service 的 `services.frontend.output_dir` 是否存在
 - 是否已经先执行 `ignis service build --service <name>`
+
+### 9.6 `project.domain` 和线上域名不一致
+
+如果 `ignis project sync --mode plan` 或 `apply` 报 `project_domain_mismatch`：
+
+- 先执行 `ignis domain list <project>` 看线上当前域名
+- 把 `ignis.hcl` 里的 `project.domain` 改成线上当前值
+- 或者在 project 目录里执行一次 `ignis domain create ...` / `ignis domain delete ...`，让 CLI 自动回写本地配置
 
 ## 10. 相关文档
 

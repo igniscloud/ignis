@@ -4,8 +4,10 @@ mod build;
 mod cli;
 mod config;
 mod context;
+mod domain;
 mod output;
 mod project;
+mod project_domain;
 mod project_state;
 mod service;
 mod skill;
@@ -48,6 +50,7 @@ async fn run() -> Result<()> {
             force,
         } => skill::generate(format, path.as_deref(), force),
         Commands::Project { command } => project::handle(command, token).await,
+        Commands::Domain { command } => domain::handle(command, token).await,
         Commands::Service { command } => service::handle(command, token).await,
         Commands::Internal { command } => build::handle_internal(command).await,
     }

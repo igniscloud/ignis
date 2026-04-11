@@ -81,8 +81,11 @@ ignis project sync --mode apply
 这里的远端绑定规则是：
 
 - `ignis project create hello-project` 会创建远端 project，并把返回的 `project_id` 写入 `hello-project/.ignis/project.json`
+- `ignis project create hello-project` 还会把当前线上访问域名写入 `hello-project/ignis.hcl` 的 `project.domain`
 - 后续所有 `ignis service ...` 的远端调用都会使用这个 `project_id`
 - 如果你拿到的是一个只包含 `ignis.hcl` 的现有仓库副本，没有 `.ignis/project.json`，先在 project 根目录执行 `ignis project sync --mode apply`
+- 如果本地 `project.domain` 缺失，`ignis project sync --mode apply` 会自动回填
+- 如果本地 `project.domain` 和线上当前域名不一致，`ignis project sync` 会直接报错，要求先修正本地配置
 
 默认会生成：
 

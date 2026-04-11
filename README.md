@@ -57,6 +57,7 @@ ignis --help
 ## What You Can Do
 
 - Create a new project with `ignis project create`
+- Manage the current project domain with `project.domain` and `ignis domain ...`
 - Add `http` or `frontend` services with `ignis service new`
 - Build a service artifact and publish/deploy it with `ignis service build`, `ignis service publish`, and `ignis service deploy`
 - Log in and publish/deploy services to a compatible igniscloud environment

@@ -64,6 +64,8 @@ pub struct ProjectManifest {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ProjectConfig {
     pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub domain: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -226,6 +228,9 @@ impl WorkerManifest {
 impl ProjectManifest {
     pub fn validate(&self) -> Result<()> {
         validate_resource_name(&self.project.name, "project field `name`")?;
+        if let Some(domain) = self.project.domain.as_deref() {
+            validate_project_domain(domain, "project field `domain`")?;
+        }
         let mut service_names = std::collections::BTreeSet::new();
         let mut service_prefixes = std::collections::BTreeMap::<String, String>::new();
         for service in &self.services {
@@ -584,6 +589,35 @@ fn validate_resource_name(name: &str, field_name: &str) -> Result<()> {
     Ok(())
 }
 
+fn validate_project_domain(value: &str, field_name: &str) -> Result<()> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        bail!("{field_name} cannot be empty");
+    }
+    if trimmed.contains("://") {
+        bail!("{field_name} must be a host only, without a URL scheme");
+    }
+    if trimmed.contains('/') || trimmed.contains('?') || trimmed.contains('#') {
+        bail!("{field_name} must be a host only, without path, query, or fragment");
+    }
+    if trimmed.starts_with('.') || trimmed.ends_with('.') {
+        bail!("{field_name} cannot start or end with '.'");
+    }
+    if trimmed.contains("..") {
+        bail!("{field_name} cannot contain empty labels");
+    }
+    if trimmed.chars().any(char::is_whitespace) {
+        bail!("{field_name} cannot contain whitespace");
+    }
+    if !trimmed
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '.')
+    {
+        bail!("{field_name} must contain only letters, numbers, '-', or '.'");
+    }
+    Ok(())
+}
+
 fn validate_relative_service_path(path: &Path) -> Result<()> {
     if path.as_os_str().is_empty() {
         bail!("service field `path` cannot be empty");
@@ -748,6 +782,7 @@ mod tests {
         let manifest = ProjectManifest {
             project: ProjectConfig {
                 name: "my-project".to_owned(),
+                domain: None,
             },
             services: vec![
                 ServiceManifest {
@@ -800,6 +835,7 @@ mod tests {
         let manifest = ProjectManifest {
             project: ProjectConfig {
                 name: "my-project".to_owned(),
+                domain: None,
             },
             services: vec![
                 ServiceManifest {
@@ -891,6 +927,7 @@ mod tests {
         let manifest = ProjectManifest {
             project: ProjectConfig {
                 name: "video-gif-studio".to_owned(),
+                domain: None,
             },
             services: vec![ServiceManifest {
                 name: "api".to_owned(),

@@ -3,6 +3,7 @@
 `ignis.hcl` 是 Ignis 当前唯一的项目级配置文件。它定义：
 
 - `project` 名称
+- `project` 当前线上访问域名
 - 对外 listener
 - listener 上的 exposure
 - project 下有哪些 service
@@ -17,6 +18,7 @@
 ```hcl
 project = {
   name = "hello-project"
+  domain = "prj-1234567890abcdef.transairobot.com"
 }
 
 listeners = [
@@ -60,6 +62,7 @@ services = [
 ```hcl
 project = {
   name = "pocket-tasks"
+  domain = "pockettasks.transairobot.com"
 }
 
 listeners = [
@@ -145,6 +148,21 @@ services = [
   - 不能为空
   - 最长 48 个字符
   - 只允许字母、数字、`-`、`_`
+
+#### `project.domain`
+
+- 作用：记录当前 project 在线上的访问域名。
+- 必填：否。
+- 类型：`string`
+- 约束：
+  - 只允许写 host，不带 `https://`
+  - 不能包含 path、query、fragment
+  - 只允许字母、数字、`-`、`.`
+- 当前行为：
+  - `ignis project create` 会自动写入当前默认域名
+  - `ignis project sync --mode apply` 如果发现本地缺少这个字段，会自动把线上当前域名写回 `ignis.hcl`
+  - 如果本地 `project.domain` 和线上当前域名不一致，`ignis project sync` 会直接报错，要求先修正本地配置
+  - `ignis domain create` / `ignis domain delete` 在当前目录就是该 project 时，也会同步更新这个字段
 
 ### 3.2 `listeners`
 
