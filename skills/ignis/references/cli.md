@@ -26,13 +26,13 @@ ignis
 稳定版安装（macOS / Linux）：
 
 ```bash
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/igniscloud/ignis/releases/latest/download/ignis-cli-installer.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://igniscloud.dev/i.sh | sh
 ```
 
 稳定版安装（Windows PowerShell）：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://github.com/igniscloud/ignis/releases/latest/download/ignis-cli-installer.ps1 | iex"
+powershell -ExecutionPolicy Bypass -c "irm https://igniscloud.dev/i.ps1 | iex"
 ```
 
 源码安装：

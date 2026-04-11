@@ -6,6 +6,16 @@ All notable user-facing changes to the Ignis CLI release path should be document
 
 - No unreleased stable CLI changes yet.
 
+## 0.1.1 - 2026-04-11
+
+### Added
+
+- Short install redirects on `igniscloud.dev` for the shell and PowerShell installers
+
+### Changed
+
+- Public install docs now prefer `https://igniscloud.dev/i.sh` and `https://igniscloud.dev/i.ps1`
+
 ## 0.1.0 - 2026-04-11
 
 ### Added

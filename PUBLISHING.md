@@ -21,7 +21,7 @@ Ignis currently uses stable-only GitHub Releases for the CLI binary distribution
 Before cutting a stable tag:
 
 - confirm `ignis login -> project create -> service new -> build -> publish -> deploy` still works on a compatible control-plane
-- confirm the install docs point to `releases/latest/download/ignis-cli-installer.sh`
+- confirm the install docs point to `https://igniscloud.dev/i.sh`
 - confirm the shell installer and PowerShell installer paths are still correct
 - confirm the examples still compile
 - confirm no public docs still tell new users to install via `cargo install --git`
@@ -57,5 +57,5 @@ The GitHub `Release` workflow builds the stable CLI archives and publishes:
 Public docs should prefer:
 
 ```bash
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/igniscloud/ignis/releases/latest/download/ignis-cli-installer.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://igniscloud.dev/i.sh | sh
 ```
