@@ -9,9 +9,6 @@
   <path d="M45 6 C 53 16 66 28 74 42 C 80 53 82 64 79 75 C 76 88 65 96 50 96 C 34 96 23 88 20 75 C 17 63 20 50 27 39 C 33 30 38 20 45 6 Z" fill="url(#ignisGrad)"/>
 
   <g transform="translate(0 12)">
-    <path d="M50 70 L50 36" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round"/>
-    <path d="M50 70 L31 43" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
-    <path d="M50 70 L69 43" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
-    <rect x="40" y="62" width="20" height="20" rx="5" fill="#FFFFFF"/>
+    <rect x="35" y="44" width="30" height="30" rx="7" fill="#FFFFFF"/>
   </g>
 </svg>
