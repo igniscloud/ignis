@@ -1,7 +1,7 @@
 # Ignis
 
 <p align="center">
-  <img src="./docs/assets/ignis-icon.svg" alt="Ignis icon" width="128" height="128" />
+  <img src="./docs/assets/ignis-icon.svg" alt="Ignis icon" width="64" height="64" />
 </p>
 
 Ignis is a Rust workspace for building and publishing Wasm HTTP services.
