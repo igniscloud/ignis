@@ -1,0 +1,17 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" width="200" height="200">
+  <defs>
+    <linearGradient id="ignisGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FF416C"/>
+      <stop offset="100%" stop-color="#FF4B2B"/>
+    </linearGradient>
+  </defs>
+
+  <path d="M50 12 C 68 32 82 48 82 68 C 82 86 68 96 50 96 C 32 96 18 86 18 68 C 18 48 32 32 50 12 Z" fill="url(#ignisGrad)"/>
+
+  <path d="M50 72 L36 54 M50 72 L64 54 M36 54 L50 36 M64 54 L50 36" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <rect x="43" y="65" width="14" height="14" rx="4" fill="#FFFFFF"/>
+  <rect x="29" y="47" width="14" height="14" rx="4" fill="#FFFFFF"/>
+  <rect x="57" y="47" width="14" height="14" rx="4" fill="#FFFFFF"/>
+  <rect x="43" y="29" width="14" height="14" rx="4" fill="#FFFFFF"/>
+</svg>
