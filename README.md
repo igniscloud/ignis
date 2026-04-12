@@ -13,24 +13,15 @@ Ignis is a Rust workspace for building and publishing Wasm HTTP services.
 
 ## Quick Start
 
-Install the CLI, create a new working directory, generate the Codex skill, set the prompt, and run Codex:
+Install the CLI, log in, and add the Ignis skill for Codex:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -LsSf https://igniscloud.dev/i.sh | sh
-mkdir video-gif-studio && cd video-gif-studio
-ignis gen-skill --format codex
-codex exec "Build a video-to-GIF website with Ignis. Users should sign in with a username and password, with no email required. The conversion feature must only be available after login. Use Vue SSG for the frontend. Read the skill first before implementing anything."
+ignis login
+npx -y skills add https://github.com/igniscloud/ignis --agent codex --skill ignis -y --copy
 ```
 
-That will generate both `.codex/skills/ignis/SKILL.md` and `.codex/skills/ignis-login/SKILL.md` in the current directory, so Codex can pick the right Ignis workflow before it starts building.
-
-If you use OpenCode instead of Codex:
-
-```bash
-ignis gen-skill --format opencode
-```
-
-Use the same prompt.
+That installs the CLI, authenticates your session, and copies the official `ignis` skill into your Codex setup.
 
 ## Install
 
