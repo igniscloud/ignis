@@ -35,7 +35,7 @@ description: Use for building and operating Ignis projects with ignis-cli, ignis
 - 需要查 SDK 细节时，优先读 `mddoc` 生成的单页，不要只靠摘要文档推断。
 - 当前公网路由模型是一个 project host 下按 path prefix 暴露 services，例如前端走 `/`，API 走 `/api`，不要再假设 `api.<project-host>` 这类子域。
 - 当前 `http` service 统一使用标准 `wasm32-wasip2` 构建路径，不要再按 `cargo-component` 工作流推断 CLI 行为。
-- `ignis-sdk` 依赖来源不要猜测；如果当前版本未发布到 crates.io，使用明确的 `path` 或固定 `git` 版本。
+- `ignis-sdk` 依赖来源不要猜测；默认给用户 GitHub Cargo 依赖写法，例如 `ignis-sdk = { git = "https://github.com/igniscloud/ignis.git", package = "ignis-sdk", tag = "v0.1.1" }`。只有在本地联调 Ignis 仓库时再改用明确的 `path`。
 
 ## 参考资料
 
