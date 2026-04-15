@@ -40,6 +40,24 @@ A multi-frontend login example showing:
 - one Vue admin app mounted at `/admin`
 - same-origin login, callback, session, and registered-user listing through `/api`
 
+## `object-store-presign-example`
+
+A minimal platform-managed object-store example showing:
+
+- one `http` service that calls `ignis-sdk::object_store`
+- upload presign through `GET /presign-upload`
+- download presign through `GET /presign-download/:file_id`
+- COS credentials kept in the host/control-plane rather than guest Wasm
+
+## `google-cos-upload-example`
+
+A fullstack Google login and COS upload example showing:
+
+- one `http` API service with `ignis_login`, SQLite, and `ignis-sdk::object_store`
+- one static frontend service mounted at `/`
+- browser direct upload to platform-managed COS through backend-issued presigned URLs
+- a 10MB per-user quota keyed by the Google user subject
+
 ## Validation
 
 ```bash
@@ -49,4 +67,6 @@ cargo check --manifest-path examples/hello-fullstack/services/api/Cargo.toml
 cargo check --manifest-path examples/sqlite-example/services/api/Cargo.toml
 cargo check --manifest-path examples/ignis-login-example/services/api/Cargo.toml
 cargo check --manifest-path examples/dual-frontend-login-example/services/api/Cargo.toml
+cargo check --manifest-path examples/object-store-presign-example/services/api/Cargo.toml --target wasm32-wasip2
+cargo check --manifest-path examples/google-cos-upload-example/services/api/Cargo.toml --target wasm32-wasip2
 ```

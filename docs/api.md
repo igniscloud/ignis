@@ -60,6 +60,7 @@ For the full manifest model behind `ignis.hcl`, read [the ignis.hcl guide](./ign
 
 - `ignis_sdk::http`
 - `ignis_sdk::sqlite`
+- `ignis_sdk::object_store`
 
 The generated SDK reference remains the source of truth for that API surface:
 
@@ -92,6 +93,13 @@ Common `ignis_sdk::sqlite` helpers:
 - `transaction(statements)`
 - `query_typed(sql, params)`
 - `sqlite::migrations::apply(migrations)`
+
+Common `ignis_sdk::object_store` helpers:
+
+- `presign_upload(filename, content_type, size_bytes, sha256, expires_in_ms)`
+- `presign_download(file_id, expires_in_ms)`
+
+Read [Object Store Presign](./object-store-presign.md) for the platform-managed COS/S3 presign flow and examples.
 
 ### 1.3 `ignis-runtime`
 
@@ -150,3 +158,4 @@ The common flow looks like this:
 - [CLI Guide](./cli.md)
 - [ignis.hcl Guide](./ignis-hcl.md)
 - [Ignis Service Link](./ignis-service-link.md)
+- [Object Store Presign](./object-store-presign.md)

@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, anyhow, bail};
 use ignis_manifest::{
-    BindingKind, CompiledServicePlan, PROJECT_MANIFEST_FILE, ProjectConfig, ProjectManifest,
-    ServiceKind, ServiceManifest,
+    BindingKind, CompiledServicePlan, PROJECT_MANIFEST_FILE, ProjectAutomationConfig,
+    ProjectConfig, ProjectManifest, ServiceKind, ServiceManifest,
 };
 use serde::Serialize;
 use serde_json::Value;
@@ -28,6 +28,11 @@ struct ProjectServicesEnvelope {
 struct RemoteServiceEntry {
     service: String,
     manifest: ServiceManifest,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct ProjectAutomationEnvelope {
+    data: ProjectAutomationConfig,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -114,6 +119,8 @@ async fn create_project(
             domain: Some(project_domain.clone()),
         },
         services: Vec::new(),
+        jobs: Vec::new(),
+        schedules: Vec::new(),
     };
     let manifest_path = target_dir.join(PROJECT_MANIFEST_FILE);
     fs::write(&manifest_path, manifest.render()?)
@@ -203,6 +210,8 @@ async fn sync_project(mode: ProjectSyncMode, token: Option<String>) -> Result<()
             .await?,
         )
     };
+    let remote_project_automation =
+        fetch_remote_project_automation(&client, project_id.as_deref(), project_missing).await?;
     ensure_project_domain_matches_remote(&context, remote_project_domain.as_deref())?;
     let remote_manifests =
         fetch_remote_manifests(&client, project_id.as_deref(), project_missing).await?;
@@ -212,6 +221,7 @@ async fn sync_project(mode: ProjectSyncMode, token: Option<String>) -> Result<()
         project_id.as_deref(),
         project_missing,
         remote_project_domain.as_deref(),
+        &remote_project_automation,
         &remote_manifests,
     )?;
 
@@ -243,12 +253,30 @@ async fn fetch_remote_manifests(
         .collect::<BTreeMap<_, _>>())
 }
 
+async fn fetch_remote_project_automation(
+    client: &ApiClient,
+    project_id: Option<&str>,
+    project_missing: bool,
+) -> Result<ProjectAutomationConfig> {
+    if project_missing {
+        return Ok(ProjectAutomationConfig::default());
+    }
+
+    let project_id =
+        project_id.ok_or_else(|| anyhow!("project_id is required to fetch project automation"))?;
+    let envelope: ProjectAutomationEnvelope =
+        serde_json::from_value(client.project_automation(project_id).await?)
+            .context("parsing project automation response")?;
+    Ok(envelope.data)
+}
+
 fn build_sync_plan(
     context: &ProjectContext,
     project_name: &str,
     project_id: Option<&str>,
     project_missing: bool,
     remote_project_domain: Option<&str>,
+    remote_project_automation: &ProjectAutomationConfig,
     remote_manifests: &BTreeMap<String, ServiceManifest>,
 ) -> Result<SyncPlan> {
     let mut actions = Vec::new();
@@ -291,6 +319,40 @@ fn build_sync_plan(
             },
             service: None,
             diffs: Vec::new(),
+        });
+    }
+
+    let local_project_automation = context.manifest().automation_config();
+    if project_missing {
+        if local_project_automation != ProjectAutomationConfig::default() {
+            actions.push(SyncAction {
+                kind: "sync_project_automation",
+                status: "planned",
+                apply_supported: true,
+                message: format!(
+                    "remote project automation config is missing and will be initialized with {} jobs and {} schedules",
+                    local_project_automation.jobs.len(),
+                    local_project_automation.schedules.len()
+                ),
+                service: None,
+                diffs: diff_project_automation(
+                    &local_project_automation,
+                    &ProjectAutomationConfig::default(),
+                )?,
+            });
+        }
+    } else if &local_project_automation != remote_project_automation {
+        actions.push(SyncAction {
+            kind: "sync_project_automation",
+            status: "planned",
+            apply_supported: true,
+            message: format!(
+                "remote project automation config differs from local ignis.hcl; apply will sync {} jobs and {} schedules",
+                local_project_automation.jobs.len(),
+                local_project_automation.schedules.len()
+            ),
+            service: None,
+            diffs: diff_project_automation(&local_project_automation, remote_project_automation)?,
         });
     }
 
@@ -479,6 +541,29 @@ async fn apply_sync_plan(
                     ..action.clone()
                 });
             }
+            "sync_project_automation" => {
+                let project_id = remote_project_id.as_deref().ok_or_else(|| {
+                    CliError::new(format!(
+                        "project `{}` is still not linked to a remote project_id after creation",
+                        plan.project
+                    ))
+                    .code("project_id_missing")
+                    .with_details([
+                        format!(
+                            "expected `.ignis/project.json` at {} to contain a `project_id` before syncing automation config",
+                            project_state_path.display()
+                        ),
+                        "the control-plane create-project response must include `data.project_id` for follow-up automation operations".to_owned(),
+                    ])
+                })?;
+                client
+                    .update_project_automation(project_id, &context.manifest().automation_config())
+                    .await?;
+                applied_actions.push(SyncAction {
+                    status: "applied",
+                    ..action.clone()
+                });
+            }
             "create_service" => {
                 let service_name = action
                     .service
@@ -533,6 +618,19 @@ async fn apply_sync_plan(
         warnings,
         drift,
     )
+}
+
+fn diff_project_automation(
+    local: &ProjectAutomationConfig,
+    remote: &ProjectAutomationConfig,
+) -> Result<Vec<ManifestFieldDiff>> {
+    let local_value =
+        serde_json::to_value(local).context("serializing local project automation config")?;
+    let remote_value =
+        serde_json::to_value(remote).context("serializing remote project automation config")?;
+    let mut diffs = Vec::new();
+    collect_value_diffs("", &local_value, &remote_value, &mut diffs);
+    Ok(diffs)
 }
 
 fn plan_advisories(plan: &SyncPlan) -> (Vec<Warning>, Vec<Drift>) {

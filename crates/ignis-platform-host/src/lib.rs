@@ -1,18 +1,46 @@
 //! Platform-specific host implementations for Ignis.
 //!
-//! This crate currently contains the first extracted host module: SQLite-backed host imports.
+//! This crate provides host imports for platform-managed services such as
+//! SQLite and object-store presigned URLs.
 
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use anyhow::Result;
 use ignis_manifest::LoadedManifest;
+use serde::de::DeserializeOwned;
 use wasmtime::component::Linker;
 
-mod sqlite_bindings {
+mod platform_bindings {
     wasmtime::component::bindgen!({
         path: "../ignis-host-abi/wit",
         world: "imports",
+        imports: { default: async },
     });
+}
+
+pub use platform_bindings::ignis::platform::object_store::{
+    Header, PresignUploadRequest, PresignedUrl,
+};
+pub use platform_bindings::ignis::platform::sqlite::{
+    QueryResult, Row, SqliteValue, Statement, TypedQueryResult, TypedRow,
+};
+
+#[derive(Debug, Clone, Default)]
+pub struct HostRuntimeConfig {
+    pub object_store: Option<ObjectStoreHostConfig>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ObjectStoreHostConfig {
+    pub control_plane_url: String,
+    pub bearer_token: String,
+    pub project: String,
+}
+
+pub struct PlatformHost {
+    sqlite: SqliteHost,
+    object_store: ObjectStoreHost,
 }
 
 pub struct SqliteHost {
@@ -20,19 +48,57 @@ pub struct SqliteHost {
     database_path: PathBuf,
 }
 
+#[derive(Clone)]
+struct ObjectStoreHost {
+    config: Option<ObjectStoreHostConfig>,
+    http: reqwest::Client,
+}
+
 pub trait HostBindings: Sized + Send + 'static {
-    fn from_manifest(manifest: &LoadedManifest) -> Result<Self>;
+    fn from_manifest(manifest: &LoadedManifest, config: &HostRuntimeConfig) -> Result<Self>;
 
     fn add_to_linker<T>(
         linker: &mut Linker<T>,
         get: fn(&mut T) -> &mut Self,
-    ) -> wasmtime::Result<()>;
+    ) -> wasmtime::Result<()>
+    where
+        T: Send;
 }
 
-struct SqliteImports;
+struct PlatformImports;
 
-impl wasmtime::component::HasData for SqliteImports {
-    type Data<'a> = &'a mut SqliteHost;
+impl wasmtime::component::HasData for PlatformImports {
+    type Data<'a> = &'a mut PlatformHost;
+}
+
+impl PlatformHost {
+    pub fn new(manifest: &LoadedManifest, config: &HostRuntimeConfig) -> Result<Self> {
+        Ok(Self {
+            sqlite: SqliteHost::new(manifest)?,
+            object_store: ObjectStoreHost::new(config.object_store.clone()),
+        })
+    }
+}
+
+impl HostBindings for PlatformHost {
+    fn from_manifest(manifest: &LoadedManifest, config: &HostRuntimeConfig) -> Result<Self> {
+        Self::new(manifest, config)
+    }
+
+    fn add_to_linker<T>(
+        linker: &mut Linker<T>,
+        get: fn(&mut T) -> &mut Self,
+    ) -> wasmtime::Result<()>
+    where
+        T: Send,
+    {
+        platform_bindings::ignis::platform::sqlite::add_to_linker::<T, PlatformImports>(
+            linker, get,
+        )?;
+        platform_bindings::ignis::platform::object_store::add_to_linker::<T, PlatformImports>(
+            linker, get,
+        )
+    }
 }
 
 impl SqliteHost {
@@ -66,22 +132,7 @@ impl SqliteHost {
             .map_err(|error| format!("configuring sqlite busy timeout failed: {error}"))?;
         Ok(connection)
     }
-}
 
-impl HostBindings for SqliteHost {
-    fn from_manifest(manifest: &LoadedManifest) -> Result<Self> {
-        Self::new(manifest)
-    }
-
-    fn add_to_linker<T>(
-        linker: &mut Linker<T>,
-        get: fn(&mut T) -> &mut Self,
-    ) -> wasmtime::Result<()> {
-        sqlite_bindings::ignis::platform::sqlite::add_to_linker::<T, SqliteImports>(linker, get)
-    }
-}
-
-impl sqlite_bindings::ignis::platform::sqlite::Host for SqliteHost {
     fn execute(&mut self, sql: String, params: Vec<String>) -> std::result::Result<u64, String> {
         let connection = self.open_connection()?;
         connection
@@ -98,10 +149,7 @@ impl sqlite_bindings::ignis::platform::sqlite::Host for SqliteHost {
         Ok(connection.changes())
     }
 
-    fn transaction(
-        &mut self,
-        statements: Vec<sqlite_bindings::ignis::platform::sqlite::Statement>,
-    ) -> std::result::Result<u64, String> {
+    fn transaction(&mut self, statements: Vec<Statement>) -> std::result::Result<u64, String> {
         let mut connection = self.open_connection()?;
         let transaction = connection
             .transaction()
@@ -125,7 +173,7 @@ impl sqlite_bindings::ignis::platform::sqlite::Host for SqliteHost {
         &mut self,
         sql: String,
         params: Vec<String>,
-    ) -> std::result::Result<sqlite_bindings::ignis::platform::sqlite::QueryResult, String> {
+    ) -> std::result::Result<QueryResult, String> {
         let connection = self.open_connection()?;
         let mut statement = connection
             .prepare(&sql)
@@ -147,9 +195,9 @@ impl sqlite_bindings::ignis::platform::sqlite::Host for SqliteHost {
             for index in 0..columns.len() {
                 row_values.push(sqlite_value_to_string(row, index)?);
             }
-            values.push(sqlite_bindings::ignis::platform::sqlite::Row { values: row_values });
+            values.push(Row { values: row_values });
         }
-        Ok(sqlite_bindings::ignis::platform::sqlite::QueryResult {
+        Ok(QueryResult {
             columns,
             rows: values,
         })
@@ -159,8 +207,7 @@ impl sqlite_bindings::ignis::platform::sqlite::Host for SqliteHost {
         &mut self,
         sql: String,
         params: Vec<String>,
-    ) -> std::result::Result<sqlite_bindings::ignis::platform::sqlite::TypedQueryResult, String>
-    {
+    ) -> std::result::Result<TypedQueryResult, String> {
         let connection = self.open_connection()?;
         let mut statement = connection
             .prepare(&sql)
@@ -182,13 +229,216 @@ impl sqlite_bindings::ignis::platform::sqlite::Host for SqliteHost {
             for index in 0..columns.len() {
                 row_values.push(sqlite_value_to_typed(row, index)?);
             }
-            values.push(sqlite_bindings::ignis::platform::sqlite::TypedRow { values: row_values });
+            values.push(TypedRow { values: row_values });
         }
-        Ok(sqlite_bindings::ignis::platform::sqlite::TypedQueryResult {
+        Ok(TypedQueryResult {
             columns,
             rows: values,
         })
     }
+}
+
+impl ObjectStoreHost {
+    fn new(config: Option<ObjectStoreHostConfig>) -> Self {
+        Self {
+            config,
+            http: reqwest::Client::new(),
+        }
+    }
+
+    async fn presign_upload(
+        &self,
+        request: PresignUploadRequest,
+    ) -> std::result::Result<PresignedUrl, String> {
+        let config = self.config()?;
+        let response = self
+            .http
+            .post(format!(
+                "{}/v1/internal/projects/{}/files/presign-upload",
+                config.control_plane_url.trim_end_matches('/'),
+                config.project
+            ))
+            .bearer_auth(&config.bearer_token)
+            .json(&ApiPresignUploadRequest {
+                filename: request.filename,
+                content_type: request.content_type,
+                size_bytes: request.size_bytes,
+                sha256: request.sha256,
+                expires_in_ms: request.expires_in_ms,
+            })
+            .send()
+            .await
+            .map_err(|error| format!("requesting platform upload presign failed: {error}"))?;
+        let data: ApiPresignResponse = decode_envelope(response, "platform upload presign").await?;
+        Ok(data.into_presigned_url(true))
+    }
+
+    async fn presign_download(
+        &self,
+        file_id: String,
+        expires_in_ms: Option<u64>,
+    ) -> std::result::Result<PresignedUrl, String> {
+        let config = self.config()?;
+        let response = self
+            .http
+            .post(format!(
+                "{}/v1/internal/projects/{}/files/{}/presign-download",
+                config.control_plane_url.trim_end_matches('/'),
+                config.project,
+                file_id
+            ))
+            .bearer_auth(&config.bearer_token)
+            .json(&ApiPresignDownloadRequest { expires_in_ms })
+            .send()
+            .await
+            .map_err(|error| format!("requesting platform download presign failed: {error}"))?;
+        let data: ApiPresignResponse =
+            decode_envelope(response, "platform download presign").await?;
+        Ok(data.into_presigned_url(false))
+    }
+
+    fn config(&self) -> std::result::Result<&ObjectStoreHostConfig, String> {
+        self.config.as_ref().ok_or_else(|| {
+            "object-store presign is unavailable: this runtime is not attached to a project"
+                .to_owned()
+        })
+    }
+}
+
+impl platform_bindings::ignis::platform::sqlite::Host for PlatformHost {
+    fn execute(
+        &mut self,
+        sql: String,
+        params: Vec<String>,
+    ) -> impl std::future::Future<Output = std::result::Result<u64, String>> + Send {
+        let result = self.sqlite.execute(sql, params);
+        async move { result }
+    }
+
+    fn execute_batch(
+        &mut self,
+        sql: String,
+    ) -> impl std::future::Future<Output = std::result::Result<u64, String>> + Send {
+        let result = self.sqlite.execute_batch(sql);
+        async move { result }
+    }
+
+    fn transaction(
+        &mut self,
+        statements: Vec<Statement>,
+    ) -> impl std::future::Future<Output = std::result::Result<u64, String>> + Send {
+        let result = self.sqlite.transaction(statements);
+        async move { result }
+    }
+
+    fn query(
+        &mut self,
+        sql: String,
+        params: Vec<String>,
+    ) -> impl std::future::Future<Output = std::result::Result<QueryResult, String>> + Send {
+        let result = self.sqlite.query(sql, params);
+        async move { result }
+    }
+
+    fn query_typed(
+        &mut self,
+        sql: String,
+        params: Vec<String>,
+    ) -> impl std::future::Future<Output = std::result::Result<TypedQueryResult, String>> + Send
+    {
+        let result = self.sqlite.query_typed(sql, params);
+        async move { result }
+    }
+}
+
+impl platform_bindings::ignis::platform::object_store::Host for PlatformHost {
+    fn presign_upload(
+        &mut self,
+        request: PresignUploadRequest,
+    ) -> impl std::future::Future<Output = std::result::Result<PresignedUrl, String>> + Send {
+        let object_store = self.object_store.clone();
+        async move { object_store.presign_upload(request).await }
+    }
+
+    fn presign_download(
+        &mut self,
+        file_id: String,
+        expires_in_ms: Option<u64>,
+    ) -> impl std::future::Future<Output = std::result::Result<PresignedUrl, String>> + Send {
+        let object_store = self.object_store.clone();
+        async move { object_store.presign_download(file_id, expires_in_ms).await }
+    }
+}
+
+#[derive(serde::Serialize)]
+struct ApiPresignUploadRequest {
+    filename: String,
+    content_type: String,
+    size_bytes: u64,
+    sha256: Option<String>,
+    expires_in_ms: Option<u64>,
+}
+
+#[derive(serde::Serialize)]
+struct ApiPresignDownloadRequest {
+    expires_in_ms: Option<u64>,
+}
+
+#[derive(serde::Deserialize)]
+struct ApiEnvelope<T> {
+    data: T,
+}
+
+#[derive(serde::Deserialize)]
+struct ApiPresignResponse {
+    file_id: String,
+    #[serde(default)]
+    upload_url: Option<String>,
+    #[serde(default)]
+    download_url: Option<String>,
+    method: String,
+    #[serde(default)]
+    headers: BTreeMap<String, String>,
+    #[serde(default)]
+    expires_at_ms: Option<u64>,
+}
+
+impl ApiPresignResponse {
+    fn into_presigned_url(self, upload: bool) -> PresignedUrl {
+        let url = if upload {
+            self.upload_url.unwrap_or_default()
+        } else {
+            self.download_url.unwrap_or_default()
+        };
+        PresignedUrl {
+            file_id: self.file_id,
+            url,
+            method: self.method,
+            headers: self
+                .headers
+                .into_iter()
+                .map(|(name, value)| Header { name, value })
+                .collect(),
+            expires_at_ms: self.expires_at_ms,
+        }
+    }
+}
+
+async fn decode_envelope<T: DeserializeOwned>(
+    response: reqwest::Response,
+    operation: &str,
+) -> std::result::Result<T, String> {
+    let status = response.status();
+    let text = response
+        .text()
+        .await
+        .map_err(|error| format!("reading {operation} response failed: {error}"))?;
+    if !status.is_success() {
+        return Err(format!("{operation} failed with {status}: {text}"));
+    }
+    let envelope: ApiEnvelope<T> = serde_json::from_str(&text)
+        .map_err(|error| format!("parsing {operation} response failed: {error}"))?;
+    Ok(envelope.data)
 }
 
 fn sqlite_database_path(manifest: &LoadedManifest) -> PathBuf {
@@ -222,27 +472,17 @@ fn sqlite_value_to_string(
 fn sqlite_value_to_typed(
     row: &rusqlite::Row<'_>,
     index: usize,
-) -> std::result::Result<sqlite_bindings::ignis::platform::sqlite::SqliteValue, String> {
+) -> std::result::Result<SqliteValue, String> {
     let value = row
         .get_ref(index)
         .map_err(|error| format!("reading sqlite column {index} failed: {error}"))?;
     Ok(match value {
-        rusqlite::types::ValueRef::Null => {
-            sqlite_bindings::ignis::platform::sqlite::SqliteValue::Null
-        }
-        rusqlite::types::ValueRef::Integer(value) => {
-            sqlite_bindings::ignis::platform::sqlite::SqliteValue::Integer(value)
-        }
-        rusqlite::types::ValueRef::Real(value) => {
-            sqlite_bindings::ignis::platform::sqlite::SqliteValue::Real(value)
-        }
+        rusqlite::types::ValueRef::Null => SqliteValue::Null,
+        rusqlite::types::ValueRef::Integer(value) => SqliteValue::Integer(value),
+        rusqlite::types::ValueRef::Real(value) => SqliteValue::Real(value),
         rusqlite::types::ValueRef::Text(value) => {
-            sqlite_bindings::ignis::platform::sqlite::SqliteValue::Text(
-                String::from_utf8_lossy(value).into_owned(),
-            )
+            SqliteValue::Text(String::from_utf8_lossy(value).into_owned())
         }
-        rusqlite::types::ValueRef::Blob(value) => {
-            sqlite_bindings::ignis::platform::sqlite::SqliteValue::Blob(value.to_vec())
-        }
+        rusqlite::types::ValueRef::Blob(value) => SqliteValue::Blob(value.to_vec()),
     })
 }

@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 use sha2::Digest;
 
 use crate::config::CliConfig;
-use ignis_manifest::{ComponentSignature, ServiceManifest};
+use ignis_manifest::{ComponentSignature, ProjectAutomationConfig, ServiceManifest};
 
 pub struct ApiClient {
     http: reqwest::Client,
@@ -67,6 +67,29 @@ impl ApiClient {
             self.http
                 .get(self.url(&format!("/v1/projects/{project}/domains")))
                 .bearer_auth(&self.config.token),
+        )
+        .await
+    }
+
+    pub async fn project_automation(&self, project: &str) -> Result<Value> {
+        self.request(
+            self.http
+                .get(self.url(&format!("/v1/projects/{project}/automation")))
+                .bearer_auth(&self.config.token),
+        )
+        .await
+    }
+
+    pub async fn update_project_automation(
+        &self,
+        project: &str,
+        config: &ProjectAutomationConfig,
+    ) -> Result<Value> {
+        self.request(
+            self.http
+                .put(self.url(&format!("/v1/projects/{project}/automation")))
+                .bearer_auth(&self.config.token)
+                .json(config),
         )
         .await
     }

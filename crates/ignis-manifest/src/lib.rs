@@ -59,6 +59,10 @@ pub struct ProjectManifest {
     pub project: ProjectConfig,
     #[serde(default)]
     pub services: Vec<ServiceManifest>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub jobs: Vec<JobSpec>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub schedules: Vec<ScheduleSpec>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -112,6 +116,112 @@ pub struct ServiceManifest {
     pub sqlite: SqliteConfig,
     #[serde(default)]
     pub resources: ResourceConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct ProjectAutomationConfig {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub jobs: Vec<JobSpec>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub schedules: Vec<ScheduleSpec>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct JobSpec {
+    pub name: String,
+    #[serde(default = "default_job_queue")]
+    pub queue: String,
+    pub target: JobTargetSpec,
+    #[serde(default)]
+    pub timeout_ms: Option<u64>,
+    #[serde(default)]
+    pub retry: JobRetrySpec,
+    #[serde(default)]
+    pub concurrency: JobConcurrencySpec,
+    #[serde(default)]
+    pub retention: JobRetentionSpec,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct JobTargetSpec {
+    pub service: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub binding: Option<String>,
+    pub path: String,
+    #[serde(default = "default_job_target_method")]
+    pub method: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct JobRetrySpec {
+    #[serde(default = "default_job_retry_max_attempts")]
+    pub max_attempts: u32,
+    #[serde(default)]
+    pub backoff: JobRetryBackoff,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub initial_delay_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_delay_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum JobRetryBackoff {
+    #[default]
+    Fixed,
+    Exponential,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct JobConcurrencySpec {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_running: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct JobRetentionSpec {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub keep_success_days: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub keep_failed_days: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ScheduleSpec {
+    pub name: String,
+    pub job: String,
+    pub cron: String,
+    #[serde(default = "default_schedule_timezone")]
+    pub timezone: String,
+    #[serde(default = "default_schedule_enabled")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub overlap_policy: ScheduleOverlapPolicy,
+    #[serde(default)]
+    pub misfire_policy: ScheduleMisfirePolicy,
+    #[serde(
+        default = "default_schedule_input",
+        skip_serializing_if = "is_default_schedule_input"
+    )]
+    pub input: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ScheduleOverlapPolicy {
+    Allow,
+    #[default]
+    Forbid,
+    Replace,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ScheduleMisfirePolicy {
+    #[default]
+    Skip,
+    RunOnce,
+    CatchUp,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -202,6 +312,34 @@ fn default_service_prefix() -> String {
     "/".to_owned()
 }
 
+fn default_job_queue() -> String {
+    "default".to_owned()
+}
+
+fn default_job_target_method() -> String {
+    "POST".to_owned()
+}
+
+fn default_job_retry_max_attempts() -> u32 {
+    1
+}
+
+fn default_schedule_timezone() -> String {
+    "UTC".to_owned()
+}
+
+fn default_schedule_enabled() -> bool {
+    true
+}
+
+fn default_schedule_input() -> serde_json::Value {
+    serde_json::Value::Object(serde_json::Map::new())
+}
+
+fn is_default_schedule_input(value: &serde_json::Value) -> bool {
+    value.as_object().is_some_and(|item| item.is_empty())
+}
+
 impl WorkerManifest {
     pub fn validate(&self) -> Result<()> {
         validate_resource_name(&self.name, "manifest field `name`")?;
@@ -248,7 +386,16 @@ impl ProjectManifest {
                 );
             }
         }
+        self.automation_config()
+            .validate_against_services(&self.services)?;
         Ok(())
+    }
+
+    pub fn automation_config(&self) -> ProjectAutomationConfig {
+        ProjectAutomationConfig {
+            jobs: self.jobs.clone(),
+            schedules: self.schedules.clone(),
+        }
     }
 }
 
@@ -310,6 +457,169 @@ impl ResourceConfig {
         }
         if self.memory_limit_bytes == Some(0) {
             bail!("manifest field `resources.memory_limit_bytes` must be greater than 0");
+        }
+        Ok(())
+    }
+}
+
+impl ProjectAutomationConfig {
+    pub fn validate_against_services(&self, services: &[ServiceManifest]) -> Result<()> {
+        let mut job_names = BTreeSet::new();
+        let services_by_name = services
+            .iter()
+            .map(|service| (service.name.as_str(), service))
+            .collect::<BTreeMap<_, _>>();
+
+        for job in &self.jobs {
+            job.validate(&services_by_name)?;
+            if !job_names.insert(job.name.as_str()) {
+                bail!("project contains duplicate job `{}`", job.name);
+            }
+        }
+
+        let mut schedule_names = BTreeSet::new();
+        for schedule in &self.schedules {
+            schedule.validate(&job_names)?;
+            if !schedule_names.insert(schedule.name.as_str()) {
+                bail!("project contains duplicate schedule `{}`", schedule.name);
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl JobSpec {
+    fn validate(&self, services: &BTreeMap<&str, &ServiceManifest>) -> Result<()> {
+        validate_resource_name(&self.name, "job field `name`")?;
+        validate_resource_name(&self.queue, "job field `queue`")?;
+        let service = services.get(self.target.service.as_str()).ok_or_else(|| {
+            anyhow!(
+                "job `{}` references unknown service `{}`",
+                self.name,
+                self.target.service
+            )
+        })?;
+        self.target.validate(&self.name, service)?;
+        if self.timeout_ms == Some(0) {
+            bail!(
+                "job `{}` field `timeout_ms` must be greater than 0",
+                self.name
+            );
+        }
+        self.retry.validate(&self.name)?;
+        self.concurrency.validate(&self.name)?;
+        self.retention.validate(&self.name)?;
+        Ok(())
+    }
+}
+
+impl JobTargetSpec {
+    fn validate(&self, job_name: &str, service: &ServiceManifest) -> Result<()> {
+        validate_resource_name(
+            &self.service,
+            &format!("job `{job_name}` field `target.service`"),
+        )?;
+        validate_service_prefix_like_path(
+            &self.path,
+            &format!("job `{job_name}` field `target.path`"),
+        )?;
+
+        let method = self.method.trim();
+        if method.is_empty() {
+            bail!("job `{job_name}` field `target.method` cannot be empty");
+        }
+        if !method
+            .chars()
+            .all(|ch| ch.is_ascii_uppercase() || ch == '_')
+        {
+            bail!(
+                "job `{job_name}` field `target.method` must contain only uppercase letters or '_'"
+            );
+        }
+        if service.kind != ServiceKind::Http {
+            bail!(
+                "job `{job_name}` service `{}` must be an http service",
+                service.name
+            );
+        }
+        if let Some(binding) = self.binding.as_deref() {
+            let default_binding = default_service_binding_name(service.kind);
+            if binding != default_binding {
+                bail!(
+                    "job `{job_name}` field `target.binding` currently only supports the default `{default_binding}` binding for service `{}`",
+                    service.name
+                );
+            }
+        }
+        Ok(())
+    }
+}
+
+impl JobRetrySpec {
+    fn validate(&self, job_name: &str) -> Result<()> {
+        if self.max_attempts == 0 {
+            bail!("job `{job_name}` field `retry.max_attempts` must be greater than 0");
+        }
+        if self.initial_delay_ms == Some(0) {
+            bail!(
+                "job `{job_name}` field `retry.initial_delay_ms` must be greater than 0 when set"
+            );
+        }
+        if self.max_delay_ms == Some(0) {
+            bail!("job `{job_name}` field `retry.max_delay_ms` must be greater than 0 when set");
+        }
+        if let (Some(initial), Some(max)) = (self.initial_delay_ms, self.max_delay_ms) {
+            if max < initial {
+                bail!(
+                    "job `{job_name}` field `retry.max_delay_ms` cannot be smaller than `retry.initial_delay_ms`"
+                );
+            }
+        }
+        Ok(())
+    }
+}
+
+impl JobConcurrencySpec {
+    fn validate(&self, job_name: &str) -> Result<()> {
+        if self.max_running == Some(0) {
+            bail!("job `{job_name}` field `concurrency.max_running` must be greater than 0");
+        }
+        Ok(())
+    }
+}
+
+impl JobRetentionSpec {
+    fn validate(&self, job_name: &str) -> Result<()> {
+        if self.keep_success_days == Some(0) {
+            bail!("job `{job_name}` field `retention.keep_success_days` must be greater than 0");
+        }
+        if self.keep_failed_days == Some(0) {
+            bail!("job `{job_name}` field `retention.keep_failed_days` must be greater than 0");
+        }
+        Ok(())
+    }
+}
+
+impl ScheduleSpec {
+    fn validate(&self, jobs: &BTreeSet<&str>) -> Result<()> {
+        validate_resource_name(&self.name, "schedule field `name`")?;
+        validate_resource_name(&self.job, &format!("schedule `{}` field `job`", self.name))?;
+        if !jobs.contains(self.job.as_str()) {
+            bail!(
+                "schedule `{}` references unknown job `{}`",
+                self.name,
+                self.job
+            );
+        }
+        if self.cron.trim().is_empty() {
+            bail!("schedule `{}` field `cron` cannot be empty", self.name);
+        }
+        if self.timezone.trim().is_empty() {
+            bail!("schedule `{}` field `timezone` cannot be empty", self.name);
+        }
+        if !self.input.is_object() {
+            bail!("schedule `{}` field `input` must be an object", self.name);
         }
         Ok(())
     }
@@ -572,6 +882,13 @@ fn validate_ignis_login(config: &IgnisLoginConfig, service: &ServiceManifest) ->
     Ok(())
 }
 
+fn default_service_binding_name(kind: ServiceKind) -> &'static str {
+    match kind {
+        ServiceKind::Http => "http",
+        ServiceKind::Frontend => "frontend",
+    }
+}
+
 fn validate_resource_name(name: &str, field_name: &str) -> Result<()> {
     let trimmed = name.trim();
     if trimmed.is_empty() {
@@ -822,6 +1139,8 @@ mod tests {
                     resources: ResourceConfig::default(),
                 },
             ],
+            jobs: Vec::new(),
+            schedules: Vec::new(),
         };
 
         manifest.validate().unwrap();
@@ -872,6 +1191,8 @@ mod tests {
                     resources: ResourceConfig::default(),
                 },
             ],
+            jobs: Vec::new(),
+            schedules: Vec::new(),
         };
 
         assert!(manifest.validate().is_err());
@@ -949,6 +1270,8 @@ mod tests {
                 sqlite: SqliteConfig::default(),
                 resources: ResourceConfig::default(),
             }],
+            jobs: Vec::new(),
+            schedules: Vec::new(),
         };
 
         manifest.validate().unwrap();
@@ -1092,5 +1415,71 @@ mod tests {
         };
 
         assert!(service.validate().is_err());
+    }
+
+    #[test]
+    fn validates_project_automation_config() {
+        let manifest = ProjectManifest {
+            project: ProjectConfig {
+                name: "ops-tools".to_owned(),
+                domain: None,
+            },
+            services: vec![ServiceManifest {
+                name: "api".to_owned(),
+                kind: ServiceKind::Http,
+                path: PathBuf::from("services/api"),
+                prefix: "/api".to_owned(),
+                http: Some(HttpServiceConfig {
+                    component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
+                    base_path: "/".to_owned(),
+                }),
+                frontend: None,
+                ignis_login: None,
+                env: BTreeMap::new(),
+                secrets: BTreeMap::new(),
+                sqlite: SqliteConfig::default(),
+                resources: ResourceConfig::default(),
+            }],
+            jobs: vec![JobSpec {
+                name: "fetch_github_trending".to_owned(),
+                queue: "default".to_owned(),
+                target: JobTargetSpec {
+                    service: "api".to_owned(),
+                    binding: Some("http".to_owned()),
+                    path: "/jobs/github-trending".to_owned(),
+                    method: "POST".to_owned(),
+                },
+                timeout_ms: Some(120_000),
+                retry: JobRetrySpec {
+                    max_attempts: 3,
+                    backoff: JobRetryBackoff::Exponential,
+                    initial_delay_ms: Some(5_000),
+                    max_delay_ms: Some(60_000),
+                },
+                concurrency: JobConcurrencySpec {
+                    max_running: Some(1),
+                },
+                retention: JobRetentionSpec {
+                    keep_success_days: Some(7),
+                    keep_failed_days: Some(30),
+                },
+            }],
+            schedules: vec![ScheduleSpec {
+                name: "daily_github_trending".to_owned(),
+                job: "fetch_github_trending".to_owned(),
+                cron: "0 8 * * *".to_owned(),
+                timezone: "Asia/Shanghai".to_owned(),
+                enabled: true,
+                overlap_policy: ScheduleOverlapPolicy::Forbid,
+                misfire_policy: ScheduleMisfirePolicy::RunOnce,
+                input: serde_json::json!({
+                    "language": "rust"
+                }),
+            }],
+        };
+
+        manifest.validate().unwrap();
+        assert_eq!(manifest.automation_config().jobs.len(), 1);
+        assert_eq!(manifest.automation_config().schedules.len(), 1);
     }
 }

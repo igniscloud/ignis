@@ -4,19 +4,21 @@
 //! - `http`: lightweight routing, middleware, and response helpers
 //! - `sqlite`: guest wrappers around the shared host ABI
 
+mod bindings {
+    wit_bindgen::generate!({
+        path: "../ignis-host-abi/wit",
+        world: "imports",
+    });
+}
+
 /// SQLite bindings and migration helpers exposed to guest workers.
 ///
 /// These APIs forward to the host ABI generated from WIT and are intended for
 /// the default SQLite database mounted for the current worker instance.
 pub mod sqlite {
-    wit_bindgen::generate!({
-        path: "../ignis-host-abi/wit",
-        world: "imports",
-    });
-
     /// Re-exported low-level SQLite result and statement types generated from
     /// the host ABI.
-    pub use ignis::platform::sqlite::{
+    pub use crate::bindings::ignis::platform::sqlite::{
         QueryResult, Row, SqliteValue, Statement, TypedQueryResult, TypedRow,
     };
 
@@ -29,7 +31,7 @@ pub mod sqlite {
             .iter()
             .map(|value| value.as_ref().to_owned())
             .collect::<Vec<_>>();
-        ignis::platform::sqlite::execute(sql, &params)
+        crate::bindings::ignis::platform::sqlite::execute(sql, &params)
     }
 
     /// Executes a query and returns rows in the untyped host ABI format.
@@ -41,7 +43,7 @@ pub mod sqlite {
             .iter()
             .map(|value| value.as_ref().to_owned())
             .collect::<Vec<_>>();
-        ignis::platform::sqlite::query(sql, &params)
+        crate::bindings::ignis::platform::sqlite::query(sql, &params)
     }
 
     /// Executes a batch of SQL statements separated by semicolons.
@@ -49,7 +51,7 @@ pub mod sqlite {
     /// This is useful for schema setup or other multi-statement initialization
     /// that does not need per-statement parameter binding.
     pub fn execute_batch(sql: &str) -> Result<u64, String> {
-        ignis::platform::sqlite::execute_batch(sql)
+        crate::bindings::ignis::platform::sqlite::execute_batch(sql)
     }
 
     /// Executes multiple prepared statements inside a single transaction.
@@ -57,7 +59,7 @@ pub mod sqlite {
     /// The host guarantees that either all statements are committed or the
     /// whole transaction is rolled back.
     pub fn transaction(statements: &[Statement]) -> Result<u64, String> {
-        ignis::platform::sqlite::transaction(statements)
+        crate::bindings::ignis::platform::sqlite::transaction(statements)
     }
 
     /// Executes a query and returns rows in the typed host ABI format.
@@ -69,7 +71,7 @@ pub mod sqlite {
             .iter()
             .map(|value| value.as_ref().to_owned())
             .collect::<Vec<_>>();
-        ignis::platform::sqlite::query_typed(sql, &params)
+        crate::bindings::ignis::platform::sqlite::query_typed(sql, &params)
     }
 
     /// Helpers for idempotent schema migrations stored in SQLite itself.
@@ -664,5 +666,41 @@ pub mod http {
                 Some("done")
             );
         }
+    }
+}
+
+/// Platform-managed object-store helpers exposed to guest workers.
+///
+/// These APIs ask the Ignis host for presigned URLs for the current project.
+/// The host signs with platform-managed object storage credentials and never
+/// exposes those credentials to the guest Wasm module.
+pub mod object_store {
+    pub use crate::bindings::ignis::platform::object_store::{
+        Header, PresignUploadRequest, PresignedUrl,
+    };
+
+    /// Requests a presigned upload URL for a new project file.
+    pub fn presign_upload(
+        filename: &str,
+        content_type: &str,
+        size_bytes: u64,
+        sha256: Option<&str>,
+        expires_in_ms: Option<u64>,
+    ) -> Result<PresignedUrl, String> {
+        crate::bindings::ignis::platform::object_store::presign_upload(&PresignUploadRequest {
+            filename: filename.to_owned(),
+            content_type: content_type.to_owned(),
+            size_bytes,
+            sha256: sha256.map(str::to_owned),
+            expires_in_ms,
+        })
+    }
+
+    /// Requests a presigned download URL for an existing project file.
+    pub fn presign_download(
+        file_id: &str,
+        expires_in_ms: Option<u64>,
+    ) -> Result<PresignedUrl, String> {
+        crate::bindings::ignis::platform::object_store::presign_download(file_id, expires_in_ms)
     }
 }

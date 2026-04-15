@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     FrontendServiceConfig, HttpServiceConfig, INTERNAL_ONLY_MANIFEST_PREFIX_BASE, IgnisLoginConfig,
-    LoadedManifest, LoadedProjectManifest, ProjectConfig, ProjectManifest, ResourceConfig,
-    ServiceKind, ServiceManifest, SqliteConfig, validate_relative_service_path,
-    validate_resource_name, validate_service_prefix_like_path,
+    JobSpec, LoadedManifest, LoadedProjectManifest, ProjectAutomationConfig, ProjectConfig,
+    ProjectManifest, ResourceConfig, ScheduleSpec, ServiceKind, ServiceManifest, SqliteConfig,
+    validate_relative_service_path, validate_resource_name, validate_service_prefix_like_path,
 };
 
 const DEFAULT_LISTENER_NAME: &str = "public";
@@ -23,6 +23,10 @@ pub struct ProjectSpec {
     pub exposes: Vec<ExposeSpec>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub services: Vec<ServiceSpec>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub jobs: Vec<JobSpec>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub schedules: Vec<ScheduleSpec>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -193,6 +197,17 @@ impl ProjectSpec {
             }
         }
 
+        let automation_services = self
+            .services
+            .iter()
+            .map(|service| service.synthetic_manifest("/_validate_automation"))
+            .collect::<Result<Vec<_>>>()?;
+        ProjectAutomationConfig {
+            jobs: self.jobs.clone(),
+            schedules: self.schedules.clone(),
+        }
+        .validate_against_services(&automation_services)?;
+
         let mut expose_names = BTreeSet::new();
         let mut listener_paths = BTreeMap::<(String, String), String>::new();
         for expose in &self.exposes {
@@ -343,6 +358,8 @@ impl ProjectSpec {
         let manifest = ProjectManifest {
             project: self.project.clone(),
             services: manifest_services,
+            jobs: self.jobs.clone(),
+            schedules: self.schedules.clone(),
         };
         manifest.validate()?;
 
@@ -391,6 +408,8 @@ impl ProjectSpec {
             },
             exposes,
             services,
+            jobs: manifest.jobs.clone(),
+            schedules: manifest.schedules.clone(),
         })
     }
 }
@@ -795,6 +814,8 @@ mod tests {
                     resources: ResourceConfig::default(),
                 },
             ],
+            jobs: Vec::new(),
+            schedules: Vec::new(),
         };
 
         let compiled = spec.compile().unwrap();
@@ -845,6 +866,8 @@ mod tests {
                 sqlite: SqliteConfig::default(),
                 resources: ResourceConfig::default(),
             }],
+            jobs: Vec::new(),
+            schedules: Vec::new(),
         };
 
         let compiled = spec.compile().unwrap();
@@ -891,6 +914,8 @@ mod tests {
                 sqlite: SqliteConfig::default(),
                 resources: ResourceConfig::default(),
             }],
+            jobs: Vec::new(),
+            schedules: Vec::new(),
         };
 
         let compiled = spec.compile().unwrap();
@@ -950,6 +975,8 @@ mod tests {
                 sqlite: SqliteConfig::default(),
                 resources: ResourceConfig::default(),
             }],
+            jobs: Vec::new(),
+            schedules: Vec::new(),
         };
 
         let compiled = spec.compile().unwrap();
@@ -1011,11 +1038,95 @@ mod tests {
                 sqlite: SqliteConfig::default(),
                 resources: ResourceConfig::default(),
             }],
+            jobs: Vec::new(),
+            schedules: Vec::new(),
         };
 
         let rendered = ProjectSpec::from_project_manifest(&manifest).unwrap();
         assert!(rendered.exposes.is_empty());
         assert!(rendered.listeners.is_empty());
         assert_eq!(rendered.services.len(), 1);
+    }
+
+    #[test]
+    fn validates_jobs_and_schedules_against_services() {
+        let spec = ProjectSpec {
+            project: ProjectConfig {
+                name: "demo".to_owned(),
+                domain: None,
+            },
+            listeners: vec![ListenerSpec {
+                name: "public".to_owned(),
+                protocol: ListenerProtocol::Http,
+            }],
+            exposes: vec![ExposeSpec {
+                name: "api".to_owned(),
+                listener: "public".to_owned(),
+                service: "api".to_owned(),
+                binding: Some("http".to_owned()),
+                path: "/api".to_owned(),
+            }],
+            services: vec![ServiceSpec {
+                name: "api".to_owned(),
+                kind: ServiceKind::Http,
+                path: PathBuf::from("services/api"),
+                bindings: vec![BindingSpec {
+                    name: "http".to_owned(),
+                    kind: BindingKind::Http,
+                }],
+                http: Some(HttpServiceConfig {
+                    component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
+                    base_path: "/".to_owned(),
+                }),
+                frontend: None,
+                ignis_login: None,
+                env: BTreeMap::new(),
+                secrets: BTreeMap::new(),
+                sqlite: SqliteConfig::default(),
+                resources: ResourceConfig::default(),
+            }],
+            jobs: vec![JobSpec {
+                name: "ocr_receipt".to_owned(),
+                queue: "default".to_owned(),
+                target: crate::JobTargetSpec {
+                    service: "api".to_owned(),
+                    binding: Some("http".to_owned()),
+                    path: "/jobs/ocr".to_owned(),
+                    method: "POST".to_owned(),
+                },
+                timeout_ms: Some(60_000),
+                retry: crate::JobRetrySpec {
+                    max_attempts: 3,
+                    backoff: crate::JobRetryBackoff::Exponential,
+                    initial_delay_ms: Some(1_000),
+                    max_delay_ms: Some(10_000),
+                },
+                concurrency: crate::JobConcurrencySpec {
+                    max_running: Some(2),
+                },
+                retention: crate::JobRetentionSpec {
+                    keep_success_days: Some(7),
+                    keep_failed_days: Some(30),
+                },
+            }],
+            schedules: vec![crate::ScheduleSpec {
+                name: "daily_ocr_digest".to_owned(),
+                job: "ocr_receipt".to_owned(),
+                cron: "0 8 * * *".to_owned(),
+                timezone: "Asia/Shanghai".to_owned(),
+                enabled: true,
+                overlap_policy: crate::ScheduleOverlapPolicy::Forbid,
+                misfire_policy: crate::ScheduleMisfirePolicy::RunOnce,
+                input: serde_json::json!({
+                    "batch": "receipts"
+                }),
+            }],
+        };
+
+        let compiled = spec.compile().unwrap();
+        assert_eq!(compiled.manifest.jobs.len(), 1);
+        assert_eq!(compiled.manifest.schedules.len(), 1);
+        assert_eq!(compiled.manifest.jobs[0].name, "ocr_receipt");
+        assert_eq!(compiled.manifest.schedules[0].job, "ocr_receipt");
     }
 }

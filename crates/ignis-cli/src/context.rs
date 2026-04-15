@@ -249,15 +249,13 @@ fn update_project_domain_in_text(raw: &str, domain: &str) -> Result<String> {
         bail!("ignis.hcl project block is missing closing `}}`");
     };
 
-    let name_or_domain_line = lines[project_start + 1..project_end]
-        .iter()
-        .find(|line| {
-            let trimmed = line.trim_start();
-            trimmed.starts_with("name")
-                || trimmed.starts_with("\"name\"")
-                || trimmed.starts_with("domain")
-                || trimmed.starts_with("\"domain\"")
-        });
+    let name_or_domain_line = lines[project_start + 1..project_end].iter().find(|line| {
+        let trimmed = line.trim_start();
+        trimmed.starts_with("name")
+            || trimmed.starts_with("\"name\"")
+            || trimmed.starts_with("domain")
+            || trimmed.starts_with("\"domain\"")
+    });
     let indent = name_or_domain_line
         .map(|line| {
             line.chars()
@@ -281,7 +279,11 @@ fn update_project_domain_in_text(raw: &str, domain: &str) -> Result<String> {
     });
 
     if let Some(index) = domain_index {
-        let newline = if lines[index].ends_with('\n') { "\n" } else { "" };
+        let newline = if lines[index].ends_with('\n') {
+            "\n"
+        } else {
+            ""
+        };
         lines[index] = format!("{domain_line}{newline}");
     } else {
         let insert_at = (project_start + 1..project_end)

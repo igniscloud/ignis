@@ -1267,6 +1267,7 @@ dependencies = [
  "ed25519-dalek",
  "hcl-rs",
  "serde",
+ "serde_json",
  "toml",
 ]
 
@@ -1277,7 +1278,10 @@ dependencies = [
  "anyhow",
  "hex",
  "ignis-manifest",
+ "reqwest",
  "rusqlite",
+ "serde",
+ "serde_json",
  "wasmtime",
 ]
 

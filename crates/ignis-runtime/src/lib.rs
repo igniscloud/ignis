@@ -7,6 +7,7 @@
 //! - store limits and CPU interruption
 //! - outbound HTTP transport hooks
 
+use std::fmt;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -19,7 +20,7 @@ use hyper::body::Incoming;
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use ignis_manifest::LoadedManifest;
-use ignis_platform_host::{HostBindings, SqliteHost};
+use ignis_platform_host::{HostBindings, HostRuntimeConfig, ObjectStoreHostConfig, PlatformHost};
 use tokio::net::TcpListener;
 use tracing::{error, info};
 use wasmtime::component::{Component, Linker, ResourceTable};
@@ -39,10 +40,12 @@ pub struct DevServerConfig {
     pub listen_addr: SocketAddr,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct WorkerRuntimeOptions {
     pub epoch_tick_interval: Duration,
     pub internal_http_dispatch: Option<InternalHttpDispatchConfig>,
+    pub object_store: Option<ObjectStoreRuntimeConfig>,
+    pub outbound_http_usage: Option<Arc<dyn Fn(OutboundHttpUsage) + Send + Sync>>,
 }
 
 #[derive(Debug, Clone)]
@@ -52,17 +55,44 @@ pub struct InternalHttpDispatchConfig {
     pub caller_project: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct ObjectStoreRuntimeConfig {
+    pub control_plane_url: String,
+    pub bearer_token: String,
+    pub project: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct OutboundHttpUsage {
+    pub method: String,
+    pub uri: String,
+}
+
+impl fmt::Debug for WorkerRuntimeOptions {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("WorkerRuntimeOptions")
+            .field("epoch_tick_interval", &self.epoch_tick_interval)
+            .field("internal_http_dispatch", &self.internal_http_dispatch)
+            .field("object_store", &self.object_store)
+            .field("outbound_http_usage", &self.outbound_http_usage.is_some())
+            .finish()
+    }
+}
+
 impl Default for WorkerRuntimeOptions {
     fn default() -> Self {
         Self {
             epoch_tick_interval: Duration::from_millis(10),
             internal_http_dispatch: None,
+            object_store: None,
+            outbound_http_usage: None,
         }
     }
 }
 
 pub async fn serve(manifest: LoadedManifest, config: DevServerConfig) -> Result<()> {
-    let runtime = Arc::new(WorkerRuntime::<SqliteHost>::load(manifest)?);
+    let runtime = Arc::new(WorkerRuntime::<PlatformHost>::load(manifest)?);
     let listener = TcpListener::bind(config.listen_addr)
         .await
         .with_context(|| format!("binding dev server on {}", config.listen_addr))?;
@@ -98,7 +128,7 @@ pub async fn serve(manifest: LoadedManifest, config: DevServerConfig) -> Result<
 }
 
 #[derive(Clone)]
-pub struct WorkerRuntime<H: HostBindings = SqliteHost> {
+pub struct WorkerRuntime<H: HostBindings = PlatformHost> {
     engine: Engine,
     pre: ProxyPre<StoreState<H>>,
     manifest: LoadedManifest,
@@ -279,9 +309,10 @@ impl<H: HostBindings> StoreState<H> {
             table: ResourceTable::new(),
             wasi: builder.build(),
             http: WasiHttpCtx::new(),
-            host: H::from_manifest(manifest)?,
+            host: H::from_manifest(manifest, &host_runtime_config(&options))?,
             http_hooks: OutboundHttpHooks {
                 internal_dispatch: options.internal_http_dispatch,
+                outbound_http_usage: options.outbound_http_usage,
             },
             limits: build_store_limits(manifest)?,
         })
@@ -294,6 +325,19 @@ impl<H: HostBindings> StoreState<H> {
 
 fn store_host<H: HostBindings>(state: &mut StoreState<H>) -> &mut H {
     state.host_mut()
+}
+
+fn host_runtime_config(options: &WorkerRuntimeOptions) -> HostRuntimeConfig {
+    HostRuntimeConfig {
+        object_store: options
+            .object_store
+            .as_ref()
+            .map(|config| ObjectStoreHostConfig {
+                control_plane_url: config.control_plane_url.clone(),
+                bearer_token: config.bearer_token.clone(),
+                project: config.project.clone(),
+            }),
+    }
 }
 
 impl<H: HostBindings> WasiView for StoreState<H> {
@@ -332,6 +376,7 @@ const INTERNAL_CALLER_PROJECT_HEADER: &str = "x-ignis-caller-project";
 
 struct OutboundHttpHooks {
     internal_dispatch: Option<InternalHttpDispatchConfig>,
+    outbound_http_usage: Option<Arc<dyn Fn(OutboundHttpUsage) + Send + Sync>>,
 }
 
 impl WasiHttpHooks for OutboundHttpHooks {
@@ -340,12 +385,14 @@ impl WasiHttpHooks for OutboundHttpHooks {
         mut request: hyper::Request<HyperOutgoingBody>,
         config: types::OutgoingRequestConfig,
     ) -> HttpResult<types::HostFutureIncomingResponse> {
+        let mut dispatched_internally = false;
         if let Some(dispatch) = &self.internal_dispatch {
             if let Some(service_identity) = internal_service_identity(request.uri(), dispatch)? {
                 if let Ok(rewritten_uri) =
                     rewrite_internal_dispatch_uri(&dispatch.base_url, request.uri())
                 {
                     *request.uri_mut() = rewritten_uri;
+                    dispatched_internally = true;
                     if let Ok(value) = http::HeaderValue::from_str(&service_identity) {
                         request
                             .headers_mut()
@@ -366,6 +413,14 @@ impl WasiHttpHooks for OutboundHttpHooks {
                             .insert(http::header::AUTHORIZATION, value);
                     }
                 }
+            }
+        }
+        if !dispatched_internally {
+            if let Some(record_usage) = &self.outbound_http_usage {
+                record_usage(OutboundHttpUsage {
+                    method: request.method().as_str().to_owned(),
+                    uri: request.uri().to_string(),
+                });
             }
         }
         Ok(default_send_request(request, config))
