@@ -8,9 +8,7 @@ Ignis now supports platform-managed object-store presigned URLs for services run
 - Host ABI: `ignis:platform/object-store`
 - Runtime host import: node-agent links the object-store host functions into Wasm services
 - Control-plane signing endpoints for platform-managed object storage
-- Examples:
-  - `examples/object-store-presign-example`
-  - `examples/google-cos-upload-example`
+- Example: `examples/cos-and-jobs-example`
 
 The service asks the host for a presigned URL. The host forwards the request to the control plane. The control plane signs the URL using platform object-store credentials. The Wasm module and browser never receive COS/S3 credentials.
 
@@ -52,18 +50,7 @@ The current implementation targets platform-managed storage first. User-owned CO
 
 ## Examples
 
-`object-store-presign-example` is the smallest API-only example:
-
-```bash
-ignis service build --service api
-```
-
-It exposes:
-
-- `GET /presign-upload?filename=demo.txt&content_type=text/plain&size=12`
-- `GET /presign-download/<file_id>`
-
-`google-cos-upload-example` is a fullstack example:
+`cos-and-jobs-example` is a fullstack example:
 
 - Google login through `ignis_login`
 - SQLite-backed upload records
@@ -71,10 +58,11 @@ It exposes:
 - backend presign endpoint
 - browser direct upload to COS/S3
 - download URL signing
+- a daily cron job that releases quota for expired pending uploads
 
 ## Operational Notes
 
 - `control-plane` must have `[object_storage]` configured.
 - node-agent must run a build that includes the `ignis:platform/object-store` host import.
 - Browser direct upload requires bucket CORS to allow the deployed project origin to use presigned `PUT` and `GET` URLs.
-- Services should enforce their own product limits before calling `presign_upload`; the Google upload example enforces 10 MB per user.
+- Services should enforce their own product limits before calling `presign_upload`; `cos-and-jobs-example` enforces 10 MB per user.

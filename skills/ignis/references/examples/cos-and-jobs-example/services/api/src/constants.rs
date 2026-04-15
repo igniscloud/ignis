@@ -1,0 +1,13 @@
+pub(crate) const CLIENT_ID_ENV: &str = "IGNIS_LOGIN_CLIENT_ID";
+pub(crate) const CLIENT_SECRET_ENV: &str = "IGNIS_LOGIN_CLIENT_SECRET";
+pub(crate) const IGNISCLOUD_ID_BASE_URL: &str = "https://id.igniscloud.dev";
+pub(crate) const DEPLOYED_API_PREFIX: &str = "/api";
+pub(crate) const CALLBACK_PATH: &str = "/auth/callback";
+pub(crate) const SESSION_COOKIE: &str = "google_cos_upload_session";
+pub(crate) const STATE_COOKIE: &str = "google_cos_upload_state";
+pub(crate) const VERIFIER_COOKIE: &str = "google_cos_upload_verifier";
+pub(crate) const NEXT_COOKIE: &str = "google_cos_upload_next";
+pub(crate) const USER_LIMIT_BYTES: u64 = 10 * 1024 * 1024;
+pub(crate) const PRESIGN_EXPIRES_IN_MS: u64 = 15 * 60 * 1000;
+pub(crate) const PENDING_UPLOAD_TTL_MS: i64 = 60 * 60 * 1000;
+pub(crate) const CLEANUP_JOB_TYPE: &str = "cleanup_pending_uploads";

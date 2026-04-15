@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>COS & Jobs Upload</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f4f7f4;
+        --ink: #17211b;
+        --muted: #66736a;
+        --line: #d8e1d9;
+        --panel: #ffffff;
+        --panel-soft: #eef5ef;
+        --accent: #0b7a5a;
+        --accent-dark: #07543f;
+        --danger: #b42318;
+        --warning: #a15c07;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--ink);
+        background:
+          linear-gradient(135deg, rgba(11, 122, 90, 0.08), transparent 42%),
+          linear-gradient(180deg, #fbfdfb 0%, var(--bg) 100%);
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      button {
+        min-height: 42px;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        padding: 0 16px;
+        color: #fff;
+        background: var(--accent);
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: var(--accent-dark);
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.52;
+      }
+
+      button.secondary {
+        color: var(--ink);
+        background: var(--panel);
+        border-color: var(--line);
+      }
+
+      button.secondary:hover {
+        background: var(--panel-soft);
+      }
+
+      .shell {
+        width: min(1120px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 32px 0 48px;
+      }
+
+      header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 24px;
+        padding: 24px 0 32px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(2rem, 5vw, 4rem);
+        line-height: 0.98;
+      }
+
+      .subhead {
+        margin: 12px 0 0;
+        max-width: 680px;
+        color: var(--muted);
+        font-size: 1rem;
+        line-height: 1.7;
+      }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 38px;
+        padding: 0 12px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.76);
+        white-space: nowrap;
+      }
+
+      .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--warning);
+      }
+
+      .dot.on {
+        background: var(--accent);
+      }
+
+      main {
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+        gap: 18px;
+        align-items: start;
+      }
+
+      section {
+        border-top: 1px solid var(--line);
+        padding-top: 18px;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+
+      .panel-header,
+      .panel-body {
+        padding: 18px;
+      }
+
+      .panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      h2 {
+        margin: 0;
+        font-size: 1rem;
+      }
+
+      .quota {
+        display: grid;
+        gap: 10px;
+      }
+
+      .quota-row,
+      .upload-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      .bar {
+        height: 12px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: #e6ece7;
+      }
+
+      .bar span {
+        display: block;
+        height: 100%;
+        width: var(--value);
+        background: linear-gradient(90deg, var(--accent), #23a77d);
+      }
+
+      .chooser {
+        display: grid;
+        gap: 14px;
+        min-height: 180px;
+        align-content: center;
+        border: 1px dashed #9fb1a5;
+        border-radius: 8px;
+        padding: 24px;
+        background: var(--panel-soft);
+      }
+
+      input[type="file"] {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+
+      .message {
+        min-height: 24px;
+        margin-top: 14px;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .message.error {
+        color: var(--danger);
+      }
+
+      .uploads {
+        display: grid;
+        gap: 10px;
+      }
+
+      .upload {
+        display: grid;
+        gap: 10px;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+      }
+
+      .upload-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .filename {
+        min-width: 0;
+        overflow-wrap: anywhere;
+        font-weight: 700;
+      }
+
+      .pill {
+        border-radius: 999px;
+        padding: 5px 9px;
+        color: var(--accent-dark);
+        background: #def2e9;
+        font-size: 0.82rem;
+        white-space: nowrap;
+      }
+
+      .pill.pending {
+        color: var(--warning);
+        background: #fff0d6;
+      }
+
+      .empty {
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      @media (max-width: 820px) {
+        header,
+        main {
+          display: grid;
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app" class="shell">
+      <header>
+        <div>
+          <h1>COS & Jobs Upload</h1>
+          <p class="subhead">
+            Signed-in users upload directly to platform COS with per-user quota enforced by the
+            backend.
+          </p>
+        </div>
+        <div class="status">
+          <span class="dot" :class="{ on: session.authenticated }"></span>
+          <span>{{ sessionText }}</span>
+        </div>
+      </header>
+
+      <main>
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Upload</h2>
+            <button v-if="!session.authenticated" @click="login">Continue With Google</button>
+            <button v-else class="secondary" @click="logout">Sign Out</button>
+          </div>
+          <div class="panel-body">
+            <div class="quota">
+              <div class="quota-row">
+                <span>{{ formatBytes(session.used_bytes || 0) }} used</span>
+                <span>{{ formatBytes(session.remaining_bytes || limitBytes) }} remaining</span>
+              </div>
+              <div class="bar" :style="{ '--value': usagePercent + '%' }">
+                <span></span>
+              </div>
+            </div>
+
+            <section>
+              <div class="chooser">
+                <input type="file" :disabled="!session.authenticated || busy" @change="chooseFile" />
+                <div class="upload-row">
+                  <span>{{ selectedFile ? selectedFile.name : "No file selected" }}</span>
+                  <span>{{ selectedFile ? formatBytes(selectedFile.size) : formatBytes(limitBytes) + " max" }}</span>
+                </div>
+                <button :disabled="!canUpload" @click="upload">Upload To COS</button>
+              </div>
+              <div class="message" :class="{ error }">{{ error || message }}</div>
+            </section>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Files</h2>
+            <button class="secondary" :disabled="loading" @click="refresh">Refresh</button>
+          </div>
+          <div class="panel-body">
+            <div v-if="!uploads.length" class="empty">No files uploaded.</div>
+            <div v-else class="uploads">
+              <article v-for="item in uploads" :key="item.file_id" class="upload">
+                <div class="upload-title">
+                  <span class="filename">{{ item.filename }}</span>
+                  <span class="pill" :class="{ pending: item.status !== 'uploaded' }">{{ item.status }}</span>
+                </div>
+                <div class="upload-row">
+                  <span>{{ item.content_type }}</span>
+                  <span>{{ formatBytes(item.size_bytes) }}</span>
+                </div>
+                <button
+                  class="secondary"
+                  :disabled="item.status !== 'uploaded'"
+                  @click="download(item)"
+                >
+                  Download
+                </button>
+              </article>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      const { createApp } = Vue;
+
+      createApp({
+        data() {
+          return {
+            loading: true,
+            busy: false,
+            message: "Ready",
+            error: "",
+            selectedFile: null,
+            session: {
+              authenticated: false,
+              limit_bytes: 10 * 1024 * 1024,
+              used_bytes: 0,
+              remaining_bytes: 10 * 1024 * 1024,
+            },
+            uploads: [],
+          };
+        },
+        computed: {
+          limitBytes() {
+            return this.session.limit_bytes || 10 * 1024 * 1024;
+          },
+          usagePercent() {
+            const used = this.session.used_bytes || 0;
+            return Math.min(100, Math.round((used / this.limitBytes) * 100));
+          },
+          sessionText() {
+            if (this.loading) return "Checking";
+            return this.session.authenticated
+              ? this.session.nickname || "Signed in"
+              : "Signed out";
+          },
+          canUpload() {
+            return (
+              this.session.authenticated &&
+              this.selectedFile &&
+              !this.busy &&
+              this.selectedFile.size <= (this.session.remaining_bytes || 0)
+            );
+          },
+        },
+        async mounted() {
+          await this.refresh();
+          const params = new URLSearchParams(window.location.search);
+          const error = params.get("error");
+          if (error) this.error = error;
+        },
+        methods: {
+          login() {
+            window.location.href = "/api/auth/start?next=/";
+          },
+          async logout() {
+            await fetch("/api/logout", { method: "POST", credentials: "include" });
+            this.selectedFile = null;
+            await this.refresh();
+          },
+          chooseFile(event) {
+            this.error = "";
+            this.message = "Ready";
+            this.selectedFile = event.target.files[0] || null;
+            if (this.selectedFile && this.selectedFile.size > (this.session.remaining_bytes || 0)) {
+              this.error = "Selected file is larger than your remaining quota.";
+            }
+          },
+          async refresh() {
+            this.loading = true;
+            try {
+              const session = await this.fetchJson("/api/me");
+              this.session = session;
+              if (session.authenticated) {
+                const uploads = await this.fetchJson("/api/uploads");
+                this.uploads = uploads.uploads || [];
+                this.session.used_bytes = uploads.used_bytes;
+                this.session.remaining_bytes = uploads.remaining_bytes;
+              } else {
+                this.uploads = [];
+              }
+            } catch (error) {
+              this.error = error.message;
+            } finally {
+              this.loading = false;
+            }
+          },
+          async upload() {
+            if (!this.canUpload) return;
+            this.busy = true;
+            this.error = "";
+            this.message = "Preparing upload";
+            try {
+              const file = this.selectedFile;
+              const presign = await this.fetchJson("/api/uploads/presign", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({
+                  filename: file.name,
+                  content_type: file.type || "application/octet-stream",
+                  size_bytes: file.size,
+                }),
+              });
+
+              this.message = "Uploading to COS";
+              const uploadResponse = await fetch(presign.upload_url, {
+                method: presign.method || "PUT",
+                headers: presign.headers || {},
+                body: file,
+              });
+              if (!uploadResponse.ok) {
+                throw new Error(`COS upload failed with ${uploadResponse.status}`);
+              }
+
+              await this.fetchJson("/api/uploads/complete", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ file_id: presign.file_id }),
+              });
+              this.message = "Upload complete";
+              this.selectedFile = null;
+              await this.refresh();
+            } catch (error) {
+              this.error = error.message;
+            } finally {
+              this.busy = false;
+            }
+          },
+          async download(item) {
+            try {
+              const payload = await this.fetchJson(`/api/uploads/${item.file_id}/download`);
+              window.open(payload.download_url, "_blank", "noopener");
+            } catch (error) {
+              this.error = error.message;
+            }
+          },
+          async fetchJson(url, options = {}) {
+            const response = await fetch(url, {
+              credentials: "include",
+              ...options,
+            });
+            const text = await response.text();
+            const data = text ? JSON.parse(text) : {};
+            if (!response.ok) {
+              throw new Error(data.error || `request failed with ${response.status}`);
+            }
+            return data;
+          },
+          formatBytes(value) {
+            const bytes = Number(value || 0);
+            if (bytes < 1024) return `${bytes} B`;
+            if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+            return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+          },
+        },
+      }).mount("#app");
+    </script>
+  </body>
+</html>

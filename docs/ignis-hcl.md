@@ -8,6 +8,7 @@
 - each service's local relative path
 - HTTP runtime configuration for `http` services
 - static build configuration for `frontend` services
+- optional async jobs and cron schedules
 
 The parsed and validated model is owned by `ignis-manifest`. For the exact implementation, use `crates/ignis-manifest/src/project_hcl.rs` as the source of truth.
 
@@ -43,6 +44,44 @@ services = [
     http = {
       component = "target/wasm32-wasip2/release/api.wasm"
       base_path = "/"
+    }
+  }
+]
+
+jobs = [
+  {
+    name = "process_upload"
+    queue = "default"
+    target = {
+      service = "api"
+      binding = "http"
+      path = "/jobs/process-upload"
+      method = "POST"
+    }
+    timeout_ms = 120000
+    retry = {
+      max_attempts = 3
+      backoff = "exponential"
+      initial_delay_ms = 5000
+      max_delay_ms = 60000
+    }
+    concurrency = {
+      max_running = 1
+    }
+  }
+]
+
+schedules = [
+  {
+    name = "nightly_upload_digest"
+    job = "process_upload"
+    cron = "0 2 * * *"
+    timezone = "UTC"
+    enabled = true
+    overlap_policy = "forbid"
+    misfire_policy = "skip"
+    input = {
+      source = "schedule"
     }
   }
 ]
@@ -184,10 +223,63 @@ Shared fields:
 - `frontend.output_dir`
 - `frontend.spa_fallback`
 
+### 3.5 `jobs`
+
+`jobs` declares async job types for the project. A job target is an HTTP endpoint on a service in the same project.
+
+Common fields:
+
+- `name`
+- `queue`
+- `target.service`
+- `target.binding`
+- `target.path`
+- `target.method`
+- `timeout_ms`
+- `retry.max_attempts`
+- `retry.backoff`
+- `retry.initial_delay_ms`
+- `retry.max_delay_ms`
+- `concurrency.max_running`
+- `retention.keep_success_days`
+- `retention.keep_failed_days`
+
+Current target constraints:
+
+- `target.service` must reference an `http` service.
+- `target.binding` currently supports the service's default `http` binding.
+- `target.path` must be an absolute path.
+- job input must be a JSON object.
+
+### 3.6 `schedules`
+
+`schedules` declares cron-based triggers that enqueue jobs.
+
+Common fields:
+
+- `name`
+- `job`
+- `cron`
+- `timezone`
+- `enabled`
+- `overlap_policy`
+- `misfire_policy`
+- `input`
+
+`job` must reference a declared job. `cron` uses 5 fields: `minute hour day month weekday`.
+
+Current policy values:
+
+- `overlap_policy`: `allow`, `forbid`, `replace`
+- `misfire_policy`: `skip`, `run_once`, `catch_up`
+
+Read [Jobs and Schedules](./jobs-and-schedules.md) for the runtime behavior and current limitations.
+
 ## 4. CLI behavior tied to `ignis.hcl`
 
 - `ignis project create` writes the initial file
 - `ignis project sync --mode apply` may write back `project.domain`
+- `ignis project sync --mode apply` persists `jobs` and `schedules` to project automation config
 - `ignis service new` updates `services`
 - service lifecycle commands read the current project and service definitions from this file
 
@@ -197,3 +289,4 @@ Shared fields:
 - [CLI Guide](./cli.md)
 - [API Reference](./api.md)
 - [Ignis Service Link](./ignis-service-link.md)
+- [Jobs and Schedules](./jobs-and-schedules.md)

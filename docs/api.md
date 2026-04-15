@@ -137,10 +137,24 @@ Read [the CLI guide](./cli.md) for the operational workflow.
 - project sync and service provisioning
 - publish and deploy flows
 - service status, history, events, and logs
+- project automation config, jobs, job runs, and schedules
 - env, secret, and SQLite management
 - domain management
 
 The key boundary is that the CLI binds remote writes to the `project_id` stored in `.ignis/project.json`, not to `project.name`.
+
+Job and schedule endpoints in the current control-plane contract:
+
+- `GET /v1/projects/{project}/automation`
+- `PUT /v1/projects/{project}/automation`
+- `POST /v1/projects/{project}/jobs`
+- `GET /v1/projects/{project}/jobs`
+- `GET /v1/projects/{project}/jobs/{job_id}`
+- `POST /v1/projects/{project}/jobs/{job_id}/cancel`
+- `GET /v1/projects/{project}/jobs/{job_id}/runs`
+- `GET /v1/projects/{project}/schedules`
+
+Read [Jobs and Schedules](./jobs-and-schedules.md) for the manifest shape, execution headers, and cron limitations.
 
 ## 3. How the APIs fit together
 
@@ -159,3 +173,4 @@ The common flow looks like this:
 - [ignis.hcl Guide](./ignis-hcl.md)
 - [Ignis Service Link](./ignis-service-link.md)
 - [Object Store Presign](./object-store-presign.md)
+- [Jobs and Schedules](./jobs-and-schedules.md)

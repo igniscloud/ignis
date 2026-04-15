@@ -28,8 +28,9 @@ copy_example_project() {
     if [ -f "$ROOT_DIR/examples/$example_name/services/api/Cargo.toml" ]; then
         copy_file "$ROOT_DIR/examples/$example_name/services/api/Cargo.toml" "$skill_example_dir/services/api/Cargo.toml"
     fi
-    if [ -f "$ROOT_DIR/examples/$example_name/services/api/src/lib.rs" ]; then
-        copy_file "$ROOT_DIR/examples/$example_name/services/api/src/lib.rs" "$skill_example_dir/services/api/src/lib.rs"
+    if [ -d "$ROOT_DIR/examples/$example_name/services/api/src" ]; then
+        reset_dir "$skill_example_dir/services/api/src"
+        cp -R "$ROOT_DIR/examples/$example_name/services/api/src/." "$skill_example_dir/services/api/src/"
     fi
     if [ -f "$ROOT_DIR/examples/$example_name/services/api/wit/world.wit" ]; then
         copy_file "$ROOT_DIR/examples/$example_name/services/api/wit/world.wit" "$skill_example_dir/services/api/wit/world.wit"
@@ -43,12 +44,12 @@ copy_file "$ROOT_DIR/docs/cli.md" "$ROOT_DIR/skills/ignis/references/cli.md"
 copy_file "$ROOT_DIR/docs/ignis-hcl.md" "$ROOT_DIR/skills/ignis/references/ignis-hcl.md"
 copy_file "$ROOT_DIR/docs/integration.md" "$ROOT_DIR/skills/ignis/references/integration.md"
 copy_file "$ROOT_DIR/docs/object-store-presign.md" "$ROOT_DIR/skills/ignis/references/object-store-presign.md"
+copy_file "$ROOT_DIR/docs/jobs-and-schedules.md" "$ROOT_DIR/skills/ignis/references/jobs-and-schedules.md"
 
 reset_dir "$ROOT_DIR/skills/ignis/references/ignis-sdk"
 cp -R "$ROOT_DIR/docs/ignis-sdk/." "$ROOT_DIR/skills/ignis/references/ignis-sdk/"
 
 copy_example_project "hello-fullstack" "ignis"
 copy_example_project "sqlite-example" "ignis"
-copy_example_project "object-store-presign-example" "ignis"
-copy_example_project "google-cos-upload-example" "ignis"
+copy_example_project "cos-and-jobs-example" "ignis"
 copy_example_project "ignis-login-example" "ignis-login"
