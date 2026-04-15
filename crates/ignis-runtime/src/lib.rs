@@ -546,12 +546,12 @@ fn rewrite_internal_dispatch_uri(base_url: &str, original_uri: &Uri) -> Result<U
 
 fn internal_error_response(error: anyhow::Error) -> Response<HyperOutgoingBody> {
     let body = Full::new(hyper::body::Bytes::from(format!(
-        "worker execution failed: {error}\n"
+        "worker execution failed inside the wasi:http incoming handler: {error}\npublic ingress must not return status codes >= 500 because Cloudflare DNS/proxy intercepts them; this runtime rewrote the failure to HTTP 400. Return a 4xx response with an explicit error message instead.\n"
     )))
     .map_err(|never| match never {})
     .boxed_unsync();
     Response::builder()
-        .status(StatusCode::INTERNAL_SERVER_ERROR)
+        .status(StatusCode::BAD_REQUEST)
         .body(body)
         .expect("internal error response should build")
 }
