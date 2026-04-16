@@ -37,7 +37,6 @@ services = [
       enabled = true
     }
     resources = {
-      cpu_time_limit_ms = 5000
       memory_limit_bytes = 134217728
     }
   },

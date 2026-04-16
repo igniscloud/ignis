@@ -128,7 +128,6 @@ fn build_new_service_manifest(
                 secrets: BTreeMap::new(),
                 sqlite: SqliteConfig { enabled: true },
                 resources: ResourceConfig {
-                    cpu_time_limit_ms: Some(5_000),
                     memory_limit_bytes: Some(128 * 1024 * 1024),
                 },
             }

@@ -118,7 +118,6 @@ services = [
       enabled = true
     }
     resources = {
-      cpu_time_limit_ms = 5000
       memory_limit_bytes = 134217728
     }
   },
@@ -350,12 +349,6 @@ services = [
 - 作用：是否启用 SQLite host import。
 - 类型：`bool`
 - 默认值：`false`
-
-#### `services[].resources.cpu_time_limit_ms`
-
-- 类型：`integer`
-- 约束：
-  - 如果设置，必须大于 0
 
 #### `services[].resources.memory_limit_bytes`
 

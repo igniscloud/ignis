@@ -1016,6 +1016,50 @@ mod tests {
     }
 
     #[test]
+    fn ignores_legacy_cpu_time_limit_in_project_hcl() {
+        let spec: ProjectSpec = hcl::from_str(
+            r#"
+project = {
+  name = "legacy"
+}
+
+services = [
+  {
+    name = "api"
+    kind = "http"
+    path = "services/api"
+    http = {
+      component = "target/wasm32-wasip2/release/api.wasm"
+      base_path = "/"
+    }
+    resources = {
+      cpu_time_limit_ms = 5000
+      memory_limit_bytes = 67108864
+    }
+  }
+]
+"#,
+        )
+        .unwrap();
+
+        let compiled = spec.compile().unwrap();
+        let service = compiled
+            .manifest
+            .services
+            .iter()
+            .find(|service| service.name == "api")
+            .unwrap();
+        assert_eq!(service.resources.memory_limit_bytes, Some(64 * 1024 * 1024));
+        assert!(
+            !compiled
+                .manifest
+                .render()
+                .unwrap()
+                .contains("cpu_time_limit_ms")
+        );
+    }
+
+    #[test]
     fn render_round_trips_internal_only_service_without_exposure() {
         let manifest = ProjectManifest {
             project: ProjectConfig {

@@ -1230,7 +1230,7 @@ dependencies = [
 
 [[package]]
 name = "ignis-cli"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "base64",
@@ -1256,11 +1256,11 @@ dependencies = [
 
 [[package]]
 name = "ignis-host-abi"
-version = "0.1.1"
+version = "0.1.2"
 
 [[package]]
 name = "ignis-manifest"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "base64",
@@ -1273,7 +1273,7 @@ dependencies = [
 
 [[package]]
 name = "ignis-platform-host"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "hex",
@@ -1287,7 +1287,7 @@ dependencies = [
 
 [[package]]
 name = "ignis-runtime"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "http",
@@ -1304,7 +1304,7 @@ dependencies = [
 
 [[package]]
 name = "ignis-sdk"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "http",
  "matchit",

@@ -4,14 +4,12 @@
 //! - Wasmtime engine and component loading
 //! - WASI and `wasi:http` integration
 //! - request dispatch
-//! - store limits and CPU interruption
+//! - store limits
 //! - outbound HTTP transport hooks
 
 use std::fmt;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
 use http::{Response, StatusCode, Uri};
@@ -42,7 +40,6 @@ pub struct DevServerConfig {
 
 #[derive(Clone)]
 pub struct WorkerRuntimeOptions {
-    pub epoch_tick_interval: Duration,
     pub internal_http_dispatch: Option<InternalHttpDispatchConfig>,
     pub object_store: Option<ObjectStoreRuntimeConfig>,
     pub outbound_http_usage: Option<Arc<dyn Fn(OutboundHttpUsage) + Send + Sync>>,
@@ -72,7 +69,6 @@ impl fmt::Debug for WorkerRuntimeOptions {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("WorkerRuntimeOptions")
-            .field("epoch_tick_interval", &self.epoch_tick_interval)
             .field("internal_http_dispatch", &self.internal_http_dispatch)
             .field("object_store", &self.object_store)
             .field("outbound_http_usage", &self.outbound_http_usage.is_some())
@@ -83,7 +79,6 @@ impl fmt::Debug for WorkerRuntimeOptions {
 impl Default for WorkerRuntimeOptions {
     fn default() -> Self {
         Self {
-            epoch_tick_interval: Duration::from_millis(10),
             internal_http_dispatch: None,
             object_store: None,
             outbound_http_usage: None,
@@ -207,23 +202,11 @@ impl<H: HostBindings> WorkerRuntime<H> {
         let state = StoreState::new(&self.manifest, self.options.clone())?;
         let mut store = Store::new(&self.engine, state);
         configure_store_limits(&mut store);
-        configure_cpu_deadline(
-            &mut store,
-            self.manifest.manifest.resources.cpu_time_limit_ms,
-            self.options.epoch_tick_interval,
-        );
-        let ticker = start_epoch_ticker(
-            self.engine.clone(),
-            self.manifest.manifest.resources.cpu_time_limit_ms,
-            self.options.epoch_tick_interval,
-        );
-        let result = self
-            .pre
+        self.pre
             .instantiate_async(&mut store)
             .await
-            .map_err(|error| anyhow!(error.context("warming component instance")));
-        stop_epoch_ticker(ticker).await;
-        result.map(|_| ())
+            .map_err(|error| anyhow!(error.context("warming component instance")))
+            .map(|_| ())
     }
 
     async fn dispatch(
@@ -235,16 +218,6 @@ impl<H: HostBindings> WorkerRuntime<H> {
         let state = StoreState::new(&self.manifest, self.options.clone())?;
         let mut store = Store::new(&self.engine, state);
         configure_store_limits(&mut store);
-        configure_cpu_deadline(
-            &mut store,
-            self.manifest.manifest.resources.cpu_time_limit_ms,
-            self.options.epoch_tick_interval,
-        );
-        let ticker = start_epoch_ticker(
-            self.engine.clone(),
-            self.manifest.manifest.resources.cpu_time_limit_ms,
-            self.options.epoch_tick_interval,
-        );
 
         let (sender, receiver) = tokio::sync::oneshot::channel();
         let req = store
@@ -280,7 +253,6 @@ impl<H: HostBindings> WorkerRuntime<H> {
             }
         }
         .await;
-        stop_epoch_ticker(ticker).await;
         result
     }
 
@@ -363,7 +335,6 @@ fn engine_config() -> Result<Config> {
     let mut config = Config::new();
     config.wasm_component_model(true);
     config.cranelift_opt_level(wasmtime::OptLevel::Speed);
-    config.epoch_interruption(true);
     config.allocation_strategy(wasmtime::InstanceAllocationStrategy::Pooling(
         wasmtime::PoolingAllocationConfig::default(),
     ));
@@ -438,61 +409,6 @@ fn build_store_limits(manifest: &LoadedManifest) -> Result<StoreLimits> {
 
 fn configure_store_limits<H: HostBindings>(store: &mut Store<StoreState<H>>) {
     store.limiter(|state| &mut state.limits);
-}
-
-fn configure_cpu_deadline<H: HostBindings>(
-    store: &mut Store<StoreState<H>>,
-    cpu_time_limit_ms: Option<u64>,
-    epoch_tick_interval: Duration,
-) {
-    #[cfg(target_has_atomic = "64")]
-    {
-        store.epoch_deadline_trap();
-        store.set_epoch_deadline(deadline_ticks(cpu_time_limit_ms, epoch_tick_interval));
-    }
-}
-
-fn deadline_ticks(cpu_time_limit_ms: Option<u64>, epoch_tick_interval: Duration) -> u64 {
-    let tick_ms = epoch_tick_interval.as_millis().max(1) as u64;
-    match cpu_time_limit_ms {
-        Some(limit_ms) => limit_ms.saturating_add(tick_ms - 1) / tick_ms,
-        None => u64::MAX / 4,
-    }
-    .max(1)
-}
-
-struct EpochTicker {
-    stop: Arc<AtomicBool>,
-    handle: tokio::task::JoinHandle<()>,
-}
-
-fn start_epoch_ticker(
-    engine: Engine,
-    cpu_time_limit_ms: Option<u64>,
-    epoch_tick_interval: Duration,
-) -> Option<EpochTicker> {
-    if cpu_time_limit_ms.is_none() {
-        return None;
-    }
-    let stop = Arc::new(AtomicBool::new(false));
-    let stop_flag = stop.clone();
-    let handle = tokio::spawn(async move {
-        while !stop_flag.load(Ordering::Relaxed) {
-            tokio::time::sleep(epoch_tick_interval).await;
-            if stop_flag.load(Ordering::Relaxed) {
-                break;
-            }
-            engine.increment_epoch();
-        }
-    });
-    Some(EpochTicker { stop, handle })
-}
-
-async fn stop_epoch_ticker(ticker: Option<EpochTicker>) {
-    if let Some(ticker) = ticker {
-        ticker.stop.store(true, Ordering::Relaxed);
-        let _ = ticker.handle.await;
-    }
 }
 
 fn rewrite_base_path<B>(request: hyper::Request<B>, base_path: &str) -> Result<hyper::Request<B>> {
@@ -600,8 +516,14 @@ fn rewrite_internal_dispatch_uri(base_url: &str, original_uri: &Uri) -> Result<U
 }
 
 fn internal_error_response(error: anyhow::Error) -> Response<HyperOutgoingBody> {
+    let error_chain = format!("{error:#}");
+    let summary = if is_runtime_deadline_error(&error_chain) {
+        format!("worker execution timed out inside the wasi:http incoming handler: {error_chain}")
+    } else {
+        format!("worker execution failed inside the wasi:http incoming handler: {error_chain}")
+    };
     let body = Full::new(hyper::body::Bytes::from(format!(
-        "worker execution failed inside the wasi:http incoming handler: {error}\npublic ingress must not return status codes >= 500 because Cloudflare DNS/proxy intercepts them; this runtime rewrote the failure to HTTP 400. Return a 4xx response with an explicit error message instead.\n"
+        "{summary}\npublic ingress must not return status codes >= 500 because Cloudflare DNS/proxy intercepts them; this runtime rewrote the failure to HTTP 400. Return a 4xx response with an explicit error message instead.\n"
     )))
     .map_err(|never| match never {})
     .boxed_unsync();
@@ -609,6 +531,14 @@ fn internal_error_response(error: anyhow::Error) -> Response<HyperOutgoingBody> 
         .status(StatusCode::BAD_REQUEST)
         .body(body)
         .expect("internal error response should build")
+}
+
+fn is_runtime_deadline_error(error_chain: &str) -> bool {
+    let normalized = error_chain.to_ascii_lowercase();
+    normalized.contains("wasm trap: interrupt")
+        || normalized.contains("epoch deadline")
+        || normalized.contains("deadline has elapsed")
+        || normalized.contains("timed out")
 }
 
 fn wasmtime_result<T, C>(result: wasmtime::Result<T>, context: C) -> Result<T>

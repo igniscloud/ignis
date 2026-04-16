@@ -256,8 +256,6 @@ pub struct SqliteConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct ResourceConfig {
     #[serde(default)]
-    pub cpu_time_limit_ms: Option<u64>,
-    #[serde(default)]
     pub memory_limit_bytes: Option<u64>,
 }
 
@@ -452,9 +450,6 @@ impl LoadedManifest {
 
 impl ResourceConfig {
     pub fn validate(&self) -> Result<()> {
-        if self.cpu_time_limit_ms == Some(0) {
-            bail!("manifest field `resources.cpu_time_limit_ms` must be greater than 0");
-        }
         if self.memory_limit_bytes == Some(0) {
             bail!("manifest field `resources.memory_limit_bytes` must be greater than 0");
         }
@@ -1025,7 +1020,6 @@ mod tests {
             secrets: BTreeMap::from([(String::from("API_KEY"), String::from("secret://api-key"))]),
             sqlite: SqliteConfig { enabled: true },
             resources: ResourceConfig {
-                cpu_time_limit_ms: Some(5_000),
                 memory_limit_bytes: Some(64 * 1024 * 1024),
             },
             igniscloud: IgnisCloudConfig {
@@ -1037,7 +1031,30 @@ mod tests {
         let rendered = manifest.render().unwrap();
         assert!(rendered.contains("hello_worker"));
         assert!(rendered.contains("enabled = true"));
-        assert!(rendered.contains("cpu_time_limit_ms = 5000"));
+        assert!(rendered.contains("memory_limit_bytes = 67108864"));
+    }
+
+    #[test]
+    fn ignores_legacy_cpu_time_limit_in_worker_manifest() {
+        let manifest: WorkerManifest = toml::from_str(
+            r#"
+name = "hello_worker"
+component = "target/wasm32-wasip2/release/hello_worker.wasm"
+base_path = "/"
+
+[resources]
+cpu_time_limit_ms = 5000
+memory_limit_bytes = 67108864
+"#,
+        )
+        .unwrap();
+
+        manifest.validate().unwrap();
+        assert_eq!(
+            manifest.resources.memory_limit_bytes,
+            Some(64 * 1024 * 1024)
+        );
+        assert!(!manifest.render().unwrap().contains("cpu_time_limit_ms"));
     }
 
     #[test]
@@ -1117,7 +1134,6 @@ mod tests {
                     secrets: BTreeMap::new(),
                     sqlite: SqliteConfig { enabled: true },
                     resources: ResourceConfig {
-                        cpu_time_limit_ms: Some(5_000),
                         memory_limit_bytes: Some(64 * 1024 * 1024),
                     },
                 },
