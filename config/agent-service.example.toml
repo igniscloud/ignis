@@ -1,0 +1,20 @@
+# Minimal config for agent-service.
+
+listen_addr = "127.0.0.1:3900"
+database_path = "./agent-service.sqlite3"
+workspace_dir = "./agent-service-work"
+
+# agent-service starts one `codex exec` process per task.
+codex_bin = "codex"
+# codex_model = "gpt-5.4-mini"
+task_timeout_sec = 900
+
+# If empty, callback_url accepts any http/https host except localhost,
+# loopback, and metadata addresses. Production should set this.
+callback_host_allowlist = [
+  "*.internal",
+  "*.service.local",
+]
+
+# Optional extra instructions appended to the built-in Codex system prompt.
+# system_prompt_extra = "Use the project's Xiaohongshu tools before falling back to browser screenshots."

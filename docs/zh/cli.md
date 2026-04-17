@@ -150,6 +150,26 @@ ignis service publish --service web
 ignis service deploy --service web <version>
 ```
 
+如果你要创建 OpenCode agent service：
+
+```bash
+ignis service new \
+  --service agent-service \
+  --kind agent \
+  --runtime opencode \
+  --path services/agent-service
+
+cp ~/.config/opencode/opencode.json services/agent-service/opencode.json
+chmod 600 services/agent-service/opencode.json
+
+ignis service check --service agent-service
+ignis service build --service agent-service
+ignis service publish --service agent-service
+ignis service deploy --service agent-service <version>
+```
+
+当产品需求需要 LLM 或 agent 能力时，优先创建内部 `agent` service，通过 `agent-service` 创建任务；不要默认在业务 `http` service 里直接向模型 provider 发 HTTP 请求。
+
 ## 4.1 `ignis gen-skill`
 
 一级命令：
@@ -304,7 +324,7 @@ ignis domain delete hello-project helloexample
 
 一级命令：
 
-- `ignis service new --service <name> --kind <http|frontend> --path <relative-path>`
+- `ignis service new --service <name> --kind <http|frontend|agent> [--runtime <codex|opencode>] --path <relative-path>`
 - `ignis service list`
 - `ignis service status --service <name>`
 - `ignis service check --service <name>`
@@ -348,6 +368,16 @@ ignis service new --service api --kind http --path services/api
 ignis service new --service web --kind frontend --path services/web
 ```
 
+OpenCode agent service：
+
+```bash
+ignis service new \
+  --service agent-service \
+  --kind agent \
+  --runtime opencode \
+  --path services/agent-service
+```
+
 执行时会：
 
 1. 读取当前 project 的 `ignis.hcl`
@@ -370,6 +400,27 @@ ignis service new --service web --kind frontend --path services/web
 
 - `src/index.html`
 - `.gitignore`
+
+`agent` 模板会生成：
+
+- `README.md`
+- `.gitignore`
+- Codex runtime：提示设置 `openai-api-key` secret
+- OpenCode runtime：生成 `opencode.json` 模板
+
+OpenCode 发布前需要把真实配置放到 service 目录：
+
+```bash
+cp ~/.config/opencode/opencode.json services/agent-service/opencode.json
+chmod 600 services/agent-service/opencode.json
+```
+
+Ignis 会把该文件作为 agent artifact 上传，并在部署时注入到容器的 `$HOME/.config/opencode/opencode.json`。同一个 project 内的其他 service 通过内部 service DNS 调用：
+
+```text
+POST http://agent-service.svc/v1/tasks
+GET  http://agent-service.svc/v1/tasks/{task_id}
+```
 
 ### 6.2 `ignis service delete`
 

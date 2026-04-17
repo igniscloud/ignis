@@ -155,6 +155,11 @@ services = [
       output_dir = "dist"
       spa_fallback = true
     }
+  },
+  {
+    name = "agent-service"
+    kind = "agent"
+    path = "services/agent-service"
   }
 ]
 ```
@@ -222,6 +227,77 @@ Shared fields:
 - `frontend.output_dir`
 - `frontend.spa_fallback`
 
+An `agent` service runs a built-in task agent container on the node-agent. Podman is an implementation detail; the manifest exposes only the internal agent service abstraction. The default runtime is Codex. To use OpenCode, set `agent_runtime = "opencode"` and place an `opencode.json` file in the service directory.
+
+When a product requirement needs LLM or agent behavior, prefer an internal `agent` service and the task API over making direct model-provider HTTP requests from an `http` service. This keeps provider credentials, runtime setup, MCP tools, result validation, callback handling, and polling behind the platform-managed agent boundary.
+
+Ignis injects the fixed image, port, workdir, MCP URL, database path, workspace path, and callback host allowlist. Users do not configure those fields.
+
+The built-in image exposes `POST /v1/tasks`, starts one agent runtime process per task, and stores the schema-validated result. If the task includes `callback_url`, the result is posted there; otherwise callers can poll `GET /v1/tasks/:task_id`.
+
+Create an OpenCode agent service with:
+
+```bash
+ignis service new \
+  --service agent-service \
+  --kind agent \
+  --runtime opencode \
+  --path services/agent-service
+```
+
+The generated service declaration is:
+
+```hcl
+{
+  name = "agent-service"
+  kind = "agent"
+  agent_runtime = "opencode"
+  path = "services/agent-service"
+}
+```
+
+For OpenCode, copy the local runtime config into the service directory before publishing:
+
+```bash
+cp ~/.config/opencode/opencode.json services/agent-service/opencode.json
+chmod 600 services/agent-service/opencode.json
+```
+
+`opencode.json` should be ignored by Git because it may contain provider credentials. During publish, Ignis stores it as the agent artifact. During deploy, node-agent mounts it read-only at:
+
+```text
+/agent-home/.config/opencode/opencode.json
+```
+
+Services in the same project call the internal agent through:
+
+```text
+POST http://agent-service.svc/v1/tasks
+GET  http://agent-service.svc/v1/tasks/{task_id}
+```
+
+Task creation accepts:
+
+```json
+{
+  "prompt": "...",
+  "callback_url": "optional http or https URL",
+  "task_result_json_schema": {
+    "type": "object"
+  }
+}
+```
+
+`task_result_json_schema` is the schema for the final `result` passed to `submit_task`. If `callback_url` is omitted, poll `GET /v1/tasks/{task_id}` until `status` is `succeeded` or `failed`.
+
+Current `agent` constraints:
+
+- Custom agent images are not supported yet.
+- Agent services are internal-only by default when they have no public exposure.
+- Codex requires the `OPENAI_API_KEY` service secret.
+- OpenCode requires `opencode.json`; Ignis injects it into `$HOME/.config/opencode/opencode.json` when the container starts.
+- `sqlite` and `ignis_login` are not supported for agent services.
+
 ### 3.5 `jobs`
 
 `jobs` declares async job types for the project. A job target is an HTTP endpoint on a service in the same project.
@@ -245,7 +321,7 @@ Common fields:
 
 Current target constraints:
 
-- `target.service` must reference an `http` service.
+- `target.service` must reference an `http` or `agent` service.
 - `target.binding` currently supports the service's default `http` binding.
 - `target.path` must be an absolute path.
 - job input must be a JSON object.

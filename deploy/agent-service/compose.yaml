@@ -1,0 +1,27 @@
+services:
+  agent-service:
+    image: ghcr.io/igniscloud/agents/agent-service:latest
+    container_name: agent-service
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3900:3900"
+    environment:
+      # Required by Codex unless the image is otherwise authenticated.
+      OPENAI_API_KEY: "${OPENAI_API_KEY:?OPENAI_API_KEY is required}"
+
+      AGENT_SERVICE_CONFIG: "/app/config/agent-service.toml"
+      AGENT_SERVICE_LISTEN_ADDR: "0.0.0.0:3900"
+      AGENT_SERVICE_MCP_URL: "http://127.0.0.1:3900/mcp"
+      RUST_LOG: "agent_service=info"
+    volumes:
+      - "./agent-service.toml:/app/config/agent-service.toml:ro"
+      - "./data:/app/data"
+      - "./work:/app/work"
+    networks:
+      - default
+      - shared
+
+networks:
+  shared:
+    external: true
+    name: deploy_shared

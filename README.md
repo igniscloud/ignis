@@ -84,6 +84,7 @@ All formats include the required `references/` documents for each skill.
 
 - [hello-fullstack](./examples/hello-fullstack)
 - [sqlite-example](./examples/sqlite-example)
+- [opencode-agent-e2e](./examples/opencode-agent-e2e)
 
 ## Docs
 
@@ -92,5 +93,6 @@ All formats include the required `references/` documents for each skill.
 - [CLI Guide](./docs/cli.md)
 - [ignis.hcl Guide](./docs/ignis-hcl.md)
 - [Ignis Service Link](./docs/ignis-service-link.md)
+- [Agent Service 实现方案](./docs/agent-service-implementation.md)
 - [API Reference](./docs/api.md)
 - [Ignis SDK Markdown Reference](./docs/ignis-sdk/index.md)

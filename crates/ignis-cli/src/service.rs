@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use ignis_manifest::{
-    FrontendServiceConfig, HttpServiceConfig, IGNIS_LOGIN_IGNISCLOUD_ID_BASE_URL_ENV,
-    ResourceConfig, ServiceKind, ServiceManifest, SqliteConfig,
+    AgentRuntime, FrontendServiceConfig, HttpServiceConfig, IGNIS_LOGIN_IGNISCLOUD_ID_BASE_URL_ENV,
+    INTERNAL_ONLY_MANIFEST_PREFIX_BASE, ResourceConfig, ServiceKind, ServiceManifest, SqliteConfig,
 };
 use serde::Serialize;
 
@@ -35,7 +35,8 @@ pub async fn handle(command: ServiceCommands, token: Option<String>) -> Result<(
             service,
             kind,
             path,
-        } => new_service(&context, &service, kind, &path, token).await,
+            runtime,
+        } => new_service(&context, &service, kind, runtime, &path, token).await,
         ServiceCommands::List => list_services(&context),
         ServiceCommands::Status { service } => service_status(&context, &service, token).await,
         ServiceCommands::Check { service } => check_service(&context, &service),
@@ -70,6 +71,7 @@ async fn new_service(
     context: &ProjectContext,
     service_name: &str,
     kind: CliServiceKind,
+    runtime: Option<crate::cli::CliAgentRuntime>,
     path: &Path,
     token: Option<String>,
 ) -> Result<()> {
@@ -79,8 +81,11 @@ async fn new_service(
             context.manifest_path().display()
         );
     }
+    if kind != CliServiceKind::Agent && runtime.is_some() {
+        bail!("--runtime is only supported for --kind agent");
+    }
 
-    let service = build_new_service_manifest(service_name, kind, path);
+    let service = build_new_service_manifest(service_name, kind, runtime, path);
     service.validate()?;
     context.ensure_new_service_path_available(&service)?;
     let project_id = linked_project_id(context)?;
@@ -106,6 +111,7 @@ async fn new_service(
 fn build_new_service_manifest(
     service_name: &str,
     kind: CliServiceKind,
+    runtime: Option<crate::cli::CliAgentRuntime>,
     path: &Path,
 ) -> ServiceManifest {
     match kind {
@@ -116,6 +122,7 @@ fn build_new_service_manifest(
                 kind: ServiceKind::Http,
                 path: path.to_path_buf(),
                 prefix: format!("/{service_name}"),
+                agent_runtime: AgentRuntime::Codex,
                 http: Some(HttpServiceConfig {
                     component: PathBuf::from(format!(
                         "target/wasm32-wasip2/release/{package_name}.wasm"
@@ -123,6 +130,7 @@ fn build_new_service_manifest(
                     base_path: "/".to_owned(),
                 }),
                 frontend: None,
+                agent: None,
                 ignis_login: None,
                 env: BTreeMap::new(),
                 secrets: BTreeMap::new(),
@@ -137,6 +145,7 @@ fn build_new_service_manifest(
             kind: ServiceKind::Frontend,
             path: path.to_path_buf(),
             prefix: "/".to_owned(),
+            agent_runtime: AgentRuntime::Codex,
             http: None,
             frontend: Some(FrontendServiceConfig {
                 build_command: vec![
@@ -151,11 +160,29 @@ fn build_new_service_manifest(
                 output_dir: PathBuf::from("dist"),
                 spa_fallback: true,
             }),
+            agent: None,
             ignis_login: None,
             env: BTreeMap::new(),
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),
             resources: ResourceConfig::default(),
+        },
+        CliServiceKind::Agent => ServiceManifest {
+            name: service_name.to_owned(),
+            kind: ServiceKind::Agent,
+            path: path.to_path_buf(),
+            prefix: format!("{INTERNAL_ONLY_MANIFEST_PREFIX_BASE}/{service_name}"),
+            agent_runtime: runtime.map(Into::into).unwrap_or_default(),
+            http: None,
+            frontend: None,
+            agent: None,
+            ignis_login: None,
+            env: BTreeMap::new(),
+            secrets: BTreeMap::new(),
+            sqlite: SqliteConfig::default(),
+            resources: ResourceConfig {
+                memory_limit_bytes: Some(1024 * 1024 * 1024),
+            },
         },
     }
 }
@@ -200,6 +227,40 @@ fn create_local_service_files(project_dir: &Path, service: &ServiceManifest) -> 
             )
             .with_context(|| format!("writing {}", service_dir.join(".gitignore").display()))?;
         }
+        ServiceKind::Agent => match service.agent_runtime {
+            AgentRuntime::Codex => {
+                fs::write(
+                        service_dir.join("README.md"),
+                        format!(
+                            "# {}\n\nThis directory declares an internal Ignis `agent-service` agent.\n\nBefore deploying, set the OpenAI API key secret in IgnisCloud:\n\n```bash\nignis service secrets set --service {} openai-api-key \"$OPENAI_API_KEY\"\n```\n\nThe service exposes `POST /v1/tasks` to services in the same project and returns a `task_id`.\n",
+                            service.name,
+                            service.name
+                        ),
+                    )
+                    .with_context(|| {
+                        format!("writing {}", service_dir.join("README.md").display())
+                    })?;
+            }
+            AgentRuntime::Opencode => {
+                fs::write(
+                    service_dir.join("opencode.json"),
+                    "{\n  \"$schema\": \"https://opencode.ai/config.json\"\n}\n",
+                )
+                .with_context(|| {
+                    format!("writing {}", service_dir.join("opencode.json").display())
+                })?;
+                fs::write(
+                        service_dir.join("README.md"),
+                        format!(
+                            "# {}\n\nThis directory declares an internal Ignis `opencode-agent-service` agent.\n\nBefore deploying, configure OpenCode in `opencode.json`. Ignis injects that file into the container at `$HOME/.config/opencode/opencode.json`.\n\nThe service exposes `POST /v1/tasks` to services in the same project and returns a `task_id`.\n",
+                            service.name
+                        ),
+                    )
+                    .with_context(|| {
+                        format!("writing {}", service_dir.join("README.md").display())
+                    })?;
+            }
+        },
     }
     Ok(())
 }
@@ -388,6 +449,17 @@ async fn publish_service(
         build::PublishArtifactKind::Frontend { bundle_path } => {
             client
                 .publish_frontend_service(
+                    project_id,
+                    service.name(),
+                    service.manifest(),
+                    bundle_path,
+                    publish_artifact.metadata.clone(),
+                )
+                .await?
+        }
+        build::PublishArtifactKind::Agent { bundle_path } => {
+            client
+                .publish_agent_service(
                     project_id,
                     service.name(),
                     service.manifest(),
@@ -586,14 +658,15 @@ fn kind_name(kind: ServiceKind) -> &'static str {
     match kind {
         ServiceKind::Http => "http",
         ServiceKind::Frontend => "frontend",
+        ServiceKind::Agent => "agent",
     }
 }
 
 #[cfg(test)]
 mod tests {
     use ignis_manifest::{
-        HttpServiceConfig, IgnisLoginConfig, IgnisLoginProvider, ResourceConfig, ServiceKind,
-        ServiceManifest, SqliteConfig,
+        AgentRuntime, HttpServiceConfig, IgnisLoginConfig, IgnisLoginProvider, ResourceConfig,
+        ServiceKind, ServiceManifest, SqliteConfig,
     };
     use std::path::PathBuf;
 
@@ -605,11 +678,13 @@ mod tests {
             kind: ServiceKind::Http,
             path: PathBuf::from("services/api"),
             prefix: "/api".to_owned(),
+            agent_runtime: AgentRuntime::Codex,
             http: Some(HttpServiceConfig {
                 component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
                 base_path: "/".to_owned(),
             }),
             frontend: None,
+            agent: None,
             ignis_login: Some(IgnisLoginConfig {
                 display_name: "demo".to_owned(),
                 redirect_path: "/auth/callback".to_owned(),

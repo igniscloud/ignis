@@ -300,6 +300,48 @@ impl ApiClient {
         .await
     }
 
+    pub async fn publish_agent_service(
+        &self,
+        project: &str,
+        service: &str,
+        service_manifest: &ServiceManifest,
+        bundle_path: &Path,
+        build_metadata: BTreeMap<String, String>,
+    ) -> Result<Value> {
+        let bundle =
+            fs::read(bundle_path).with_context(|| format!("reading {}", bundle_path.display()))?;
+        let service_manifest =
+            serde_json::to_vec(service_manifest).context("serializing service manifest")?;
+        let build_metadata =
+            serde_json::to_vec(&build_metadata).context("serializing build metadata")?;
+
+        let form = Form::new()
+            .part(
+                "service_manifest",
+                Part::bytes(service_manifest).mime_str("application/json")?,
+            )
+            .part(
+                "build_metadata",
+                Part::bytes(build_metadata).mime_str("application/json")?,
+            )
+            .part(
+                "agent_bundle",
+                Part::bytes(bundle)
+                    .file_name("agent.json".to_owned())
+                    .mime_str("application/json")?,
+            );
+
+        self.request(
+            self.http
+                .post(self.url(&format!(
+                    "/v1/projects/{project}/services/{service}/versions"
+                )))
+                .bearer_auth(&self.config.token)
+                .multipart(form),
+        )
+        .await
+    }
+
     pub async fn deploy_service(
         &self,
         project: &str,

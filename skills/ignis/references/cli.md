@@ -137,6 +137,26 @@ ignis service publish --service web
 ignis service deploy --service web <version>
 ```
 
+Minimal OpenCode agent flow:
+
+```bash
+ignis service new \
+  --service agent-service \
+  --kind agent \
+  --runtime opencode \
+  --path services/agent-service
+
+cp ~/.config/opencode/opencode.json services/agent-service/opencode.json
+chmod 600 services/agent-service/opencode.json
+
+ignis service check --service agent-service
+ignis service build --service agent-service
+ignis service publish --service agent-service
+ignis service deploy --service agent-service <version>
+```
+
+Use an internal `agent` service when a product requirement needs LLM or agent behavior. Prefer creating tasks through `agent-service` over making direct model-provider HTTP requests from a business `http` service.
+
 ## 5. `ignis gen-skill`
 
 Command:
@@ -188,7 +208,7 @@ Use `ignis project sync --mode apply` when you have an `ignis.hcl` checkout with
 
 Key commands:
 
-- `ignis service new --service <name> --kind <http|frontend> --path <relative-path>`
+- `ignis service new --service <name> --kind <http|frontend|agent> [--runtime <codex|opencode>] --path <relative-path>`
 - `ignis service list`
 - `ignis service status --service <name>`
 - `ignis service check --service <name>`
@@ -203,6 +223,25 @@ Key commands:
 - `ignis service sqlite ...`
 
 All service commands must run inside a project directory.
+
+`service new --kind agent` creates an internal task agent service. The default runtime is Codex. Use `--runtime opencode` for OpenCode:
+
+```bash
+ignis service new \
+  --service agent-service \
+  --kind agent \
+  --runtime opencode \
+  --path services/agent-service
+```
+
+For OpenCode, place `opencode.json` in the service directory before build/publish. Ignis uploads that file as the agent artifact and injects it into the runtime container at `$HOME/.config/opencode/opencode.json`.
+
+Services in the same project call the agent through internal service DNS:
+
+```text
+POST http://agent-service.svc/v1/tasks
+GET  http://agent-service.svc/v1/tasks/{task_id}
+```
 
 ## 8. Troubleshooting
 

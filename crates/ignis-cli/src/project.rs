@@ -693,6 +693,7 @@ fn unsupported_remote_binding_message(service: &CompiledServicePlan) -> Option<S
     let expected = match service.kind {
         ServiceKind::Http => ("http", BindingKind::Http),
         ServiceKind::Frontend => ("frontend", BindingKind::Frontend),
+        ServiceKind::Agent => ("http", BindingKind::Http),
     };
     if service.bindings.len() != 1 {
         let bindings = service

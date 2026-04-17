@@ -52,4 +52,6 @@ cp -R "$ROOT_DIR/docs/ignis-sdk/." "$ROOT_DIR/skills/ignis/references/ignis-sdk/
 copy_example_project "hello-fullstack" "ignis"
 copy_example_project "sqlite-example" "ignis"
 copy_example_project "cos-and-jobs-example" "ignis"
+copy_example_project "opencode-agent-e2e" "ignis"
+copy_file "$ROOT_DIR/examples/opencode-agent-e2e/services/agent-service/opencode.json.example" "$ROOT_DIR/skills/ignis/references/examples/opencode-agent-e2e/services/agent-service/opencode.json.example"
 copy_example_project "ignis-login-example" "ignis-login"

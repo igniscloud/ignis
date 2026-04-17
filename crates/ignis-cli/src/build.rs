@@ -10,8 +10,8 @@ use anyhow::{Context, Result, anyhow, bail};
 use flate2::Compression;
 use flate2::write::GzEncoder;
 use ignis_manifest::{
-    ComponentSignature, LoadedManifest, PUBLISHED_SERVICE_PLAN_BUILD_METADATA_KEY, ServiceKind,
-    sign_component_with_seed,
+    AgentRuntime, ComponentSignature, LoadedManifest, PUBLISHED_SERVICE_PLAN_BUILD_METADATA_KEY,
+    ServiceKind, effective_agent_service_config, sign_component_with_seed,
 };
 use serde::Serialize;
 use tar::Builder;
@@ -57,12 +57,19 @@ pub enum PublishArtifactKind {
     Frontend {
         bundle_path: PathBuf,
     },
+    Agent {
+        bundle_path: PathBuf,
+    },
 }
 
 impl PublishArtifact {
     pub fn cleanup(self) {
-        if let PublishArtifactKind::Frontend { bundle_path } = self.kind {
-            let _ = fs::remove_file(bundle_path);
+        match self.kind {
+            PublishArtifactKind::Frontend { bundle_path }
+            | PublishArtifactKind::Agent { bundle_path } => {
+                let _ = fs::remove_file(bundle_path);
+            }
+            PublishArtifactKind::Http { .. } => {}
         }
     }
 }
@@ -101,6 +108,14 @@ pub async fn build_service(service: &ServiceContext<'_>, release: bool) -> Resul
                 validation,
             })
         }
+        ServiceKind::Agent => {
+            let validation = validate_agent_service(service)?;
+            Ok(BuildOutcome {
+                mode: "agent-container-config",
+                output_path: service.service_dir().to_path_buf(),
+                validation,
+            })
+        }
     }
 }
 
@@ -130,6 +145,7 @@ pub async fn build_metadata(service: &ServiceContext<'_>) -> Result<BTreeMap<Str
         match service.manifest().kind {
             ServiceKind::Http => "cargo-build-wasm32-wasip2".to_owned(),
             ServiceKind::Frontend => frontend_build_mode(service.manifest()).to_owned(),
+            ServiceKind::Agent => "agent-container-config".to_owned(),
         },
     );
     metadata.insert(
@@ -162,6 +178,15 @@ pub async fn prepare_publish_artifact(service: &ServiceContext<'_>) -> Result<Pu
                 metadata: build_metadata(service).await?,
                 validation,
                 kind: PublishArtifactKind::Frontend { bundle_path },
+            })
+        }
+        ServiceKind::Agent => {
+            let validation = validate_agent_service(service)?;
+            let bundle_path = create_agent_bundle(service).await?;
+            Ok(PublishArtifact {
+                metadata: build_metadata(service).await?,
+                validation,
+                kind: PublishArtifactKind::Agent { bundle_path },
             })
         }
     }
@@ -303,7 +328,79 @@ fn kind_name(kind: ServiceKind) -> &'static str {
     match kind {
         ServiceKind::Http => "http",
         ServiceKind::Frontend => "frontend",
+        ServiceKind::Agent => "agent",
     }
+}
+
+async fn create_agent_bundle(service: &ServiceContext<'_>) -> Result<PathBuf> {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|value| value.as_nanos())
+        .unwrap_or_default();
+    let bundle_name = format!("ignis-agent-{}-{nanos}.json", service.name());
+    let bundle_path = std::env::temp_dir().join(bundle_name);
+    let bytes = match service.manifest().agent_runtime {
+        AgentRuntime::Codex => {
+            let agent = effective_agent_service_config(
+                service.manifest().agent_runtime,
+                service.manifest().agent.as_ref(),
+            );
+            serde_json::to_vec_pretty(&agent).context("serializing agent config")?
+        }
+        AgentRuntime::Opencode => {
+            let config_path = service.service_dir().join("opencode.json");
+            fs::read(&config_path).with_context(|| {
+                format!(
+                    "reading OpenCode config for agent service at {}",
+                    config_path.display()
+                )
+            })?
+        }
+    };
+    fs::write(&bundle_path, bytes).with_context(|| format!("writing {}", bundle_path.display()))?;
+    Ok(bundle_path)
+}
+
+fn validate_agent_service(service: &ServiceContext<'_>) -> Result<ArtifactValidation> {
+    let agent = effective_agent_service_config(
+        service.manifest().agent_runtime,
+        service.manifest().agent.as_ref(),
+    );
+    agent.validate(service.name(), service.manifest().agent_runtime)?;
+    let mut checks = vec![
+        ValidationCheck {
+            name: "runtime",
+            detail: format!(
+                "agent runtime is {}",
+                service.manifest().agent_runtime.as_str()
+            ),
+        },
+        ValidationCheck {
+            name: "image",
+            detail: format!("agent image is {}", agent.image),
+        },
+        ValidationCheck {
+            name: "port",
+            detail: format!("agent container port is {}", agent.port),
+        },
+    ];
+    if service.manifest().agent_runtime == AgentRuntime::Opencode {
+        let config_path = service.service_dir().join("opencode.json");
+        let bytes = fs::read(&config_path).with_context(|| {
+            format!("OpenCode agent service requires {}", config_path.display())
+        })?;
+        serde_json::from_slice::<serde_json::Value>(&bytes)
+            .with_context(|| format!("parsing {}", config_path.display()))?;
+        checks.push(ValidationCheck {
+            name: "opencode_config",
+            detail: format!("OpenCode config is {}", config_path.display()),
+        });
+    }
+    Ok(ArtifactValidation {
+        kind: "agent-container-config",
+        artifact_path: service.service_dir().to_path_buf(),
+        checks,
+    })
 }
 
 fn frontend_build_mode(service: &ignis_manifest::ServiceManifest) -> &'static str {

@@ -28,13 +28,137 @@ pub const IGNIS_LOGIN_RESERVED_SECRETS: [&str; 2] = [
     IGNIS_LOGIN_CLIENT_SECRET_SECRET,
 ];
 pub const PUBLISHED_SERVICE_PLAN_BUILD_METADATA_KEY: &str = "ignis.published_service_plan";
+pub const BUILTIN_AGENT_SERVICE_IMAGE: &str = "ghcr.io/igniscloud/agents/agent-service:latest";
+pub const BUILTIN_AGENT_SERVICE_PORT: u16 = 3900;
+pub const BUILTIN_AGENT_SERVICE_WORKDIR: &str = "/app/work";
+pub const BUILTIN_OPENCODE_AGENT_SERVICE_IMAGE: &str =
+    "ghcr.io/igniscloud/agents/opencode-agent-service:latest";
+pub const BUILTIN_OPENCODE_AGENT_SERVICE_PORT: u16 = 3900;
+pub const BUILTIN_OPENCODE_AGENT_SERVICE_WORKDIR: &str = "/app/work";
+pub const BUILTIN_OPENAI_API_KEY_SECRET: &str = "openai-api-key";
 
 pub use project_hcl::{
-    BindingKind, BindingSpec, CompiledBindingPlan, CompiledExposurePlan, CompiledProjectPlan,
-    CompiledServicePlan, ExposeSpec, ListenerProtocol, ListenerSpec, ProjectSpec,
-    PublishedBindingPlan, PublishedExposurePlan, PublishedServicePlan, ResolvedDependencyGraph,
-    ServiceActivationPlan, ServiceSpec,
+    AgentRuntime, AgentServiceConfig, BindingKind, BindingSpec, CompiledBindingPlan,
+    CompiledExposurePlan, CompiledProjectPlan, CompiledServicePlan, ExposeSpec, ListenerProtocol,
+    ListenerSpec, ProjectSpec, PublishedBindingPlan, PublishedExposurePlan, PublishedServicePlan,
+    ResolvedDependencyGraph, ServiceActivationPlan, ServiceSpec,
 };
+
+pub fn builtin_codex_runtime_agent_service_config() -> AgentServiceConfig {
+    AgentServiceConfig {
+        image: BUILTIN_AGENT_SERVICE_IMAGE.to_owned(),
+        port: BUILTIN_AGENT_SERVICE_PORT,
+        framework: Some("codex".to_owned()),
+        workdir: Some(BUILTIN_AGENT_SERVICE_WORKDIR.to_owned()),
+        command: Vec::new(),
+        args: Vec::new(),
+    }
+}
+
+pub fn builtin_opencode_agent_service_config() -> AgentServiceConfig {
+    AgentServiceConfig {
+        image: BUILTIN_OPENCODE_AGENT_SERVICE_IMAGE.to_owned(),
+        port: BUILTIN_OPENCODE_AGENT_SERVICE_PORT,
+        framework: Some("opencode".to_owned()),
+        workdir: Some(BUILTIN_OPENCODE_AGENT_SERVICE_WORKDIR.to_owned()),
+        command: Vec::new(),
+        args: Vec::new(),
+    }
+}
+
+pub fn builtin_agent_service_config(runtime: AgentRuntime) -> AgentServiceConfig {
+    match runtime {
+        AgentRuntime::Codex => builtin_codex_runtime_agent_service_config(),
+        AgentRuntime::Opencode => builtin_opencode_agent_service_config(),
+    }
+}
+
+pub fn effective_agent_service_config(
+    runtime: AgentRuntime,
+    agent: Option<&AgentServiceConfig>,
+) -> AgentServiceConfig {
+    agent
+        .cloned()
+        .unwrap_or_else(|| builtin_agent_service_config(runtime))
+}
+
+pub fn builtin_codex_runtime_agent_service_env() -> BTreeMap<String, String> {
+    BTreeMap::from([
+        (
+            "AGENT_SERVICE_CALLBACK_HOST_ALLOWLIST".to_owned(),
+            "*.internal,*.service.local".to_owned(),
+        ),
+        (
+            "AGENT_SERVICE_DATABASE_PATH".to_owned(),
+            "/app/data/agent-service.sqlite3".to_owned(),
+        ),
+        (
+            "AGENT_SERVICE_LISTEN_ADDR".to_owned(),
+            "0.0.0.0:3900".to_owned(),
+        ),
+        (
+            "AGENT_SERVICE_MCP_URL".to_owned(),
+            "http://127.0.0.1:3900/mcp".to_owned(),
+        ),
+        (
+            "AGENT_SERVICE_WORKSPACE_DIR".to_owned(),
+            BUILTIN_AGENT_SERVICE_WORKDIR.to_owned(),
+        ),
+        ("RUST_LOG".to_owned(), "agent_service=info".to_owned()),
+    ])
+}
+
+pub fn builtin_codex_runtime_agent_service_secrets() -> BTreeMap<String, String> {
+    BTreeMap::from([(
+        "OPENAI_API_KEY".to_owned(),
+        format!("secret://{BUILTIN_OPENAI_API_KEY_SECRET}"),
+    )])
+}
+
+pub fn builtin_opencode_agent_service_env() -> BTreeMap<String, String> {
+    BTreeMap::from([
+        (
+            "AGENT_SERVICE_CALLBACK_HOST_ALLOWLIST".to_owned(),
+            "*.internal,*.service.local".to_owned(),
+        ),
+        (
+            "AGENT_SERVICE_DATABASE_PATH".to_owned(),
+            "/app/data/opencode-agent-service.sqlite3".to_owned(),
+        ),
+        (
+            "AGENT_SERVICE_LISTEN_ADDR".to_owned(),
+            "0.0.0.0:3900".to_owned(),
+        ),
+        (
+            "AGENT_SERVICE_MCP_URL".to_owned(),
+            "http://127.0.0.1:3900/mcp".to_owned(),
+        ),
+        ("AGENT_SERVICE_RUNTIME".to_owned(), "opencode".to_owned()),
+        (
+            "AGENT_SERVICE_WORKSPACE_DIR".to_owned(),
+            BUILTIN_OPENCODE_AGENT_SERVICE_WORKDIR.to_owned(),
+        ),
+        (
+            "OPENCODE_CONFIG".to_owned(),
+            "/agent-home/.config/opencode/opencode.json".to_owned(),
+        ),
+        ("RUST_LOG".to_owned(), "agent_service=info".to_owned()),
+    ])
+}
+
+pub fn builtin_agent_service_env(runtime: AgentRuntime) -> BTreeMap<String, String> {
+    match runtime {
+        AgentRuntime::Codex => builtin_codex_runtime_agent_service_env(),
+        AgentRuntime::Opencode => builtin_opencode_agent_service_env(),
+    }
+}
+
+pub fn builtin_agent_service_secrets(runtime: AgentRuntime) -> BTreeMap<String, String> {
+    match runtime {
+        AgentRuntime::Codex => builtin_codex_runtime_agent_service_secrets(),
+        AgentRuntime::Opencode => BTreeMap::new(),
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct WorkerManifest {
@@ -102,10 +226,14 @@ pub struct ServiceManifest {
     pub path: PathBuf,
     #[serde(default = "default_service_prefix")]
     pub prefix: String,
+    #[serde(default, skip_serializing_if = "AgentRuntime::is_default")]
+    pub agent_runtime: AgentRuntime,
     #[serde(default)]
     pub http: Option<HttpServiceConfig>,
     #[serde(default)]
     pub frontend: Option<FrontendServiceConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<AgentServiceConfig>,
     #[serde(default)]
     pub ignis_login: Option<IgnisLoginConfig>,
     #[serde(default)]
@@ -229,6 +357,7 @@ pub enum ScheduleMisfirePolicy {
 pub enum ServiceKind {
     Http,
     Frontend,
+    Agent,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -532,9 +661,9 @@ impl JobTargetSpec {
                 "job `{job_name}` field `target.method` must contain only uppercase letters or '_'"
             );
         }
-        if service.kind != ServiceKind::Http {
+        if !matches!(service.kind, ServiceKind::Http | ServiceKind::Agent) {
             bail!(
-                "job `{job_name}` service `{}` must be an http service",
+                "job `{job_name}` service `{}` must be an http or agent service",
                 service.name
             );
         }
@@ -625,6 +754,13 @@ impl ServiceManifest {
         validate_resource_name(&self.name, "service field `name`")?;
         validate_relative_service_path(&self.path)?;
         validate_service_prefix(&self.prefix)?;
+        if self.kind != ServiceKind::Agent && self.agent_runtime != AgentRuntime::Codex {
+            bail!(
+                "{} service `{}` cannot define `agent_runtime`",
+                self.kind.as_str(),
+                self.name
+            );
+        }
         match self.kind {
             ServiceKind::Http => {
                 let http = self.http.as_ref().ok_or_else(|| {
@@ -633,6 +769,12 @@ impl ServiceManifest {
                 if self.frontend.is_some() {
                     bail!(
                         "http service `{}` cannot define `[services.frontend]`",
+                        self.name
+                    );
+                }
+                if self.agent.is_some() {
+                    bail!(
+                        "http service `{}` cannot define `[services.agent]`",
                         self.name
                     );
                 }
@@ -654,6 +796,12 @@ impl ServiceManifest {
                 if self.http.is_some() {
                     bail!(
                         "frontend service `{}` cannot define `[services.http]`",
+                        self.name
+                    );
+                }
+                if self.agent.is_some() {
+                    bail!(
+                        "frontend service `{}` cannot define `[services.agent]`",
                         self.name
                     );
                 }
@@ -685,6 +833,35 @@ impl ServiceManifest {
                     );
                 }
                 frontend.validate(&self.name)?;
+            }
+            ServiceKind::Agent => {
+                if self.http.is_some() {
+                    bail!(
+                        "agent service `{}` cannot define `[services.http]`",
+                        self.name
+                    );
+                }
+                if self.frontend.is_some() {
+                    bail!(
+                        "agent service `{}` cannot define `[services.frontend]`",
+                        self.name
+                    );
+                }
+                if self.ignis_login.is_some() {
+                    bail!(
+                        "agent service `{}` cannot define `[services.ignis_login]`",
+                        self.name
+                    );
+                }
+                if self.sqlite.enabled {
+                    bail!("agent service `{}` cannot enable sqlite", self.name);
+                }
+                if let Some(agent) = &self.agent {
+                    agent.validate(&self.name, self.agent_runtime)?;
+                }
+                validate_binding_names(self.env.keys(), "services.env")?;
+                validate_binding_names(self.secrets.keys(), "services.secrets")?;
+                self.resources.validate()?;
             }
         }
         Ok(())
@@ -881,6 +1058,7 @@ fn default_service_binding_name(kind: ServiceKind) -> &'static str {
     match kind {
         ServiceKind::Http => "http",
         ServiceKind::Frontend => "frontend",
+        ServiceKind::Agent => "http",
     }
 }
 
@@ -1124,11 +1302,13 @@ memory_limit_bytes = 67108864
                     kind: ServiceKind::Http,
                     path: PathBuf::from("services/api"),
                     prefix: "/api".to_owned(),
+                    agent_runtime: AgentRuntime::Codex,
                     http: Some(HttpServiceConfig {
                         component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
                         base_path: "/".to_owned(),
                     }),
                     frontend: None,
+                    agent: None,
                     ignis_login: None,
                     env: BTreeMap::from([(String::from("APP_ENV"), String::from("production"))]),
                     secrets: BTreeMap::new(),
@@ -1142,12 +1322,14 @@ memory_limit_bytes = 67108864
                     kind: ServiceKind::Frontend,
                     path: PathBuf::from("services/web"),
                     prefix: "/".to_owned(),
+                    agent_runtime: AgentRuntime::Codex,
                     http: None,
                     frontend: Some(FrontendServiceConfig {
                         build_command: vec!["pnpm".to_owned(), "build".to_owned()],
                         output_dir: PathBuf::from("dist"),
                         spa_fallback: true,
                     }),
+                    agent: None,
                     ignis_login: None,
                     env: BTreeMap::new(),
                     secrets: BTreeMap::new(),
@@ -1178,11 +1360,13 @@ memory_limit_bytes = 67108864
                     kind: ServiceKind::Http,
                     path: PathBuf::from("services/api"),
                     prefix: "/api".to_owned(),
+                    agent_runtime: AgentRuntime::Codex,
                     http: Some(HttpServiceConfig {
                         component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
                         base_path: "/".to_owned(),
                     }),
                     frontend: None,
+                    agent: None,
                     ignis_login: None,
                     env: BTreeMap::new(),
                     secrets: BTreeMap::new(),
@@ -1194,12 +1378,14 @@ memory_limit_bytes = 67108864
                     kind: ServiceKind::Frontend,
                     path: PathBuf::from("services/web"),
                     prefix: "/api/".to_owned(),
+                    agent_runtime: AgentRuntime::Codex,
                     http: None,
                     frontend: Some(FrontendServiceConfig {
                         build_command: vec!["pnpm".to_owned(), "build".to_owned()],
                         output_dir: PathBuf::from("dist"),
                         spa_fallback: true,
                     }),
+                    agent: None,
                     ignis_login: None,
                     env: BTreeMap::new(),
                     secrets: BTreeMap::new(),
@@ -1221,12 +1407,14 @@ memory_limit_bytes = 67108864
             kind: ServiceKind::Frontend,
             path: PathBuf::from("services/web"),
             prefix: "/".to_owned(),
+            agent_runtime: AgentRuntime::Codex,
             http: None,
             frontend: Some(FrontendServiceConfig {
                 build_command: vec!["pnpm".to_owned(), "build".to_owned()],
                 output_dir: PathBuf::from("dist"),
                 spa_fallback: false,
             }),
+            agent: None,
             ignis_login: None,
             env: BTreeMap::from([(String::from("APP_ENV"), String::from("production"))]),
             secrets: BTreeMap::new(),
@@ -1244,11 +1432,13 @@ memory_limit_bytes = 67108864
             kind: ServiceKind::Http,
             path: PathBuf::from("services/api"),
             prefix: "api".to_owned(),
+            agent_runtime: AgentRuntime::Codex,
             http: Some(HttpServiceConfig {
                 component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
                 base_path: "/".to_owned(),
             }),
             frontend: None,
+            agent: None,
             ignis_login: None,
             env: BTreeMap::new(),
             secrets: BTreeMap::new(),
@@ -1271,11 +1461,13 @@ memory_limit_bytes = 67108864
                 kind: ServiceKind::Http,
                 path: PathBuf::from("services/api"),
                 prefix: "/api".to_owned(),
+                agent_runtime: AgentRuntime::Codex,
                 http: Some(HttpServiceConfig {
                     component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
                     base_path: "/".to_owned(),
                 }),
                 frontend: None,
+                agent: None,
                 ignis_login: Some(IgnisLoginConfig {
                     display_name: "Video GIF Studio".to_owned(),
                     redirect_path: "/auth/common/callback".to_owned(),
@@ -1303,12 +1495,14 @@ memory_limit_bytes = 67108864
             kind: ServiceKind::Frontend,
             path: PathBuf::from("services/web"),
             prefix: "/".to_owned(),
+            agent_runtime: AgentRuntime::Codex,
             http: None,
             frontend: Some(FrontendServiceConfig {
                 build_command: vec!["pnpm".to_owned(), "build".to_owned()],
                 output_dir: PathBuf::from("dist"),
                 spa_fallback: true,
             }),
+            agent: None,
             ignis_login: Some(IgnisLoginConfig {
                 display_name: "Video GIF Studio".to_owned(),
                 redirect_path: "/auth/common/callback".to_owned(),
@@ -1330,11 +1524,13 @@ memory_limit_bytes = 67108864
             kind: ServiceKind::Http,
             path: PathBuf::from("services/api"),
             prefix: "/api".to_owned(),
+            agent_runtime: AgentRuntime::Codex,
             http: Some(HttpServiceConfig {
                 component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
                 base_path: "/".to_owned(),
             }),
             frontend: None,
+            agent: None,
             ignis_login: Some(IgnisLoginConfig {
                 display_name: "Video GIF Studio".to_owned(),
                 redirect_path: "/auth/common/callback".to_owned(),
@@ -1359,11 +1555,13 @@ memory_limit_bytes = 67108864
             kind: ServiceKind::Http,
             path: PathBuf::from("services/api"),
             prefix: "/api".to_owned(),
+            agent_runtime: AgentRuntime::Codex,
             http: Some(HttpServiceConfig {
                 component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
                 base_path: "/".to_owned(),
             }),
             frontend: None,
+            agent: None,
             ignis_login: Some(IgnisLoginConfig {
                 display_name: "Video GIF Studio".to_owned(),
                 redirect_path: "/auth/common/callback".to_owned(),
@@ -1388,11 +1586,13 @@ memory_limit_bytes = 67108864
             kind: ServiceKind::Http,
             path: PathBuf::from("services/api"),
             prefix: "/api".to_owned(),
+            agent_runtime: AgentRuntime::Codex,
             http: Some(HttpServiceConfig {
                 component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
                 base_path: "/".to_owned(),
             }),
             frontend: None,
+            agent: None,
             ignis_login: Some(IgnisLoginConfig {
                 display_name: "Video GIF Studio".to_owned(),
                 redirect_path: "/auth/common/callback".to_owned(),
@@ -1414,11 +1614,13 @@ memory_limit_bytes = 67108864
             kind: ServiceKind::Http,
             path: PathBuf::from("services/api"),
             prefix: "/api".to_owned(),
+            agent_runtime: AgentRuntime::Codex,
             http: Some(HttpServiceConfig {
                 component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
                 base_path: "/".to_owned(),
             }),
             frontend: None,
+            agent: None,
             ignis_login: Some(IgnisLoginConfig {
                 display_name: "Video GIF Studio".to_owned(),
                 redirect_path: "/auth/common/callback".to_owned(),
@@ -1445,11 +1647,13 @@ memory_limit_bytes = 67108864
                 kind: ServiceKind::Http,
                 path: PathBuf::from("services/api"),
                 prefix: "/api".to_owned(),
+                agent_runtime: AgentRuntime::Codex,
                 http: Some(HttpServiceConfig {
                     component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
                     base_path: "/".to_owned(),
                 }),
                 frontend: None,
+                agent: None,
                 ignis_login: None,
                 env: BTreeMap::new(),
                 secrets: BTreeMap::new(),

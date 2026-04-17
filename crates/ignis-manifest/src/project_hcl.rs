@@ -6,9 +6,10 @@ use anyhow::{Context, Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    FrontendServiceConfig, HttpServiceConfig, INTERNAL_ONLY_MANIFEST_PREFIX_BASE, IgnisLoginConfig,
-    JobSpec, LoadedManifest, LoadedProjectManifest, ProjectAutomationConfig, ProjectConfig,
-    ProjectManifest, ResourceConfig, ScheduleSpec, ServiceKind, ServiceManifest, SqliteConfig,
+    BUILTIN_AGENT_SERVICE_IMAGE, BUILTIN_OPENCODE_AGENT_SERVICE_IMAGE, FrontendServiceConfig,
+    HttpServiceConfig, INTERNAL_ONLY_MANIFEST_PREFIX_BASE, IgnisLoginConfig, JobSpec,
+    LoadedManifest, LoadedProjectManifest, ProjectAutomationConfig, ProjectConfig, ProjectManifest,
+    ResourceConfig, ScheduleSpec, ServiceKind, ServiceManifest, SqliteConfig,
     validate_relative_service_path, validate_resource_name, validate_service_prefix_like_path,
 };
 
@@ -52,12 +53,16 @@ pub struct ServiceSpec {
     pub name: String,
     pub kind: ServiceKind,
     pub path: PathBuf,
+    #[serde(default, skip_serializing_if = "AgentRuntime::is_default")]
+    pub agent_runtime: AgentRuntime,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub bindings: Vec<BindingSpec>,
     #[serde(default)]
     pub http: Option<HttpServiceConfig>,
     #[serde(default)]
     pub frontend: Option<FrontendServiceConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<AgentServiceConfig>,
     #[serde(default)]
     pub ignis_login: Option<IgnisLoginConfig>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -88,6 +93,46 @@ pub enum ListenerProtocol {
 pub enum BindingKind {
     Http,
     Frontend,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentRuntime {
+    #[default]
+    Codex,
+    Opencode,
+}
+
+impl AgentRuntime {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Codex => "codex",
+            Self::Opencode => "opencode",
+        }
+    }
+
+    pub(crate) fn is_default(&self) -> bool {
+        *self == Self::Codex
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AgentServiceConfig {
+    pub image: String,
+    #[serde(default = "default_agent_port")]
+    pub port: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub framework: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workdir: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub command: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub args: Vec<String>,
+}
+
+fn default_agent_port() -> u16 {
+    8080
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -513,12 +558,14 @@ impl ServiceSpec {
             name: service.name.clone(),
             kind: service.kind,
             path: service.path.clone(),
+            agent_runtime: service.agent_runtime,
             bindings: vec![BindingSpec {
                 name: binding_name.to_owned(),
                 kind: service.public_exposure_binding_kind(),
             }],
             http: service.http.clone(),
             frontend: service.frontend.clone(),
+            agent: service.agent.clone(),
             ignis_login: service.ignis_login.clone(),
             env: service.env.clone(),
             secrets: service.secrets.clone(),
@@ -533,8 +580,10 @@ impl ServiceSpec {
             kind: self.kind,
             path: self.path,
             prefix,
+            agent_runtime: self.agent_runtime,
             http: self.http,
             frontend: self.frontend,
+            agent: self.agent,
             ignis_login: self.ignis_login,
             env: self.env,
             secrets: self.secrets,
@@ -562,6 +611,7 @@ impl ServiceSpec {
         match self.kind {
             ServiceKind::Http => "http",
             ServiceKind::Frontend => "frontend",
+            ServiceKind::Agent => "http",
         }
     }
 
@@ -569,6 +619,7 @@ impl ServiceSpec {
         match self.kind {
             ServiceKind::Http => BindingKind::Http,
             ServiceKind::Frontend => BindingKind::Frontend,
+            ServiceKind::Agent => BindingKind::Http,
         }
     }
 
@@ -576,6 +627,7 @@ impl ServiceSpec {
         match self.kind {
             ServiceKind::Http => matches!(kind, BindingKind::Http),
             ServiceKind::Frontend => matches!(kind, BindingKind::Frontend),
+            ServiceKind::Agent => matches!(kind, BindingKind::Http),
         }
     }
 
@@ -613,8 +665,78 @@ impl ServiceKind {
         match self {
             Self::Http => "http",
             Self::Frontend => "frontend",
+            Self::Agent => "agent",
         }
     }
+}
+
+impl AgentServiceConfig {
+    pub fn validate(&self, service_name: &str, runtime: AgentRuntime) -> Result<()> {
+        if self.image.trim().is_empty() {
+            bail!("agent service `{service_name}` field `agent.image` cannot be empty");
+        }
+        if self.image.contains(char::is_whitespace) {
+            bail!("agent service `{service_name}` field `agent.image` cannot contain whitespace");
+        }
+        let expected_image = match runtime {
+            AgentRuntime::Codex => BUILTIN_AGENT_SERVICE_IMAGE,
+            AgentRuntime::Opencode => BUILTIN_OPENCODE_AGENT_SERVICE_IMAGE,
+        };
+        if self.image != expected_image {
+            bail!(
+                "agent service `{service_name}` field `agent.image` must be `{expected_image}` for `{}` runtime; custom agent images are not supported yet",
+                runtime.as_str()
+            );
+        }
+        if self.port == 0 {
+            bail!("agent service `{service_name}` field `agent.port` must be greater than 0");
+        }
+        if let Some(framework) = self.framework.as_deref() {
+            validate_agent_token(
+                framework,
+                &format!("agent service `{service_name}` field `agent.framework`"),
+            )?;
+            if framework != runtime.as_str() {
+                bail!(
+                    "agent service `{service_name}` field `agent.framework` must be `{}` for `{}` runtime",
+                    runtime.as_str(),
+                    runtime.as_str()
+                );
+            }
+        }
+        if let Some(workdir) = self.workdir.as_deref() {
+            if workdir.trim().is_empty() {
+                bail!("agent service `{service_name}` field `agent.workdir` cannot be empty");
+            }
+        }
+        for (index, item) in self.command.iter().enumerate() {
+            if item.trim().is_empty() {
+                bail!(
+                    "agent service `{service_name}` field `agent.command[{index}]` cannot be empty"
+                );
+            }
+        }
+        for (index, item) in self.args.iter().enumerate() {
+            if item.trim().is_empty() {
+                bail!("agent service `{service_name}` field `agent.args[{index}]` cannot be empty");
+            }
+        }
+        Ok(())
+    }
+}
+
+fn validate_agent_token(value: &str, field_name: &str) -> Result<()> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        bail!("{field_name} cannot be empty");
+    }
+    if !trimmed
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' || ch == '.')
+    {
+        bail!("{field_name} must contain only letters, numbers, '-', '_' or '.'");
+    }
+    Ok(())
 }
 
 impl SqliteConfig {
@@ -634,6 +756,7 @@ impl ServiceManifest {
         match self.kind {
             ServiceKind::Http => "http",
             ServiceKind::Frontend => "frontend",
+            ServiceKind::Agent => "http",
         }
     }
 
@@ -641,6 +764,7 @@ impl ServiceManifest {
         match self.kind {
             ServiceKind::Http => BindingKind::Http,
             ServiceKind::Frontend => BindingKind::Frontend,
+            ServiceKind::Agent => BindingKind::Http,
         }
     }
 }
@@ -740,7 +864,9 @@ mod tests {
     use std::path::Path;
 
     use super::*;
-    use crate::IgnisLoginProvider;
+    use crate::{
+        IgnisLoginProvider, JobConcurrencySpec, JobRetentionSpec, JobRetrySpec, JobTargetSpec,
+    };
 
     #[test]
     fn compiles_hcl_project_spec_into_internal_manifest() {
@@ -774,6 +900,7 @@ mod tests {
                     name: "api".to_owned(),
                     kind: ServiceKind::Http,
                     path: PathBuf::from("services/api"),
+                    agent_runtime: AgentRuntime::Codex,
                     bindings: vec![BindingSpec {
                         name: "http".to_owned(),
                         kind: BindingKind::Http,
@@ -783,6 +910,7 @@ mod tests {
                         base_path: "/".to_owned(),
                     }),
                     frontend: None,
+                    agent: None,
                     ignis_login: Some(IgnisLoginConfig {
                         display_name: "demo".to_owned(),
                         redirect_path: "/auth/callback".to_owned(),
@@ -797,6 +925,7 @@ mod tests {
                     name: "web".to_owned(),
                     kind: ServiceKind::Frontend,
                     path: PathBuf::from("services/web"),
+                    agent_runtime: AgentRuntime::Codex,
                     bindings: vec![BindingSpec {
                         name: "frontend".to_owned(),
                         kind: BindingKind::Frontend,
@@ -807,6 +936,7 @@ mod tests {
                         output_dir: PathBuf::from("dist"),
                         spa_fallback: true,
                     }),
+                    agent: None,
                     ignis_login: None,
                     env: BTreeMap::new(),
                     secrets: BTreeMap::new(),
@@ -836,6 +966,193 @@ mod tests {
     }
 
     #[test]
+    fn compiles_agent_service_with_http_binding_and_job_target() {
+        let spec = ProjectSpec {
+            project: ProjectConfig {
+                name: "demo".to_owned(),
+                domain: None,
+            },
+            listeners: vec![ListenerSpec {
+                name: "public".to_owned(),
+                protocol: ListenerProtocol::Http,
+            }],
+            exposes: vec![ExposeSpec {
+                name: "coder".to_owned(),
+                listener: "public".to_owned(),
+                service: "coder".to_owned(),
+                binding: None,
+                path: "/coder".to_owned(),
+            }],
+            services: vec![ServiceSpec {
+                name: "coder".to_owned(),
+                kind: ServiceKind::Agent,
+                path: PathBuf::from("services/coder"),
+                agent_runtime: AgentRuntime::Codex,
+                bindings: Vec::new(),
+                http: None,
+                frontend: None,
+                agent: Some(AgentServiceConfig {
+                    image: BUILTIN_AGENT_SERVICE_IMAGE.to_owned(),
+                    port: 3900,
+                    framework: Some("codex".to_owned()),
+                    workdir: Some("/app/work".to_owned()),
+                    command: Vec::new(),
+                    args: Vec::new(),
+                }),
+                ignis_login: None,
+                env: BTreeMap::new(),
+                secrets: BTreeMap::from([(
+                    "OPENAI_API_KEY".to_owned(),
+                    "secret://openai".to_owned(),
+                )]),
+                sqlite: SqliteConfig::default(),
+                resources: ResourceConfig {
+                    memory_limit_bytes: Some(1024 * 1024 * 1024),
+                },
+            }],
+            jobs: vec![JobSpec {
+                name: "run-agent".to_owned(),
+                queue: "default".to_owned(),
+                target: JobTargetSpec {
+                    service: "coder".to_owned(),
+                    binding: None,
+                    path: "/runs".to_owned(),
+                    method: "POST".to_owned(),
+                },
+                timeout_ms: Some(60_000),
+                retry: JobRetrySpec {
+                    max_attempts: 1,
+                    ..JobRetrySpec::default()
+                },
+                concurrency: JobConcurrencySpec::default(),
+                retention: JobRetentionSpec::default(),
+            }],
+            schedules: Vec::new(),
+        };
+
+        let compiled = spec.compile().unwrap();
+        let service = compiled
+            .services
+            .iter()
+            .find(|service| service.name == "coder")
+            .unwrap();
+        assert_eq!(service.kind, ServiceKind::Agent);
+        assert_eq!(service.bindings[0].name, "http");
+        assert_eq!(service.bindings[0].protocol, BindingKind::Http);
+        assert_eq!(compiled.manifest.services[0].prefix, "/coder");
+    }
+
+    #[test]
+    fn rejects_custom_agent_image() {
+        let agent = AgentServiceConfig {
+            image: "registry.example.com/custom-agent:latest".to_owned(),
+            port: 3900,
+            framework: Some("codex".to_owned()),
+            workdir: Some("/app/work".to_owned()),
+            command: Vec::new(),
+            args: Vec::new(),
+        };
+
+        let error = agent
+            .validate("coder", AgentRuntime::Codex)
+            .unwrap_err()
+            .to_string();
+
+        assert!(error.contains("custom agent images are not supported yet"));
+    }
+
+    #[test]
+    fn validates_opencode_builtin_agent_image() {
+        let agent = crate::builtin_opencode_agent_service_config();
+
+        agent
+            .validate("opencode-agent-service", AgentRuntime::Opencode)
+            .unwrap();
+
+        let error = agent
+            .validate("opencode-agent-service", AgentRuntime::Codex)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("custom agent images are not supported yet"));
+    }
+
+    #[test]
+    fn renders_agent_service_without_internal_runtime_details() {
+        let manifest = ProjectManifest {
+            project: ProjectConfig {
+                name: "demo".to_owned(),
+                domain: None,
+            },
+            services: vec![ServiceManifest {
+                name: "agent-service".to_owned(),
+                kind: ServiceKind::Agent,
+                path: PathBuf::from("services/agent-service"),
+                prefix: "/_ignis_internal/agent-service".to_owned(),
+                agent_runtime: AgentRuntime::Codex,
+                http: None,
+                frontend: None,
+                agent: None,
+                ignis_login: None,
+                env: BTreeMap::new(),
+                secrets: BTreeMap::new(),
+                sqlite: SqliteConfig::default(),
+                resources: ResourceConfig {
+                    memory_limit_bytes: Some(1024 * 1024 * 1024),
+                },
+            }],
+            jobs: Vec::new(),
+            schedules: Vec::new(),
+        };
+
+        let rendered = manifest.render().unwrap();
+
+        assert!(
+            rendered.contains("kind = agent")
+                || rendered.contains("kind = \"agent\"")
+                || rendered.contains("\"kind\" = \"agent\"")
+        );
+        assert!(!rendered.contains("exposes ="));
+        assert!(!rendered.contains("agent ="));
+        assert!(!rendered.contains("AGENT_SERVICE_"));
+    }
+
+    #[test]
+    fn renders_opencode_agent_runtime_without_internal_config() {
+        let manifest = ProjectManifest {
+            project: ProjectConfig {
+                name: "demo".to_owned(),
+                domain: None,
+            },
+            services: vec![ServiceManifest {
+                name: "opencode-agent-service".to_owned(),
+                kind: ServiceKind::Agent,
+                path: PathBuf::from("services/opencode-agent-service"),
+                prefix: "/_ignis_internal/opencode-agent-service".to_owned(),
+                agent_runtime: AgentRuntime::Opencode,
+                http: None,
+                frontend: None,
+                agent: None,
+                ignis_login: None,
+                env: BTreeMap::new(),
+                secrets: BTreeMap::new(),
+                sqlite: SqliteConfig::default(),
+                resources: ResourceConfig {
+                    memory_limit_bytes: Some(1024 * 1024 * 1024),
+                },
+            }],
+            jobs: Vec::new(),
+            schedules: Vec::new(),
+        };
+
+        let rendered = manifest.render().unwrap();
+
+        assert!(rendered.contains("agent_runtime"));
+        assert!(rendered.contains("opencode"));
+        assert!(!rendered.contains("agent ="));
+        assert!(!rendered.contains("AGENT_SERVICE_"));
+    }
+
+    #[test]
     fn allows_service_without_public_exposure() {
         let spec = ProjectSpec {
             project: ProjectConfig {
@@ -851,6 +1168,7 @@ mod tests {
                 name: "api".to_owned(),
                 kind: ServiceKind::Http,
                 path: PathBuf::from("services/api"),
+                agent_runtime: AgentRuntime::Codex,
                 bindings: vec![BindingSpec {
                     name: "http".to_owned(),
                     kind: BindingKind::Http,
@@ -860,6 +1178,7 @@ mod tests {
                     base_path: "/".to_owned(),
                 }),
                 frontend: None,
+                agent: None,
                 ignis_login: None,
                 env: BTreeMap::new(),
                 secrets: BTreeMap::new(),
@@ -899,6 +1218,7 @@ mod tests {
                 name: "api".to_owned(),
                 kind: ServiceKind::Http,
                 path: PathBuf::from("services/api"),
+                agent_runtime: AgentRuntime::Codex,
                 bindings: vec![BindingSpec {
                     name: "http".to_owned(),
                     kind: BindingKind::Http,
@@ -908,6 +1228,7 @@ mod tests {
                     base_path: "/".to_owned(),
                 }),
                 frontend: None,
+                agent: None,
                 ignis_login: None,
                 env: BTreeMap::new(),
                 secrets: BTreeMap::new(),
@@ -960,6 +1281,7 @@ mod tests {
                 name: "api".to_owned(),
                 kind: ServiceKind::Http,
                 path: PathBuf::from("services/api"),
+                agent_runtime: AgentRuntime::Codex,
                 bindings: vec![BindingSpec {
                     name: "http".to_owned(),
                     kind: BindingKind::Http,
@@ -969,6 +1291,7 @@ mod tests {
                     base_path: "/".to_owned(),
                 }),
                 frontend: None,
+                agent: None,
                 ignis_login: None,
                 env: BTreeMap::new(),
                 secrets: BTreeMap::new(),
@@ -1071,11 +1394,13 @@ services = [
                 kind: ServiceKind::Http,
                 path: PathBuf::from("services/api"),
                 prefix: "/_ignis_internal/api".to_owned(),
+                agent_runtime: AgentRuntime::Codex,
                 http: Some(HttpServiceConfig {
                     component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
                     base_path: "/".to_owned(),
                 }),
                 frontend: None,
+                agent: None,
                 ignis_login: None,
                 env: BTreeMap::new(),
                 secrets: BTreeMap::new(),
@@ -1114,6 +1439,7 @@ services = [
                 name: "api".to_owned(),
                 kind: ServiceKind::Http,
                 path: PathBuf::from("services/api"),
+                agent_runtime: AgentRuntime::Codex,
                 bindings: vec![BindingSpec {
                     name: "http".to_owned(),
                     kind: BindingKind::Http,
@@ -1123,6 +1449,7 @@ services = [
                     base_path: "/".to_owned(),
                 }),
                 frontend: None,
+                agent: None,
                 ignis_login: None,
                 env: BTreeMap::new(),
                 secrets: BTreeMap::new(),

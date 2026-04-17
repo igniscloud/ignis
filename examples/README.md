@@ -50,6 +50,16 @@ A fullstack Google login, COS upload, and scheduled cleanup example showing:
 - a 10MB per-user quota keyed by the Google user subject
 - a cron-triggered job that releases quota for expired pending uploads
 
+## `opencode-agent-e2e`
+
+A fullstack OpenCode agent example showing:
+
+- one Vue frontend service that sends a user message to the backend
+- one `http` API service that creates and polls tasks through internal `agent-service.svc`
+- one internal `agent` service using `agent_runtime = "opencode"`
+- polling mode through `POST /api/tasks` and `GET /api/tasks/:task_id`
+- local OpenCode config supplied by `services/agent-service/opencode.json`
+
 ## Validation
 
 ```bash
@@ -60,4 +70,5 @@ cargo check --manifest-path examples/sqlite-example/services/api/Cargo.toml
 cargo check --manifest-path examples/ignis-login-example/services/api/Cargo.toml
 cargo check --manifest-path examples/dual-frontend-login-example/services/api/Cargo.toml
 cargo check --manifest-path examples/cos-and-jobs-example/services/api/Cargo.toml --target wasm32-wasip2
+cargo check --manifest-path examples/opencode-agent-e2e/services/api/Cargo.toml --target wasm32-wasip2
 ```

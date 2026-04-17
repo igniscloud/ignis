@@ -251,6 +251,7 @@ services = [
 - 可选值：
   - `http`
   - `frontend`
+  - `agent`
 
 #### `services[].path`
 
@@ -270,6 +271,7 @@ services = [
 - 当前约束：
   - `http` service 只允许 `http`
   - `frontend` service 只允许 `frontend`
+  - `agent` service 只允许 `http`
 
 ### 3.5 `http` service 配置
 
@@ -390,6 +392,103 @@ services = [
 - 必填：否。
 - 默认值：`false`
 
+### 3.7 `agent` service 配置
+
+`agent` service 用于托管运行 agent 框架的容器，例如 Codex 或 OpenCode。对用户暴露的是 `agent` service 语义；Podman 只是 node-agent 的底层执行实现。默认 runtime 是 Codex；如果要使用 OpenCode，设置 `agent_runtime = "opencode"`，并在 service 目录提供 `opencode.json`。
+
+当产品需求需要 LLM 或 agent 能力时，优先使用内部 `agent` service 和 task API，而不是在业务 `http` service 里直接向模型 provider 发 HTTP 请求。这样 provider 凭据、runtime 启动、MCP tools、结果 schema 校验、callback 和轮询都留在平台托管的 agent 边界内。
+
+Ignis 内置的 Codex 任务 agent 镜像为：
+
+```hcl
+{
+  name = "agent-service"
+  kind = "agent"
+  path = "services/agent-service"
+}
+```
+
+Ignis 会固定注入内置镜像、端口、工作目录、MCP URL、数据库路径、workspace 路径和 callback host allowlist，用户不需要配置这些字段。
+
+内置 agent 暴露 `POST /v1/tasks`，每个任务启动一次 agent runtime，并存储通过 `task_result_json_schema` 校验的结果。如果任务提供 `callback_url`，结果会回调到该地址；否则调用方可以通过 `GET /v1/tasks/:task_id` 轮询结果。
+
+OpenCode runtime 会启动 `opencode run`，部署时不需要 `OPENAI_API_KEY` secret；Ignis 会把 service 目录里的 `opencode.json` 注入到容器的 `$HOME/.config/opencode/opencode.json`。
+
+创建 OpenCode agent service：
+
+```bash
+ignis service new \
+  --service agent-service \
+  --kind agent \
+  --runtime opencode \
+  --path services/agent-service
+```
+
+对应的 `ignis.hcl`：
+
+```hcl
+{
+  name = "agent-service"
+  kind = "agent"
+  agent_runtime = "opencode"
+  path = "services/agent-service"
+}
+```
+
+发布前把当前机器的 OpenCode 配置复制到 service 目录：
+
+```bash
+cp ~/.config/opencode/opencode.json services/agent-service/opencode.json
+chmod 600 services/agent-service/opencode.json
+```
+
+`opencode.json` 可能包含 provider 凭据，不应该提交到 Git。发布时 Ignis 会把它作为 agent artifact 上传；部署时 node-agent 会只读挂载到：
+
+```text
+/agent-home/.config/opencode/opencode.json
+```
+
+同一个 project 内的其他 service 通过内部 service DNS 调用：
+
+```text
+POST http://agent-service.svc/v1/tasks
+GET  http://agent-service.svc/v1/tasks/{task_id}
+```
+
+创建 task 的请求体：
+
+```json
+{
+  "prompt": "...",
+  "callback_url": "可选的 http 或 https URL",
+  "task_result_json_schema": {
+    "type": "object"
+  }
+}
+```
+
+`task_result_json_schema` 是 agent 最终通过 `submit_task` 提交的 `result` 的 JSON Schema。如果不传 `callback_url`，调用方通过 `GET /v1/tasks/{task_id}` 轮询，直到 `status` 为 `succeeded` 或 `failed`。
+
+当前版本不支持用户自定义 agent 镜像。
+
+`agent` service 对用户暴露的主要字段：
+
+- `name`
+- `kind`
+- `path`
+- `agent_runtime`
+- `resources.memory_limit_bytes`
+
+当前不允许为 `agent` service 声明：
+
+- `http`
+- `frontend`
+- `ignis_login`
+- `sqlite`
+- `agent`
+- `env`
+- `secrets`
+
 ## 4. 当前未实现的 HCL 领域
 
 下面这些概念已经在架构设计和 TODO 里出现，但当前代码还没有正式落地：
@@ -401,4 +500,4 @@ services = [
 - `package`
 - `lockfile`
 
-当前公开可用的 HCL 范围，仍然聚焦在 `http` / `frontend` project 配置。
+当前公开可用的 HCL 范围，仍然聚焦在 `http` / `frontend` / `agent` project 配置。

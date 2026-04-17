@@ -1,0 +1,20 @@
+listen_addr = "0.0.0.0:3900"
+database_path = "/app/data/agent-service.sqlite3"
+workspace_dir = "/app/work"
+
+codex_bin = "codex"
+task_timeout_sec = 900
+
+# Optional. If unset, Codex uses the default model configured in the image/env.
+# codex_model = "gpt-5.4-mini"
+
+# Production should keep this tight. Add the internal DNS names of services
+# allowed to receive callbacks.
+callback_host_allowlist = [
+  "*.internal",
+  "*.service.local",
+  "host.containers.internal",
+]
+
+# Optional extra instruction appended to the built-in one-task Codex prompt.
+# system_prompt_extra = "Prefer tool evidence over guessing. If the page is blocked, return a schema-valid partial result."

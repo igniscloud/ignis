@@ -88,6 +88,36 @@ const IGNIS_FILES: &[BundledFile] = &[
         contents: include_str!("../../../examples/sqlite-example/services/web/src/index.html"),
     },
     BundledFile {
+        path: "references/examples/opencode-agent-e2e/README.md",
+        contents: include_str!("../../../examples/opencode-agent-e2e/README.md"),
+    },
+    BundledFile {
+        path: "references/examples/opencode-agent-e2e/ignis.hcl",
+        contents: include_str!("../../../examples/opencode-agent-e2e/ignis.hcl"),
+    },
+    BundledFile {
+        path: "references/examples/opencode-agent-e2e/services/api/Cargo.toml",
+        contents: include_str!("../../../examples/opencode-agent-e2e/services/api/Cargo.toml"),
+    },
+    BundledFile {
+        path: "references/examples/opencode-agent-e2e/services/api/src/lib.rs",
+        contents: include_str!("../../../examples/opencode-agent-e2e/services/api/src/lib.rs"),
+    },
+    BundledFile {
+        path: "references/examples/opencode-agent-e2e/services/api/wit/world.wit",
+        contents: include_str!("../../../examples/opencode-agent-e2e/services/api/wit/world.wit"),
+    },
+    BundledFile {
+        path: "references/examples/opencode-agent-e2e/services/web/src/index.html",
+        contents: include_str!("../../../examples/opencode-agent-e2e/services/web/src/index.html"),
+    },
+    BundledFile {
+        path: "references/examples/opencode-agent-e2e/services/agent-service/opencode.json.example",
+        contents: include_str!(
+            "../../../examples/opencode-agent-e2e/services/agent-service/opencode.json.example"
+        ),
+    },
+    BundledFile {
         path: "references/ignis-sdk/index.md",
         contents: include_str!("../../../docs/ignis-sdk/index.md"),
     },

@@ -114,6 +114,8 @@ pub enum ServiceCommands {
         service: String,
         #[arg(long)]
         kind: CliServiceKind,
+        #[arg(long, value_enum)]
+        runtime: Option<CliAgentRuntime>,
         #[arg(long)]
         path: PathBuf,
     },
@@ -187,10 +189,26 @@ pub enum ServiceCommands {
     },
 }
 
-#[derive(Debug, Clone, Copy, ValueEnum)]
+#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
 pub enum CliServiceKind {
     Http,
     Frontend,
+    Agent,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum CliAgentRuntime {
+    Codex,
+    Opencode,
+}
+
+impl From<CliAgentRuntime> for ignis_manifest::AgentRuntime {
+    fn from(value: CliAgentRuntime) -> Self {
+        match value {
+            CliAgentRuntime::Codex => Self::Codex,
+            CliAgentRuntime::Opencode => Self::Opencode,
+        }
+    }
 }
 
 #[derive(Debug, Subcommand)]

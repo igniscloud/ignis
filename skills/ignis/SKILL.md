@@ -24,7 +24,8 @@ description: Use for building and operating Ignis projects with ignis-cli, ignis
 5. 如果任务涉及 async jobs、manual job API、cron schedules、job runs 或 job execution headers，读 `references/jobs-and-schedules.md`。
 6. 如果任务涉及平台托管 COS/S3 presigned URL，读 `references/object-store-presign.md`；需要完整上传例子时读 `references/examples/cos-and-jobs-example/`。
 7. 如果任务涉及登录或 `[services.ignis_login]`，切到 `ignis-login` skill。
-8. 如果需要最小 HTTP / SQLite 模板，优先读整个 example 项目：
+8. 如果任务涉及 `kind = "agent"`、OpenCode agent-service、任务 schema、`opencode.json` 注入或前端/后端/agent 端到端，读 `references/ignis-hcl.md` 的 agent service 配置和 `references/examples/opencode-agent-e2e/`。
+9. 如果需要最小 HTTP / SQLite 模板，优先读整个 example 项目：
    `references/examples/hello-fullstack/` 和 `references/examples/sqlite-example/`。
 
 ## 工作规则
@@ -40,6 +41,8 @@ description: Use for building and operating Ignis projects with ignis-cli, ignis
 - `ignis-sdk` 依赖来源不要猜测；默认给用户 GitHub Cargo 依赖写法，例如 `ignis-sdk = { git = "https://github.com/igniscloud/ignis.git", package = "ignis-sdk", tag = "v0.1.1" }`。只有在本地联调 Ignis 仓库时再改用明确的 `path`。
 - 平台托管对象存储优先使用 presign：Wasm service 调 `ignis_sdk::object_store`，host/control-plane 完成签名，不要把 COS/S3 AK/SK 暴露给 Wasm 或浏览器。
 - Jobs/schedules 是 project automation：在 `ignis.hcl` 顶层声明 `jobs` / `schedules` 后通过 `ignis project sync --mode apply` 同步；job target 走同项目 HTTP service，不要写任意外部 URL。
+- 如果产品需求涉及 LLM、agent、模型调用、结构化生成、工具调用或长任务推理，默认优先使用内部 `agent` service，而不是在业务 `http` service 里直接向模型 provider 发 HTTP 请求。
+- `agent` service 是内部任务 agent 容器。OpenCode 用 `agent_runtime = "opencode"`，发布前在 service 目录放 `opencode.json`；其他 service 通过 `http://agent-service.svc/v1/tasks` 创建任务，通过 callback 或 `GET /v1/tasks/{task_id}` 取结果。
 
 ## 参考资料
 
@@ -52,4 +55,5 @@ description: Use for building and operating Ignis projects with ignis-cli, ignis
 - 最小 HTTP 示例项目：`references/examples/hello-fullstack/`
 - SQLite 示例项目：`references/examples/sqlite-example/`
 - COS 上传和jobs，corn使用方式完整示例：`references/examples/cos-and-jobs-example/`
+- OpenCode agent 端到端示例：`references/examples/opencode-agent-e2e/`
 - 文档索引：`references/doc_index.md`
