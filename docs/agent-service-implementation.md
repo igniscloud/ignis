@@ -1168,7 +1168,7 @@ cp ~/.config/opencode/opencode.json services/agent-service/opencode.json
 chmod 600 services/agent-service/opencode.json
 ```
 
-`opencode.json` 不要提交到 Git。发布时 CLI 会把该文件作为 OpenCode agent artifact 上传；node-agent 启动容器时会只读挂载到：
+`opencode.json` 可能包含 provider 凭据，应放在版本控制之外，并避免打印到日志。发布时 CLI 会把该文件作为 OpenCode agent artifact 上传；node-agent 启动容器时会只读挂载到：
 
 ```text
 /agent-home/.config/opencode/opencode.json

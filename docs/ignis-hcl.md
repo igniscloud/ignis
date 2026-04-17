@@ -256,14 +256,14 @@ The generated service declaration is:
 }
 ```
 
-For OpenCode, copy the local runtime config into the service directory before publishing:
+For OpenCode, provide the runtime config in the service directory before publishing:
 
 ```bash
 cp ~/.config/opencode/opencode.json services/agent-service/opencode.json
 chmod 600 services/agent-service/opencode.json
 ```
 
-`opencode.json` should be ignored by Git because it may contain provider credentials. During publish, Ignis stores it as the agent artifact. During deploy, node-agent mounts it read-only at:
+`opencode.json` may contain provider credentials, so keep it out of version control and avoid printing it in logs. During publish, Ignis stores it as the agent artifact. During deploy, node-agent mounts it read-only at:
 
 ```text
 /agent-home/.config/opencode/opencode.json

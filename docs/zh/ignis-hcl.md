@@ -435,14 +435,14 @@ ignis service new \
 }
 ```
 
-发布前把当前机器的 OpenCode 配置复制到 service 目录：
+发布前在 service 目录提供 OpenCode 运行配置：
 
 ```bash
 cp ~/.config/opencode/opencode.json services/agent-service/opencode.json
 chmod 600 services/agent-service/opencode.json
 ```
 
-`opencode.json` 可能包含 provider 凭据，不应该提交到 Git。发布时 Ignis 会把它作为 agent artifact 上传；部署时 node-agent 会只读挂载到：
+`opencode.json` 可能包含 provider 凭据，应放在版本控制之外，并避免打印到日志。发布时 Ignis 会把它作为 agent artifact 上传；部署时 node-agent 会只读挂载到：
 
 ```text
 /agent-home/.config/opencode/opencode.json

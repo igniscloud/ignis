@@ -183,7 +183,7 @@ services = [
 
 ```toml
 [dependencies]
-ignis-sdk = { git = "https://github.com/igniscloud/ignis.git", package = "ignis-sdk", tag = "v0.1.1" }
+ignis-sdk = { git = "https://github.com/igniscloud/ignis.git", package = "ignis-sdk", tag = "v0.1.3" }
 http-body-util = "0.1.3"
 wstd = "0.6"
 ```

@@ -14,8 +14,9 @@ Flow:
 
 ## OpenCode config
 
-`services/agent-service/opencode.json` is intentionally ignored by Git because
-it may contain provider keys. For local testing on this machine:
+Provide the OpenCode runtime config at `services/agent-service/opencode.json`.
+It may contain provider keys, so keep the real file out of version control. For
+local testing on this machine:
 
 ```bash
 cp ~/.config/opencode/opencode.json services/agent-service/opencode.json
