@@ -232,7 +232,7 @@ fn create_local_service_files(project_dir: &Path, service: &ServiceManifest) -> 
                 fs::write(
                         service_dir.join("README.md"),
                         format!(
-                            "# {}\n\nThis directory declares an internal Ignis `agent-service` agent.\n\nBefore deploying, set the OpenAI API key secret in IgnisCloud:\n\n```bash\nignis service secrets set --service {} openai-api-key \"$OPENAI_API_KEY\"\n```\n\nThe service exposes `POST /v1/tasks` to services in the same project and returns a `task_id`.\n",
+                            "# {}\n\nThis directory declares an internal Ignis `agent-service` agent.\n\nBefore deploying, set the OpenAI API key secret in IgnisCloud:\n\n```bash\nignis service secrets set --service {} openai-api-key \"$OPENAI_API_KEY\"\n```\n\nOptional custom skills can be placed under `skills/<skill-name>/SKILL.md`; Ignis mounts them into the agent container at `$HOME/.agents/skills`.\n\nThe service exposes `POST /v1/tasks` to services in the same project and returns a `task_id`.\n",
                             service.name,
                             service.name
                         ),
@@ -252,7 +252,7 @@ fn create_local_service_files(project_dir: &Path, service: &ServiceManifest) -> 
                 fs::write(
                         service_dir.join("README.md"),
                         format!(
-                            "# {}\n\nThis directory declares an internal Ignis `opencode-agent-service` agent.\n\nBefore deploying, configure OpenCode in `opencode.json`. Ignis injects that file into the container at `$HOME/.config/opencode/opencode.json`.\n\nThe service exposes `POST /v1/tasks` to services in the same project and returns a `task_id`.\n",
+                            "# {}\n\nThis directory declares an internal Ignis `opencode-agent-service` agent.\n\nBefore deploying, configure OpenCode in `opencode.json`. Ignis injects that file into the container at `$HOME/.config/opencode/opencode.json`.\n\nOptional custom skills can be placed under `skills/<skill-name>/SKILL.md`; Ignis mounts them into the agent container at `$HOME/.agents/skills`.\n\nThe service exposes `POST /v1/tasks` to services in the same project and returns a `task_id`.\n",
                             service.name
                         ),
                     )

@@ -442,11 +442,30 @@ cp ~/.config/opencode/opencode.json services/agent-service/opencode.json
 chmod 600 services/agent-service/opencode.json
 ```
 
-`opencode.json` 可能包含 provider 凭据，应放在版本控制之外，并避免打印到日志。发布时 Ignis 会把它作为 agent artifact 上传；部署时 node-agent 会只读挂载到：
+`opencode.json` 可能包含 provider 凭据，应放在版本控制之外，并避免打印到日志。发布时 Ignis 会把它放进 agent bundle；部署时 node-agent 会只读挂载到：
 
 ```text
 /agent-home/.config/opencode/opencode.json
 ```
+
+自定义 agent skill 可以放在同一个 service 目录下：
+
+```text
+services/agent-service/
+  opencode.json
+  skills/
+    my-skill/
+      SKILL.md
+      references/
+        ...
+```
+
+发布时 Ignis 会把 `skills/` 一起打进 agent artifact。部署时 node-agent 会把它只读挂载到容器：
+
+```text
+/agent-home/.agents/skills
+```
+
 
 同一个 project 内的其他 service 通过内部 service DNS 调用：
 

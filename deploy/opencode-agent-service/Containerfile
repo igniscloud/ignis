@@ -19,7 +19,7 @@ RUN apt-get update \
         python3 \
         tini \
     && npm install -g "opencode-ai@${OPENCODE_NPM_VERSION}" \
-    && mkdir -p /opt/opencode-agent-service /agent-home/.config/opencode /ms-playwright /app/data /app/work \
+    && mkdir -p /opt/opencode-agent-service /agent-home/.config/opencode /agent-home/.agents/skills /ms-playwright /app/data /app/work \
     && npm install --prefix /opt/opencode-agent-service --omit=dev \
         "playwright-core@${PLAYWRIGHT_NPM_VERSION}" \
         "playwright@${PLAYWRIGHT_NPM_VERSION}" \

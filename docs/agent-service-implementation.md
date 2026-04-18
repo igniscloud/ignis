@@ -1027,7 +1027,7 @@ ignis service new \
 }
 ```
 
-`opencode-agent-service` 不需要 `OPENAI_API_KEY` secret。发布时 CLI 会读取 `services/opencode-agent-service/opencode.json`，node-agent 启动容器时把它只读注入到 `$HOME/.config/opencode/opencode.json`。
+`opencode-agent-service` 不需要 `OPENAI_API_KEY` secret。发布时 CLI 会读取 `services/opencode-agent-service/opencode.json`，并把 service 目录下可选的 `skills/` 一起打进 agent bundle。node-agent 启动容器时把 `opencode.json` 只读注入到 `$HOME/.config/opencode/opencode.json`，并把 skills 只读挂载到 `$HOME/.agents/skills`。
 
 ### 15.2 配置 secrets
 
@@ -1168,13 +1168,31 @@ cp ~/.config/opencode/opencode.json services/agent-service/opencode.json
 chmod 600 services/agent-service/opencode.json
 ```
 
-`opencode.json` 可能包含 provider 凭据，应放在版本控制之外，并避免打印到日志。发布时 CLI 会把该文件作为 OpenCode agent artifact 上传；node-agent 启动容器时会只读挂载到：
+`opencode.json` 可能包含 provider 凭据，应放在版本控制之外，并避免打印到日志。发布时 CLI 会把该文件放进 OpenCode agent bundle；node-agent 启动容器时会只读挂载到：
 
 ```text
 /agent-home/.config/opencode/opencode.json
 ```
 
 内置 OpenCode agent 容器的 entrypoint 会设置 `OPENCODE_CONFIG` 指向这个路径，然后启动 `agent-service --runtime opencode`。
+
+如果需要自定义 skills，把它们放在 agent service 目录：
+
+```text
+services/agent-service/
+  skills/
+    my-skill/
+      SKILL.md
+      references/
+        ...
+```
+
+发布时 CLI 会把 `skills/` 一起打进 agent bundle；部署时 node-agent 会挂载到：
+
+```text
+/agent-home/.agents/skills
+```
+
 
 后端创建任务示例：
 

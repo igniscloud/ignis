@@ -21,7 +21,7 @@ RUN apt-get update \
     && npm install -g \
         "@openai/codex@${CODEX_NPM_VERSION}" \
         "@openai/codex-linux-x64@npm:@openai/codex@${CODEX_NPM_VERSION}-linux-x64" \
-    && mkdir -p /opt/agent-service /agent-home /ms-playwright /app/data /app/work \
+    && mkdir -p /opt/agent-service /agent-home/.agents/skills /ms-playwright /app/data /app/work \
     && npm install --prefix /opt/agent-service --omit=dev \
         "playwright-core@${PLAYWRIGHT_NPM_VERSION}" \
         "playwright@${PLAYWRIGHT_NPM_VERSION}" \

@@ -337,28 +337,129 @@ async fn create_agent_bundle(service: &ServiceContext<'_>) -> Result<PathBuf> {
         .duration_since(UNIX_EPOCH)
         .map(|value| value.as_nanos())
         .unwrap_or_default();
-    let bundle_name = format!("ignis-agent-{}-{nanos}.json", service.name());
+    let bundle_name = format!("ignis-agent-{}-{nanos}.tar.gz", service.name());
     let bundle_path = std::env::temp_dir().join(bundle_name);
-    let bytes = match service.manifest().agent_runtime {
+    let (config_name, bytes) = match service.manifest().agent_runtime {
         AgentRuntime::Codex => {
             let agent = effective_agent_service_config(
                 service.manifest().agent_runtime,
                 service.manifest().agent.as_ref(),
             );
-            serde_json::to_vec_pretty(&agent).context("serializing agent config")?
+            (
+                "agent.json",
+                serde_json::to_vec_pretty(&agent).context("serializing agent config")?,
+            )
         }
         AgentRuntime::Opencode => {
             let config_path = service.service_dir().join("opencode.json");
-            fs::read(&config_path).with_context(|| {
-                format!(
-                    "reading OpenCode config for agent service at {}",
-                    config_path.display()
-                )
-            })?
+            (
+                "opencode.json",
+                fs::read(&config_path).with_context(|| {
+                    format!(
+                        "reading OpenCode config for agent service at {}",
+                        config_path.display()
+                    )
+                })?,
+            )
         }
     };
-    fs::write(&bundle_path, bytes).with_context(|| format!("writing {}", bundle_path.display()))?;
+    let skills_dir = service.service_dir().join("skills");
+    validate_agent_skills_dir(&skills_dir)?;
+
+    let file = File::create(&bundle_path)
+        .with_context(|| format!("creating {}", bundle_path.display()))?;
+    let encoder = GzEncoder::new(file, Compression::default());
+    let mut archive = Builder::new(encoder);
+    append_bytes_to_archive(&mut archive, config_name, &bytes)?;
+    if skills_dir.exists() {
+        archive
+            .append_dir_all("skills", &skills_dir)
+            .with_context(|| format!("archiving {}", skills_dir.display()))?;
+    }
+    let encoder = archive
+        .into_inner()
+        .context("finalizing tar archive writer failed")?;
+    encoder.finish().context("finalizing gzip archive failed")?;
     Ok(bundle_path)
+}
+
+fn append_bytes_to_archive<W: io::Write>(
+    archive: &mut Builder<W>,
+    path: &str,
+    bytes: &[u8],
+) -> Result<()> {
+    let mut header = tar::Header::new_gnu();
+    header.set_size(bytes.len() as u64);
+    header.set_mode(0o600);
+    header.set_cksum();
+    archive
+        .append_data(&mut header, path, bytes)
+        .with_context(|| format!("archiving {path}"))
+}
+
+fn validate_agent_skills_dir(skills_dir: &Path) -> Result<usize> {
+    if !skills_dir.exists() {
+        return Ok(0);
+    }
+    let metadata = fs::symlink_metadata(skills_dir)
+        .with_context(|| format!("reading {}", skills_dir.display()))?;
+    if metadata.file_type().is_symlink() {
+        bail!(
+            "agent skills directory cannot be a symlink: {}",
+            skills_dir.display()
+        );
+    }
+    if !metadata.is_dir() {
+        bail!(
+            "agent skills path must be a directory: {}",
+            skills_dir.display()
+        );
+    }
+
+    let mut count = 0usize;
+    for entry in
+        fs::read_dir(skills_dir).with_context(|| format!("reading {}", skills_dir.display()))?
+    {
+        let entry = entry.with_context(|| format!("reading {}", skills_dir.display()))?;
+        let path = entry.path();
+        let metadata =
+            fs::symlink_metadata(&path).with_context(|| format!("reading {}", path.display()))?;
+        if metadata.file_type().is_symlink() {
+            bail!("agent skill entries cannot be symlinks: {}", path.display());
+        }
+        if !metadata.is_dir() {
+            bail!(
+                "agent skills directory entries must be skill directories: {}",
+                path.display()
+            );
+        }
+        let skill_file = path.join("SKILL.md");
+        if !skill_file.is_file() {
+            bail!(
+                "agent skill directory {} must contain SKILL.md",
+                path.display()
+            );
+        }
+        validate_no_symlinks(&path)?;
+        count += 1;
+    }
+    Ok(count)
+}
+
+fn validate_no_symlinks(path: &Path) -> Result<()> {
+    for entry in fs::read_dir(path).with_context(|| format!("reading {}", path.display()))? {
+        let entry = entry.with_context(|| format!("reading {}", path.display()))?;
+        let child = entry.path();
+        let metadata =
+            fs::symlink_metadata(&child).with_context(|| format!("reading {}", child.display()))?;
+        if metadata.file_type().is_symlink() {
+            bail!("agent skill files cannot be symlinks: {}", child.display());
+        }
+        if metadata.is_dir() {
+            validate_no_symlinks(&child)?;
+        }
+    }
+    Ok(())
 }
 
 fn validate_agent_service(service: &ServiceContext<'_>) -> Result<ArtifactValidation> {
@@ -396,6 +497,15 @@ fn validate_agent_service(service: &ServiceContext<'_>) -> Result<ArtifactValida
             detail: format!("OpenCode config is {}", config_path.display()),
         });
     }
+    let skill_count = validate_agent_skills_dir(&service.service_dir().join("skills"))?;
+    checks.push(ValidationCheck {
+        name: "agent_skills",
+        detail: if skill_count == 0 {
+            "no custom agent skills bundled".to_owned()
+        } else {
+            format!("bundles {skill_count} custom agent skill(s)")
+        },
+    });
     Ok(ArtifactValidation {
         kind: "agent-container-config",
         artifact_path: service.service_dir().to_path_buf(),
@@ -523,6 +633,42 @@ async fn create_frontend_bundle(
     output_dir: &Path,
 ) -> Result<PathBuf> {
     create_tarball(output_dir, service.name()).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_test_dir(name: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|value| value.as_nanos())
+            .unwrap_or_default();
+        std::env::temp_dir().join(format!("ignis-cli-{name}-{nanos}"))
+    }
+
+    #[test]
+    fn validates_agent_skills_dir() {
+        let root = temp_test_dir("skills-ok");
+        let skill = root.join("skills").join("demo");
+        fs::create_dir_all(skill.join("references")).unwrap();
+        fs::write(skill.join("SKILL.md"), "# Demo\n").unwrap();
+        fs::write(skill.join("references").join("notes.md"), "notes\n").unwrap();
+
+        let count = validate_agent_skills_dir(&root.join("skills")).unwrap();
+        assert_eq!(count, 1);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn rejects_agent_skill_without_skill_md() {
+        let root = temp_test_dir("skills-missing");
+        fs::create_dir_all(root.join("skills").join("demo")).unwrap();
+
+        let error = validate_agent_skills_dir(&root.join("skills")).unwrap_err();
+        assert!(error.to_string().contains("must contain SKILL.md"));
+        let _ = fs::remove_dir_all(root);
+    }
 }
 
 fn is_internal_frontend_copy_command(program: &str, args: &[String]) -> bool {

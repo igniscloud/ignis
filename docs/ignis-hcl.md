@@ -263,11 +263,30 @@ cp ~/.config/opencode/opencode.json services/agent-service/opencode.json
 chmod 600 services/agent-service/opencode.json
 ```
 
-`opencode.json` may contain provider credentials, so keep it out of version control and avoid printing it in logs. During publish, Ignis stores it as the agent artifact. During deploy, node-agent mounts it read-only at:
+`opencode.json` may contain provider credentials, so keep it out of version control and avoid printing it in logs. During publish, Ignis stores it in the agent bundle. During deploy, node-agent mounts it read-only at:
 
 ```text
 /agent-home/.config/opencode/opencode.json
 ```
+
+Custom agent skills can live next to the config in the service directory:
+
+```text
+services/agent-service/
+  opencode.json
+  skills/
+    my-skill/
+      SKILL.md
+      references/
+        ...
+```
+
+During publish, Ignis bundles `skills/` with the agent artifact. During deploy, node-agent mounts it read-only into the container at:
+
+```text
+/agent-home/.agents/skills
+```
+
 
 Services in the same project call the internal agent through:
 

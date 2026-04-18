@@ -11,7 +11,7 @@ export AGENT_SERVICE_LISTEN_ADDR="${listen_addr}"
 export AGENT_SERVICE_DATABASE_PATH="${AGENT_SERVICE_DATABASE_PATH:-/app/data/agent-service.sqlite3}"
 export AGENT_SERVICE_WORKSPACE_DIR="${AGENT_SERVICE_WORKSPACE_DIR:-/app/work}"
 
-mkdir -p /agent-home /app/data /app/work
+mkdir -p /agent-home/.agents/skills /app/data /app/work
 
 codex mcp remove agent-service >/dev/null 2>&1 || true
 codex mcp add agent-service \

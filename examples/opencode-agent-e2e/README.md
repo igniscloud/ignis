@@ -32,6 +32,27 @@ During deployment, node-agent injects it into the container at:
 The container entrypoint sets `OPENCODE_CONFIG` to that path before running
 `agent-service`.
 
+## Custom skills
+
+Optional custom skills can be placed under the agent service directory:
+
+```text
+services/agent-service/
+  skills/
+    my-skill/
+      SKILL.md
+      references/
+        ...
+```
+
+`ignis service publish --service agent-service` bundles `skills/` with
+`opencode.json`. During deployment, node-agent mounts the skills read-only at:
+
+```text
+/agent-home/.agents/skills
+```
+
+
 ## Task API
 
 The frontend never calls `agent-service` directly. It calls the `api` service:

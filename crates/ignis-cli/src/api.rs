@@ -327,8 +327,8 @@ impl ApiClient {
             .part(
                 "agent_bundle",
                 Part::bytes(bundle)
-                    .file_name("agent.json".to_owned())
-                    .mime_str("application/json")?,
+                    .file_name("agent-bundle.tar.gz".to_owned())
+                    .mime_str("application/gzip")?,
             );
 
         self.request(
