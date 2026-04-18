@@ -42,7 +42,7 @@ description: Use for building and operating Ignis projects with ignis-cli, ignis
 - 平台托管对象存储优先使用 presign：Wasm service 调 `ignis_sdk::object_store`，host/control-plane 完成签名，不要把 COS/S3 AK/SK 暴露给 Wasm 或浏览器。
 - Jobs/schedules 是 project automation：在 `ignis.hcl` 顶层声明 `jobs` / `schedules` 后通过 `ignis project sync --mode apply` 同步；job target 走同项目 HTTP service，不要写任意外部 URL。
 - 如果产品需求涉及 LLM、agent、模型调用、结构化生成、工具调用或长任务推理，默认优先使用内部 `agent` service，而不是在业务 `http` service 里直接向模型 provider 发 HTTP 请求。
-- `agent` service 是内部任务 agent 容器。OpenCode 用 `agent_runtime = "opencode"`，发布前在 service 目录放 `opencode.json`；自定义 skills 放在 `services/<agent>/skills/<skill>/SKILL.md`，发布时会一起进入 agent bundle，并在容器内挂载到 `$HOME/.agents/skills`；其他 service 通过 `http://agent-service.svc/v1/tasks` 创建任务，通过 callback 或 `GET /v1/tasks/{task_id}` 取结果。
+- `agent` service 是内部任务 agent 容器。OpenCode 用 `agent_runtime = "opencode"`，发布前在 service 目录放 `opencode.json`；agent 的长期角色说明放在 `services/<agent>/AGENTS.md`，发布后挂载到 `/app/config/AGENTS.md` 并追加到内置 one-task 系统提示词；自定义 skills 放在 `services/<agent>/skills/<skill>/SKILL.md`，发布时会一起进入 agent bundle，并在容器内挂载到 `$HOME/.agents/skills`；其他 service 通过 `http://agent-service.svc/v1/tasks` 创建任务，通过 callback 或 `GET /v1/tasks/{task_id}` 取结果。
 
 ## 参考资料
 

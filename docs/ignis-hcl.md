@@ -269,7 +269,23 @@ chmod 600 services/agent-service/opencode.json
 /agent-home/.config/opencode/opencode.json
 ```
 
-Custom agent skills can live next to the config in the service directory:
+Agent standing instructions can live next to the config in `AGENTS.md`:
+
+```text
+services/agent-service/
+  opencode.json
+  AGENTS.md
+```
+
+During publish, Ignis stores `AGENTS.md` in the agent bundle. During deploy, node-agent mounts it read-only at:
+
+```text
+/app/config/AGENTS.md
+```
+
+At startup, `agent-service` appends that file to the built-in one-task system prompt and writes the merged prompt into the runtime workspace as `AGENTS.md`.
+
+Custom agent skills can also live next to the config in the service directory:
 
 ```text
 services/agent-service/

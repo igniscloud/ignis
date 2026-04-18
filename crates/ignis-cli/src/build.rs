@@ -365,12 +365,19 @@ async fn create_agent_bundle(service: &ServiceContext<'_>) -> Result<PathBuf> {
     };
     let skills_dir = service.service_dir().join("skills");
     validate_agent_skills_dir(&skills_dir)?;
+    let agents_md_path = service.service_dir().join("AGENTS.md");
+    validate_agents_md_file(&agents_md_path)?;
 
     let file = File::create(&bundle_path)
         .with_context(|| format!("creating {}", bundle_path.display()))?;
     let encoder = GzEncoder::new(file, Compression::default());
     let mut archive = Builder::new(encoder);
     append_bytes_to_archive(&mut archive, config_name, &bytes)?;
+    if agents_md_path.exists() {
+        archive
+            .append_path_with_name(&agents_md_path, "AGENTS.md")
+            .with_context(|| format!("archiving {}", agents_md_path.display()))?;
+    }
     if skills_dir.exists() {
         archive
             .append_dir_all("skills", &skills_dir)
@@ -446,6 +453,21 @@ fn validate_agent_skills_dir(skills_dir: &Path) -> Result<usize> {
     Ok(count)
 }
 
+fn validate_agents_md_file(path: &Path) -> Result<()> {
+    if !path.exists() {
+        return Ok(());
+    }
+    let metadata =
+        fs::symlink_metadata(path).with_context(|| format!("reading {}", path.display()))?;
+    if metadata.file_type().is_symlink() {
+        bail!("agent AGENTS.md cannot be a symlink: {}", path.display());
+    }
+    if !metadata.is_file() {
+        bail!("agent AGENTS.md path must be a file: {}", path.display());
+    }
+    Ok(())
+}
+
 fn validate_no_symlinks(path: &Path) -> Result<()> {
     for entry in fs::read_dir(path).with_context(|| format!("reading {}", path.display()))? {
         let entry = entry.with_context(|| format!("reading {}", path.display()))?;
@@ -504,6 +526,19 @@ fn validate_agent_service(service: &ServiceContext<'_>) -> Result<ArtifactValida
             "no custom agent skills bundled".to_owned()
         } else {
             format!("bundles {skill_count} custom agent skill(s)")
+        },
+    });
+    let agents_md_path = service.service_dir().join("AGENTS.md");
+    validate_agents_md_file(&agents_md_path)?;
+    checks.push(ValidationCheck {
+        name: "agents_md",
+        detail: if agents_md_path.exists() {
+            format!(
+                "bundles agent prompt extension {}",
+                agents_md_path.display()
+            )
+        } else {
+            "no AGENTS.md prompt extension bundled".to_owned()
         },
     });
     Ok(ArtifactValidation {

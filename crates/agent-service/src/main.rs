@@ -70,7 +70,7 @@ struct FileConfig {
     mcp_bearer_token: Option<String>,
     mcp_bearer_token_env: Option<String>,
     callback_host_allowlist: Option<Vec<String>>,
-    system_prompt_extra: Option<String>,
+    agents_md_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone)]
@@ -102,14 +102,11 @@ impl Config {
             None => FileConfig::default(),
         };
 
-        let mut system_prompt = default_system_prompt();
-        let system_prompt_extra =
-            env_non_empty("AGENT_SERVICE_SYSTEM_PROMPT_EXTRA").or(file_config.system_prompt_extra);
-        if let Some(extra) = system_prompt_extra.as_deref() {
-            system_prompt.push_str("\n\n");
-            system_prompt.push_str(extra.trim());
-            system_prompt.push('\n');
-        }
+        let system_prompt = load_system_prompt(
+            file_config
+                .agents_md_path
+                .unwrap_or_else(|| PathBuf::from("/app/config/AGENTS.md")),
+        )?;
 
         let add_task_bearer_token = resolve_secret(
             file_config.add_task_bearer_token,
@@ -159,6 +156,34 @@ impl Config {
             system_prompt,
         })
     }
+}
+
+fn load_system_prompt(agents_md_path: PathBuf) -> Result<String> {
+    let mut system_prompt = default_system_prompt();
+    if agents_md_path.exists() {
+        let metadata = std::fs::symlink_metadata(&agents_md_path)
+            .with_context(|| format!("failed to read {}", agents_md_path.display()))?;
+        if metadata.file_type().is_symlink() {
+            bail!(
+                "agent prompt file cannot be a symlink: {}",
+                agents_md_path.display()
+            );
+        }
+        if !metadata.is_file() {
+            bail!(
+                "agent prompt path must be a file: {}",
+                agents_md_path.display()
+            );
+        }
+        let extra = std::fs::read_to_string(&agents_md_path)
+            .with_context(|| format!("failed to read {}", agents_md_path.display()))?;
+        if !extra.trim().is_empty() {
+            system_prompt.push_str("\n\n");
+            system_prompt.push_str(extra.trim());
+            system_prompt.push('\n');
+        }
+    }
+    Ok(system_prompt)
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Default, ValueEnum, PartialEq, Eq)]
@@ -700,12 +725,9 @@ fn maybe_spawn_codex_exec(state: Arc<AppState>) -> Result<()> {
             state.config.workspace_dir.display()
         )
     })?;
-    let prompt_path = state.config.workspace_dir.join("system_prompt.md");
+    let prompt_path = state.config.workspace_dir.join("AGENTS.md");
     std::fs::write(&prompt_path, &state.config.system_prompt)
         .with_context(|| format!("failed to write {}", prompt_path.display()))?;
-    let agents_path = state.config.workspace_dir.join("AGENTS.md");
-    std::fs::write(&agents_path, &state.config.system_prompt)
-        .with_context(|| format!("failed to write {}", agents_path.display()))?;
 
     let mut command = match state.config.runtime {
         AgentRuntime::Codex => {

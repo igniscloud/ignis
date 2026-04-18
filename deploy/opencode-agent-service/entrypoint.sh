@@ -14,7 +14,7 @@ export AGENT_SERVICE_RUNTIME="${AGENT_SERVICE_RUNTIME:-opencode}"
 export AGENT_SERVICE_WORKSPACE_DIR="${AGENT_SERVICE_WORKSPACE_DIR:-/app/work}"
 export OPENCODE_CONFIG="${opencode_config_path}"
 
-mkdir -p /agent-home/.config/opencode /agent-home/.agents/skills /app/data /app/work
+mkdir -p /agent-home/.config/opencode /agent-home/.agents/skills /app/config /app/data /app/work
 
 if [[ ! -f "${opencode_config_path}" ]]; then
   echo "OpenCode config file is required at ${opencode_config_path}" >&2

@@ -448,7 +448,23 @@ chmod 600 services/agent-service/opencode.json
 /agent-home/.config/opencode/opencode.json
 ```
 
-自定义 agent skill 可以放在同一个 service 目录下：
+agent 的长期角色说明可以放在同一个 service 目录的 `AGENTS.md`：
+
+```text
+services/agent-service/
+  opencode.json
+  AGENTS.md
+```
+
+发布时 Ignis 会把 `AGENTS.md` 放进 agent bundle；部署时 node-agent 会只读挂载到：
+
+```text
+/app/config/AGENTS.md
+```
+
+`agent-service` 启动时会把这个文件追加到内置 one-task 系统提示词后面，并把合并后的提示词写入 runtime workspace 的 `AGENTS.md`。
+
+自定义 agent skill 也可以放在同一个 service 目录下：
 
 ```text
 services/agent-service/

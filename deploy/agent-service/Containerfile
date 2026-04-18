@@ -21,13 +21,13 @@ RUN apt-get update \
     && npm install -g \
         "@openai/codex@${CODEX_NPM_VERSION}" \
         "@openai/codex-linux-x64@npm:@openai/codex@${CODEX_NPM_VERSION}-linux-x64" \
-    && mkdir -p /opt/agent-service /agent-home/.agents/skills /ms-playwright /app/data /app/work \
+    && mkdir -p /opt/agent-service /agent-home/.agents/skills /ms-playwright /app/config /app/data /app/work \
     && npm install --prefix /opt/agent-service --omit=dev \
         "playwright-core@${PLAYWRIGHT_NPM_VERSION}" \
         "playwright@${PLAYWRIGHT_NPM_VERSION}" \
     && /opt/agent-service/node_modules/.bin/playwright install chromium \
     && ln -sf /opt/agent-service/node_modules/.bin/playwright /usr/local/bin/playwright \
-    && chmod -R 0777 /agent-home /ms-playwright /app/data /app/work \
+    && chmod -R 0777 /agent-home /ms-playwright /app/config /app/data /app/work \
     && rm -rf /root/.npm /agent-home/.npm /var/lib/apt/lists/*
 
 COPY artifacts/agent-service /usr/local/bin/agent-service

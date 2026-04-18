@@ -16,5 +16,5 @@ callback_host_allowlist = [
   "host.containers.internal",
 ]
 
-# Optional extra instruction appended to the built-in one-task Codex prompt.
-# system_prompt_extra = "Prefer tool evidence over guessing. If the page is blocked, return a schema-valid partial result."
+# Optional service-specific standing instructions are read from /app/config/AGENTS.md
+# when that file is mounted by Ignis from services/<agent-service>/AGENTS.md.

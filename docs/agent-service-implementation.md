@@ -432,7 +432,7 @@ codex exec \
   --color never \
   --dangerously-bypass-approvals-and-sandbox \
   -C /work/agent-service \
-  "$(cat /work/agent-service/system_prompt.md)"
+  "$(cat /work/agent-service/AGENTS.md)"
 ```
 
 如果需要读取最终消息，增加：
@@ -504,7 +504,7 @@ callback_host_allowlist = [
 - `add_task_bearer_token_env`：可选，`POST /v1/tasks` 鉴权 token 的环境变量名
 - `mcp_bearer_token_env`：可选，`POST /mcp` 鉴权 token 的环境变量名
 - `callback_host_allowlist`：callback host allowlist，支持 `*.internal` 这种后缀匹配
-- `system_prompt_extra`：可选，追加到内置 Codex 系统提示词后面
+- `agents_md_path`：可选，agent 角色说明文件路径，默认 `/app/config/AGENTS.md`。如果文件存在，`agent-service` 会把它追加到内置 one-task 系统提示词后面。
 
 运行：
 
@@ -1175,6 +1175,21 @@ chmod 600 services/agent-service/opencode.json
 ```
 
 内置 OpenCode agent 容器的 entrypoint 会设置 `OPENCODE_CONFIG` 指向这个路径，然后启动 `agent-service --runtime opencode`。
+
+如果需要给 agent 增加长期角色说明，放在 agent service 目录的 `AGENTS.md`：
+
+```text
+services/agent-service/
+  AGENTS.md
+```
+
+发布时 CLI 会把 `AGENTS.md` 一起打进 agent bundle；部署时 node-agent 会只读挂载到：
+
+```text
+/app/config/AGENTS.md
+```
+
+`agent-service` 启动后会把内置 one-task 系统提示词和这个文件合并，并写入运行工作目录的 `AGENTS.md`。
 
 如果需要自定义 skills，把它们放在 agent service 目录：
 

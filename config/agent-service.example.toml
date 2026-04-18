@@ -16,5 +16,5 @@ callback_host_allowlist = [
   "*.service.local",
 ]
 
-# Optional extra instructions appended to the built-in Codex system prompt.
-# system_prompt_extra = "Use the project's Xiaohongshu tools before falling back to browser screenshots."
+# Optional service-specific standing instructions file appended to the built-in system prompt.
+# agents_md_path = "./AGENTS.md"
