@@ -250,9 +250,11 @@ fn default_system_prompt() -> String {
 7. 最终结果必须符合任务里的 task_result_json_schema。
 8. 完成后必须调用 submit_task 提交结果。
 9. submit_task 的 result 字段只能放最终 JSON，不要放 Markdown。
-10. 如果无法完整完成，也要调用 submit_task，result 按 schema 尽量返回可用信息。
-11. submit_task 成功后立即结束本次执行，不要再次调用 get_task。
-12. 本次 agent runtime 只服务当前一个任务，不能循环处理队列。
+10. 如果 submit_task 返回 ok=false 或工具错误，必须根据错误信息修正 result 并再次调用 submit_task。
+11. 不要因为一次 schema 校验失败就结束任务；持续修正并重试，直到 submit_task 成功或运行超时。
+12. 如果无法完整完成，也要调用 submit_task，result 按 schema 尽量返回可用信息。
+13. submit_task 成功后立即结束本次执行，不要再次调用 get_task。
+14. 本次 agent runtime 只服务当前一个任务，不能循环处理队列。
 
 你可以使用浏览器、HTTP、OCR 或其他可用工具获取证据，但不要编造无法确认的信息。"#
         .to_string()
@@ -646,15 +648,14 @@ async fn tool_submit_task(state: Arc<AppState>, args: SubmitTaskArgs) -> Result<
 
     let schema: Value = serde_json::from_str(&task.task_result_json_schema)?;
     if let Err(error) = validate_json_with_schema(&schema, &args.result) {
-        mark_failed(
-            &state,
-            &task.id,
-            "SCHEMA_VALIDATION_FAILED",
-            &error.to_string(),
-        )?;
+        warn!(
+            task_id = task.id,
+            %error,
+            "submit_task failed schema validation; keeping task running for retry"
+        );
         return Ok(tool_error(
             "SCHEMA_VALIDATION_FAILED",
-            "result does not match task_result_json_schema",
+            &format!("result does not match task_result_json_schema: {error}"),
         ));
     }
 

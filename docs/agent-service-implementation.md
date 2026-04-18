@@ -170,7 +170,7 @@ failed
 - `queued`：任务已创建，等待 Codex 获取
 - `running`：Codex 已通过 `get_task` 领取任务
 - `succeeded`：`submit_task` 校验 schema 成功，并且 callback 成功
-- `failed`：Agent 输出无效、schema 校验失败，或 callback 失败
+- `failed`：agent runtime 超时、退出时仍未成功提交，或 callback 失败。schema 校验失败只返回工具错误，任务保持 `running` 以便 agent 修正重试。
 
 第一版不做并发，所以只需要保证：
 
@@ -317,7 +317,7 @@ add_task
   "ok": false,
   "error": {
     "code": "SCHEMA_VALIDATION_FAILED",
-    "message": "result does not match task_result_json_schema"
+    "message": "result does not match task_result_json_schema: <validation details>"
   }
 }
 ```
@@ -329,9 +329,10 @@ add_task
 2. 确认任务状态是 running
 3. 使用 task_result_json_schema 校验 result
 4. 校验失败：
-   - 任务标记为 failed
-   - 保存错误信息
-   - 返回 ok = false
+   - 不关闭任务，不把任务标记为 failed
+   - 返回 ok = false，并带上具体校验错误
+   - MCP tool result 标记 isError = true，让 agent 修正 result 后继续调用 submit_task
+   - 任务保持 running，直到 submit_task 成功或 agent runtime 超时
 5. 校验成功：
    - 调用 callback_url
    - callback 成功后，任务标记为 succeeded
@@ -368,7 +369,7 @@ Body：
 }
 ```
 
-如果 schema 校验失败或 callback 失败，也可以 callback 一个失败结果。第一版可以不做失败 callback，只在 `submit_task` 返回错误。
+schema 校验失败不会触发失败 callback，也不会结束任务；它只作为 `submit_task` 工具调用错误返回给 agent，让 agent 修正后重试。callback 失败才会结束任务并标记为 failed。
 
 如果要做失败 callback，格式：
 
@@ -670,10 +671,9 @@ async fn submit_task(req: SubmitTaskRequest) -> Result<SubmitTaskResponse> {
     let schema = parse_schema(&task.task_result_json_schema)?;
 
     if let Err(err) = validate_json(&schema, &req.result) {
-        db.mark_failed(&task.id, "SCHEMA_VALIDATION_FAILED", &err).await?;
         return Ok(SubmitTaskResponse::error(
             "SCHEMA_VALIDATION_FAILED",
-            "result does not match task_result_json_schema",
+            &format!("result does not match task_result_json_schema: {err}"),
         ));
     }
 
