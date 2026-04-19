@@ -12,6 +12,7 @@ task_timeout_sec = 900
 # If empty, callback_url accepts any http/https host except localhost,
 # loopback, and metadata addresses. Production should set this.
 callback_host_allowlist = [
+  "*.svc",
   "*.internal",
   "*.service.local",
 ]

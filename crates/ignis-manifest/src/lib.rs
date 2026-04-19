@@ -86,7 +86,7 @@ pub fn builtin_codex_runtime_agent_service_env() -> BTreeMap<String, String> {
     BTreeMap::from([
         (
             "AGENT_SERVICE_CALLBACK_HOST_ALLOWLIST".to_owned(),
-            "*.internal,*.service.local".to_owned(),
+            "*.svc,*.internal,*.service.local".to_owned(),
         ),
         (
             "AGENT_SERVICE_DATABASE_PATH".to_owned(),
@@ -119,7 +119,7 @@ pub fn builtin_opencode_agent_service_env() -> BTreeMap<String, String> {
     BTreeMap::from([
         (
             "AGENT_SERVICE_CALLBACK_HOST_ALLOWLIST".to_owned(),
-            "*.internal,*.service.local".to_owned(),
+            "*.svc,*.internal,*.service.local".to_owned(),
         ),
         (
             "AGENT_SERVICE_DATABASE_PATH".to_owned(),

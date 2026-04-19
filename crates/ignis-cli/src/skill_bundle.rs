@@ -112,9 +112,75 @@ const IGNIS_FILES: &[BundledFile] = &[
         contents: include_str!("../../../examples/opencode-agent-e2e/services/web/src/index.html"),
     },
     BundledFile {
-        path: "references/examples/opencode-agent-e2e/services/agent-service/opencode.json.example",
+        path: "references/examples/opencode-agent-e2e/services/coordinator-agent/AGENTS.md",
         contents: include_str!(
-            "../../../examples/opencode-agent-e2e/services/agent-service/opencode.json.example"
+            "../../../examples/opencode-agent-e2e/services/coordinator-agent/AGENTS.md"
+        ),
+    },
+    BundledFile {
+        path: "references/examples/opencode-agent-e2e/services/coordinator-agent/opencode.json.example",
+        contents: include_str!(
+            "../../../examples/opencode-agent-e2e/services/coordinator-agent/opencode.json.example"
+        ),
+    },
+    BundledFile {
+        path: "references/examples/opencode-agent-e2e/services/elementary-agent/AGENTS.md",
+        contents: include_str!(
+            "../../../examples/opencode-agent-e2e/services/elementary-agent/AGENTS.md"
+        ),
+    },
+    BundledFile {
+        path: "references/examples/opencode-agent-e2e/services/elementary-agent/opencode.json.example",
+        contents: include_str!(
+            "../../../examples/opencode-agent-e2e/services/elementary-agent/opencode.json.example"
+        ),
+    },
+    BundledFile {
+        path: "references/examples/opencode-agent-e2e/services/bridge-agent/AGENTS.md",
+        contents: include_str!(
+            "../../../examples/opencode-agent-e2e/services/bridge-agent/AGENTS.md"
+        ),
+    },
+    BundledFile {
+        path: "references/examples/opencode-agent-e2e/services/bridge-agent/opencode.json.example",
+        contents: include_str!(
+            "../../../examples/opencode-agent-e2e/services/bridge-agent/opencode.json.example"
+        ),
+    },
+    BundledFile {
+        path: "references/examples/opencode-agent-e2e/services/modularity-agent/AGENTS.md",
+        contents: include_str!(
+            "../../../examples/opencode-agent-e2e/services/modularity-agent/AGENTS.md"
+        ),
+    },
+    BundledFile {
+        path: "references/examples/opencode-agent-e2e/services/modularity-agent/opencode.json.example",
+        contents: include_str!(
+            "../../../examples/opencode-agent-e2e/services/modularity-agent/opencode.json.example"
+        ),
+    },
+    BundledFile {
+        path: "references/examples/opencode-agent-e2e/services/teacher-agent/AGENTS.md",
+        contents: include_str!(
+            "../../../examples/opencode-agent-e2e/services/teacher-agent/AGENTS.md"
+        ),
+    },
+    BundledFile {
+        path: "references/examples/opencode-agent-e2e/services/teacher-agent/opencode.json.example",
+        contents: include_str!(
+            "../../../examples/opencode-agent-e2e/services/teacher-agent/opencode.json.example"
+        ),
+    },
+    BundledFile {
+        path: "references/examples/opencode-agent-e2e/services/rigor-agent/AGENTS.md",
+        contents: include_str!(
+            "../../../examples/opencode-agent-e2e/services/rigor-agent/AGENTS.md"
+        ),
+    },
+    BundledFile {
+        path: "references/examples/opencode-agent-e2e/services/rigor-agent/opencode.json.example",
+        contents: include_str!(
+            "../../../examples/opencode-agent-e2e/services/rigor-agent/opencode.json.example"
         ),
     },
     BundledFile {

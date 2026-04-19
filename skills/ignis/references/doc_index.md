@@ -23,4 +23,4 @@
 - `examples/cos-and-jobs-example/`
   Google 登录 + 每用户 10MB 配额 + 浏览器直传 COS/S3 + 定时清理 job 的完整示例
 - `examples/opencode-agent-e2e/`
-  前端 -> 后端 -> OpenCode agent-service -> 后端轮询 -> 前端显示的完整端到端示例，包含必填的 `agent_description` agent metadata 配置
+  费马大定理高中生解法 multi-agent workflow 示例：前端 -> API TaskPlan executor -> coordinator-agent -> 多个 OpenCode 子 agent -> 最终导览

@@ -40,6 +40,20 @@ copy_example_project() {
     fi
 }
 
+copy_agent_example_files() {
+    example_name="$1"
+    skill_name="$2"
+    service_name="$3"
+    skill_example_dir="$ROOT_DIR/skills/$skill_name/references/examples/$example_name"
+
+    if [ -f "$ROOT_DIR/examples/$example_name/services/$service_name/AGENTS.md" ]; then
+        copy_file "$ROOT_DIR/examples/$example_name/services/$service_name/AGENTS.md" "$skill_example_dir/services/$service_name/AGENTS.md"
+    fi
+    if [ -f "$ROOT_DIR/examples/$example_name/services/$service_name/opencode.json.example" ]; then
+        copy_file "$ROOT_DIR/examples/$example_name/services/$service_name/opencode.json.example" "$skill_example_dir/services/$service_name/opencode.json.example"
+    fi
+}
+
 copy_file "$ROOT_DIR/docs/cli.md" "$ROOT_DIR/skills/ignis/references/cli.md"
 copy_file "$ROOT_DIR/docs/ignis-hcl.md" "$ROOT_DIR/skills/ignis/references/ignis-hcl.md"
 copy_file "$ROOT_DIR/docs/integration.md" "$ROOT_DIR/skills/ignis/references/integration.md"
@@ -55,5 +69,10 @@ copy_example_project "hello-fullstack" "ignis"
 copy_example_project "sqlite-example" "ignis"
 copy_example_project "cos-and-jobs-example" "ignis"
 copy_example_project "opencode-agent-e2e" "ignis"
-copy_file "$ROOT_DIR/examples/opencode-agent-e2e/services/agent-service/opencode.json.example" "$ROOT_DIR/skills/ignis/references/examples/opencode-agent-e2e/services/agent-service/opencode.json.example"
+copy_agent_example_files "opencode-agent-e2e" "ignis" "coordinator-agent"
+copy_agent_example_files "opencode-agent-e2e" "ignis" "elementary-agent"
+copy_agent_example_files "opencode-agent-e2e" "ignis" "bridge-agent"
+copy_agent_example_files "opencode-agent-e2e" "ignis" "modularity-agent"
+copy_agent_example_files "opencode-agent-e2e" "ignis" "teacher-agent"
+copy_agent_example_files "opencode-agent-e2e" "ignis" "rigor-agent"
 copy_example_project "ignis-login-example" "ignis-login"

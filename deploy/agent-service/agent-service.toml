@@ -11,6 +11,7 @@ task_timeout_sec = 900
 # Production should keep this tight. Add the internal DNS names of services
 # allowed to receive callbacks.
 callback_host_allowlist = [
+  "*.svc",
   "*.internal",
   "*.service.local",
   "host.containers.internal",

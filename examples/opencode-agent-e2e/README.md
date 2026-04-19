@@ -1,97 +1,135 @@
-# OpenCode Agent E2E Example
+# 费马大定理高中生解法 Multi-Agent Workflow
 
-This example wires one frontend, one HTTP backend, and one internal OpenCode
-`agent-service` together in a single Ignis project.
+This example demonstrates a TaskPlan-style multi-agent workflow with OpenCode
+agent services. The user-facing app asks for a high-school-readable guide to
+Fermat's Last Theorem.
 
-Flow:
+Important boundary: this example does not claim to produce a complete
+elementary proof of Fermat's Last Theorem. Wiles's proof uses modern number
+theory. The workflow produces an honest proof guide that explains the
+contradiction chain and clearly labels Ribet's theorem and Wiles's theorem as
+black-box theorems.
 
-1. The browser sends a message to `POST /api/tasks`.
-2. The `api` service creates a task by calling `http://agent-service.svc/v1/tasks`.
-3. The `agent-service` starts OpenCode, exposes the task through MCP, and stores
-   the schema-validated result.
-4. The browser polls `GET /api/tasks/:task_id`.
-5. The `api` service proxies status from `GET http://agent-service.svc/v1/tasks/:task_id`.
+## Services
+
+The project contains:
+
+- `web`: static frontend for launching and watching the workflow.
+- `api`: HTTP service that owns TaskPlan state in SQLite.
+- `coordinator-agent`: plans child work, waits for child results, and writes the final guide.
+- `elementary-agent`: explains the elementary number theory foundation.
+- `bridge-agent`: explains the Frey curve and Ribet theorem bridge.
+- `modularity-agent`: explains modularity and Wiles's theorem.
+- `teacher-agent`: rewrites specialist outputs for high-school readers.
+- `rigor-agent`: checks for mathematical overclaiming and missing black-box labels.
+
+## Flow
+
+1. The browser sends a request to `POST /api/workflows`.
+2. The `api` service calls `GET http://__ignis.svc/v1/services` and filters
+   `kind = "agent"` to build the available agent list.
+3. The `api` service creates a coordinator task at
+   `http://coordinator-agent.svc/v1/tasks` with `tool_callback_url`.
+4. The coordinator calls `spawn_task_plan`.
+5. The `api` service validates and stores the child TaskPlan, dispatches ready
+   child tasks to specialist agents, and receives each `submit_task` callback.
+6. After child tasks finish, the `api` service starts a coordinator continuation
+   task with the child outputs.
+7. The coordinator submits the final JSON guide.
+8. The browser polls `GET /api/workflows/:run_id` until the workflow succeeds or fails.
 
 ## OpenCode config
 
-Provide the OpenCode runtime config at `services/agent-service/opencode.json`.
-It may contain provider keys, so keep the real file out of version control. For
+Each OpenCode agent service needs an `opencode.json` before publishing. For
 local testing on this machine:
 
 ```bash
-cp ~/.config/opencode/opencode.json services/agent-service/opencode.json
+for dir in services/*-agent; do
+  cp ~/.config/opencode/opencode.json "$dir/opencode.json"
+  chmod 600 "$dir/opencode.json"
+done
 ```
 
-The Ignis OpenCode agent bundle stores the file as the service artifact.
-During deployment, node-agent injects it into the container at:
+The real `opencode.json` files can contain provider credentials. Keep them out
+of version control. Each agent directory includes `opencode.json.example`.
+
+During deployment, node-agent injects the config into the agent container at:
 
 ```text
 /agent-home/.config/opencode/opencode.json
 ```
 
-The container entrypoint sets `OPENCODE_CONFIG` to that path before running
-`agent-service`.
+## TaskPlan callback
 
-## Custom skills
-
-Optional custom skills can be placed under the agent service directory:
-
-```text
-services/agent-service/
-  skills/
-    my-skill/
-      SKILL.md
-      references/
-        ...
-```
-
-`ignis service publish --service agent-service` bundles `skills/` with
-`opencode.json`. During deployment, node-agent mounts the skills read-only at:
-
-```text
-/agent-home/.agents/skills
-```
-
-
-## Task API
-
-The frontend never calls `agent-service` directly. It calls the `api` service:
-
-```text
-POST /api/tasks
-GET  /api/tasks/:task_id
-```
-
-The `api` service creates the internal agent task with:
+The coordinator and child agents are created with:
 
 ```json
 {
-  "prompt": "Respond to the user message below. Return only the final JSON object through submit_task. User message: <message>",
-  "task_result_json_schema": {
-    "type": "object",
-    "additionalProperties": false,
-    "required": ["message"],
-    "properties": {
-      "message": {
-        "type": "string",
-        "description": "The agent response to show in the frontend."
-      }
-    }
+  "tool_callback_url": "http://api.svc/internal/taskplan/tools",
+  "task_result_json_schema": {}
+}
+```
+
+When the coordinator calls `spawn_task_plan`, agent-service forwards:
+
+```json
+{
+  "tool": "spawn_task_plan",
+  "task_id": "<coordinator-agent-task-id>",
+  "task_plan": {
+    "id": "fermats-guide-plan",
+    "root_task_id": "rigor-review",
+    "tasks": []
   }
 }
 ```
 
-Because this request does not include `callback_url`, the `api` service polls:
-
-```text
-GET http://agent-service.svc/v1/tasks/:task_id
-```
-
-The stored successful result has this shape:
+When a child or coordinator calls `submit_task`, agent-service forwards:
 
 ```json
 {
-  "message": "..."
+  "tool": "submit_task",
+  "task_id": "<agent-task-id>",
+  "status": "succeeded",
+  "result": {}
+}
+```
+
+The `api` service persists all state in its SQLite database and dispatches
+ready child tasks with the `taskplan` crate.
+
+## API
+
+The frontend calls:
+
+```text
+POST /api/workflows
+GET  /api/workflows/:run_id
+```
+
+Create request:
+
+```json
+{
+  "question": "请用高中生能看懂的方式解释费马大定理为什么成立。"
+}
+```
+
+Successful final result shape:
+
+```json
+{
+  "title": "费马大定理：高中生可读证明导览",
+  "important_boundary": "完整证明依赖现代数论；本文解释证明主线并标出黑箱定理。",
+  "overview": "...",
+  "sections": [
+    { "heading": "定理说了什么", "body": "..." }
+  ],
+  "black_box_theorems": [
+    { "name": "Ribet 定理", "plain_language": "..." },
+    { "name": "Wiles 的 modularity 定理", "plain_language": "..." }
+  ],
+  "rigor_notes": ["..."]
 }
 ```
 
@@ -99,5 +137,11 @@ The stored successful result has this shape:
 
 ```bash
 cargo check --manifest-path services/api/Cargo.toml --target wasm32-wasip2
-../../target/debug/ignis service check --service agent-service
+../../target/debug/ignis service check --service api
+../../target/debug/ignis service check --service coordinator-agent
+../../target/debug/ignis service check --service elementary-agent
+../../target/debug/ignis service check --service bridge-agent
+../../target/debug/ignis service check --service modularity-agent
+../../target/debug/ignis service check --service teacher-agent
+../../target/debug/ignis service check --service rigor-agent
 ```

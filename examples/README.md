@@ -50,15 +50,15 @@ A fullstack Google login, COS upload, and scheduled cleanup example showing:
 - a 10MB per-user quota keyed by the Google user subject
 - a cron-triggered job that releases quota for expired pending uploads
 
-## `opencode-agent-e2e`
+## 费马大定理高中生解法 multi-agent workflow
 
-A fullstack OpenCode agent example showing:
+`opencode-agent-e2e` is now a fullstack OpenCode TaskPlan example showing:
 
-- one Vue frontend service that sends a user message to the backend
-- one `http` API service that creates and polls tasks through internal `agent-service.svc`
-- one internal `agent` service using `agent_runtime = "opencode"`
-- polling mode through `POST /api/tasks` and `GET /api/tasks/:task_id`
-- local OpenCode config supplied by `services/agent-service/opencode.json`
+- one Vue frontend service that starts a Fermat's Last Theorem guide workflow
+- one `http` API service that persists TaskPlan state in SQLite
+- one `coordinator-agent` that calls `spawn_task_plan`
+- five specialist OpenCode child agents for elementary number theory, Frey/Ribet, modularity/Wiles, teacher rewriting, and rigor review
+- workflow polling through `POST /api/workflows` and `GET /api/workflows/:run_id`
 
 ## Validation
 
