@@ -339,28 +339,28 @@ async fn create_agent_bundle(service: &ServiceContext<'_>) -> Result<PathBuf> {
         .unwrap_or_default();
     let bundle_name = format!("ignis-agent-{}-{nanos}.tar.gz", service.name());
     let bundle_path = std::env::temp_dir().join(bundle_name);
-    let (config_name, bytes) = match service.manifest().agent_runtime {
+    let codex_config_files = match service.manifest().agent_runtime {
         AgentRuntime::Codex => {
             let agent = effective_agent_service_config(
                 service.manifest().agent_runtime,
                 service.manifest().agent.as_ref(),
             );
-            (
-                "agent.json",
-                serde_json::to_vec_pretty(&agent).context("serializing agent config")?,
-            )
+            let bytes = serde_json::to_vec_pretty(&agent).context("serializing agent config")?;
+            let config_files = discover_codex_config_files(&service.service_dir())?;
+            Some((bytes, config_files))
         }
+        AgentRuntime::Opencode => None,
+    };
+    let opencode_config = match service.manifest().agent_runtime {
+        AgentRuntime::Codex => None,
         AgentRuntime::Opencode => {
             let config_path = service.service_dir().join("opencode.json");
-            (
-                "opencode.json",
-                fs::read(&config_path).with_context(|| {
-                    format!(
-                        "reading OpenCode config for agent service at {}",
-                        config_path.display()
-                    )
-                })?,
-            )
+            Some(fs::read(&config_path).with_context(|| {
+                format!(
+                    "reading OpenCode config for agent service at {}",
+                    config_path.display()
+                )
+            })?)
         }
     };
     let skills_dir = service.service_dir().join("skills");
@@ -372,7 +372,17 @@ async fn create_agent_bundle(service: &ServiceContext<'_>) -> Result<PathBuf> {
         .with_context(|| format!("creating {}", bundle_path.display()))?;
     let encoder = GzEncoder::new(file, Compression::default());
     let mut archive = Builder::new(encoder);
-    append_bytes_to_archive(&mut archive, config_name, &bytes)?;
+    if let Some((agent_json, config_files)) = codex_config_files {
+        append_bytes_to_archive(&mut archive, "agent.json", &agent_json)?;
+        for (archive_name, path) in config_files {
+            archive
+                .append_path_with_name(&path, archive_name)
+                .with_context(|| format!("archiving {}", path.display()))?;
+        }
+    }
+    if let Some(bytes) = opencode_config {
+        append_bytes_to_archive(&mut archive, "opencode.json", &bytes)?;
+    }
     if agents_md_path.exists() {
         archive
             .append_path_with_name(&agents_md_path, "AGENTS.md")
@@ -388,6 +398,24 @@ async fn create_agent_bundle(service: &ServiceContext<'_>) -> Result<PathBuf> {
         .context("finalizing tar archive writer failed")?;
     encoder.finish().context("finalizing gzip archive failed")?;
     Ok(bundle_path)
+}
+
+fn discover_codex_config_files(service_dir: &Path) -> Result<Vec<(&'static str, PathBuf)>> {
+    let auth_path = service_dir.join("auth.json");
+    let config_path = service_dir.join("config.toml");
+    let auth_exists = auth_path.exists();
+    let config_exists = config_path.exists();
+    if auth_exists != config_exists {
+        bail!(
+            "Codex agent service must provide both auth.json and config.toml when using file-based Codex auth"
+        );
+    }
+    if !auth_exists {
+        return Ok(Vec::new());
+    }
+    validate_agent_config_file(&auth_path, "Codex auth.json")?;
+    validate_agent_config_file(&config_path, "Codex config.toml")?;
+    Ok(vec![("auth.json", auth_path), ("config.toml", config_path)])
 }
 
 fn append_bytes_to_archive<W: io::Write>(
@@ -468,6 +496,18 @@ fn validate_agents_md_file(path: &Path) -> Result<()> {
     Ok(())
 }
 
+fn validate_agent_config_file(path: &Path, label: &str) -> Result<()> {
+    let metadata =
+        fs::symlink_metadata(path).with_context(|| format!("reading {}", path.display()))?;
+    if metadata.file_type().is_symlink() {
+        bail!("{label} cannot be a symlink: {}", path.display());
+    }
+    if !metadata.is_file() {
+        bail!("{label} path must be a file: {}", path.display());
+    }
+    Ok(())
+}
+
 fn validate_no_symlinks(path: &Path) -> Result<()> {
     for entry in fs::read_dir(path).with_context(|| format!("reading {}", path.display()))? {
         let entry = entry.with_context(|| format!("reading {}", path.display()))?;
@@ -507,17 +547,35 @@ fn validate_agent_service(service: &ServiceContext<'_>) -> Result<ArtifactValida
             detail: format!("agent container port is {}", agent.port),
         },
     ];
-    if service.manifest().agent_runtime == AgentRuntime::Opencode {
-        let config_path = service.service_dir().join("opencode.json");
-        let bytes = fs::read(&config_path).with_context(|| {
-            format!("OpenCode agent service requires {}", config_path.display())
-        })?;
-        serde_json::from_slice::<serde_json::Value>(&bytes)
-            .with_context(|| format!("parsing {}", config_path.display()))?;
-        checks.push(ValidationCheck {
-            name: "opencode_config",
-            detail: format!("OpenCode config is {}", config_path.display()),
-        });
+    match service.manifest().agent_runtime {
+        AgentRuntime::Codex => {
+            let codex_configs = discover_codex_config_files(&service.service_dir())?;
+            if codex_configs.is_empty() {
+                checks.push(ValidationCheck {
+                    name: "codex_config",
+                    detail:
+                        "Codex auth.json/config.toml not bundled; runtime will use env-based auth"
+                            .to_owned(),
+                });
+            } else {
+                checks.push(ValidationCheck {
+                    name: "codex_config",
+                    detail: "Codex auth.json and config.toml will be bundled".to_owned(),
+                });
+            }
+        }
+        AgentRuntime::Opencode => {
+            let config_path = service.service_dir().join("opencode.json");
+            let bytes = fs::read(&config_path).with_context(|| {
+                format!("OpenCode agent service requires {}", config_path.display())
+            })?;
+            serde_json::from_slice::<serde_json::Value>(&bytes)
+                .with_context(|| format!("parsing {}", config_path.display()))?;
+            checks.push(ValidationCheck {
+                name: "opencode_config",
+                detail: format!("OpenCode config is {}", config_path.display()),
+            });
+        }
     }
     let skill_count = validate_agent_skills_dir(&service.service_dir().join("skills"))?;
     checks.push(ValidationCheck {

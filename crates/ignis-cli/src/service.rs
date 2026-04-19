@@ -238,6 +238,10 @@ fn create_local_service_files(project_dir: &Path, service: &ServiceManifest) -> 
         }
         ServiceKind::Agent => match service.agent_runtime {
             AgentRuntime::Codex => {
+                fs::write(service_dir.join(".gitignore"), "auth.json\nconfig.toml\n")
+                    .with_context(|| {
+                        format!("writing {}", service_dir.join(".gitignore").display())
+                    })?;
                 fs::write(
                     service_dir.join("AGENTS.md"),
                     "# Agent Instructions\n\nAdd this agent's role, boundaries, and standing instructions here.\n",
@@ -246,9 +250,8 @@ fn create_local_service_files(project_dir: &Path, service: &ServiceManifest) -> 
                 fs::write(
                         service_dir.join("README.md"),
                         format!(
-                            "# {}\n\nThis directory declares an internal Ignis `agent-service` agent.\n\nBefore deploying, set the OpenAI API key secret in IgnisCloud:\n\n```bash\nignis service secrets set --service {} openai-api-key \"$OPENAI_API_KEY\"\n```\n\nUse `AGENTS.md` for this agent's standing role instructions; Ignis appends it to the built-in one-task system prompt. Optional custom skills can be placed under `skills/<skill-name>/SKILL.md`; Ignis mounts them into the agent container at `$HOME/.agents/skills`.\n\nThe service exposes `POST /v1/tasks` to services in the same project and returns a `task_id`.\n",
-                            service.name,
-                            service.name
+                            "# {}\n\nThis directory declares an internal Ignis `agent-service` agent using Codex.\n\nBefore deploying, either set the OpenAI API key secret in IgnisCloud:\n\n```bash\nignis service secrets set --service {} openai-api-key \"$OPENAI_API_KEY\"\n```\n\nor copy your local Codex auth files into this service directory:\n\n```bash\ncp ~/.codex/auth.json ~/.codex/config.toml .\nchmod 600 auth.json config.toml\n```\n\nIgnis injects `auth.json` and `config.toml` into `$HOME/.codex/` when both files are present.\n\nUse `AGENTS.md` for this agent's standing role instructions; Ignis appends it to the built-in one-task system prompt. Optional custom skills can be placed under `skills/<skill-name>/SKILL.md`; Ignis mounts them into the agent container at `$HOME/.agents/skills`.\n\nThe service exposes `POST /v1/tasks` to services in the same project and returns a `task_id`.\n",
+                            service.name, service.name
                         ),
                     )
                     .with_context(|| {
@@ -256,6 +259,9 @@ fn create_local_service_files(project_dir: &Path, service: &ServiceManifest) -> 
                     })?;
             }
             AgentRuntime::Opencode => {
+                fs::write(service_dir.join(".gitignore"), "opencode.json\n").with_context(
+                    || format!("writing {}", service_dir.join(".gitignore").display()),
+                )?;
                 fs::write(
                     service_dir.join("opencode.json"),
                     "{\n  \"$schema\": \"https://opencode.ai/config.json\"\n}\n",
@@ -271,7 +277,7 @@ fn create_local_service_files(project_dir: &Path, service: &ServiceManifest) -> 
                 fs::write(
                         service_dir.join("README.md"),
                         format!(
-                            "# {}\n\nThis directory declares an internal Ignis `opencode-agent-service` agent.\n\nBefore deploying, configure OpenCode in `opencode.json`. Ignis injects that file into the container at `$HOME/.config/opencode/opencode.json`.\n\nUse `AGENTS.md` for this agent's standing role instructions; Ignis appends it to the built-in one-task system prompt. Optional custom skills can be placed under `skills/<skill-name>/SKILL.md`; Ignis mounts them into the agent container at `$HOME/.agents/skills`.\n\nThe service exposes `POST /v1/tasks` to services in the same project and returns a `task_id`.\n",
+                            "# {}\n\nThis directory declares an internal Ignis `agent-service` agent using OpenCode.\n\nBefore deploying, configure OpenCode in `opencode.json`. Ignis injects that file into the container at `$HOME/.config/opencode/opencode.json`.\n\nUse `AGENTS.md` for this agent's standing role instructions; Ignis appends it to the built-in one-task system prompt. Optional custom skills can be placed under `skills/<skill-name>/SKILL.md`; Ignis mounts them into the agent container at `$HOME/.agents/skills`.\n\nThe service exposes `POST /v1/tasks` to services in the same project and returns a `task_id`.\n",
                             service.name
                         ),
                     )

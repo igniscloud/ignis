@@ -155,6 +155,23 @@ ignis service publish --service agent-service
 ignis service deploy --service agent-service <version>
 ```
 
+Minimal Codex agent flow with local Codex auth files:
+
+```bash
+ignis service new \
+  --service agent-service \
+  --kind agent \
+  --path services/agent-service
+
+cp ~/.codex/auth.json ~/.codex/config.toml services/agent-service/
+chmod 600 services/agent-service/auth.json services/agent-service/config.toml
+
+ignis service check --service agent-service
+ignis service build --service agent-service
+ignis service publish --service agent-service
+ignis service deploy --service agent-service <version>
+```
+
 Use an internal `agent` service when a product requirement needs LLM or agent behavior. Prefer creating tasks through `agent-service` over making direct model-provider HTTP requests from a business `http` service.
 
 ## 5. `ignis gen-skill`

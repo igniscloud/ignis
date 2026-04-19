@@ -1,11 +1,12 @@
 FROM docker.io/library/node:24-bookworm-slim
 
-ARG CODEX_NPM_VERSION=0.118.0
+ARG CODEX_NPM_VERSION=0.121.0
+ARG OPENCODE_NPM_VERSION=latest
 ARG PLAYWRIGHT_NPM_VERSION=1.58.2
 
 ENV HOME=/agent-home \
     NODE_PATH=/opt/agent-service/node_modules \
-    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
     PATH=/agent-home/.local/bin:/usr/local/bin:${PATH}
 
 WORKDIR /app
@@ -13,22 +14,36 @@ WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
-        chromium \
         curl \
+        dnsutils \
+        fd-find \
+        file \
         git \
+        iproute2 \
+        jq \
+        less \
+        netcat-openbsd \
+        procps \
         python3 \
+        ripgrep \
         tini \
+        unzip \
+        xz-utils \
+        zip \
+        zstd \
     && npm install -g \
         "@openai/codex@${CODEX_NPM_VERSION}" \
         "@openai/codex-linux-x64@npm:@openai/codex@${CODEX_NPM_VERSION}-linux-x64" \
-    && mkdir -p /opt/agent-service /agent-home/.agents/skills /ms-playwright /app/config /app/data /app/work \
+        "opencode-ai@${OPENCODE_NPM_VERSION}" \
+    && mkdir -p /opt/agent-service /agent-home/.codex /agent-home/.config/opencode /agent-home/.agents/skills /app/config /app/data /app/work \
     && npm install --prefix /opt/agent-service --omit=dev \
         "playwright-core@${PLAYWRIGHT_NPM_VERSION}" \
         "playwright@${PLAYWRIGHT_NPM_VERSION}" \
-    && /opt/agent-service/node_modules/.bin/playwright install chromium \
+    && ln -sf /usr/bin/fdfind /usr/local/bin/fd \
     && ln -sf /opt/agent-service/node_modules/.bin/playwright /usr/local/bin/playwright \
-    && chmod -R 0777 /agent-home /ms-playwright /app/config /app/data /app/work \
-    && rm -rf /root/.npm /agent-home/.npm /var/lib/apt/lists/*
+    && chmod -R 0777 /agent-home /app/config /app/data /app/work \
+    && npm cache clean --force \
+    && rm -rf /root/.npm /agent-home/.npm /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 COPY artifacts/agent-service /usr/local/bin/agent-service
 COPY entrypoint.sh /usr/local/bin/agent-service-entrypoint.sh

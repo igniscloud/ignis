@@ -31,11 +31,11 @@ pub const PUBLISHED_SERVICE_PLAN_BUILD_METADATA_KEY: &str = "ignis.published_ser
 pub const BUILTIN_AGENT_SERVICE_IMAGE: &str = "ghcr.io/igniscloud/agents/agent-service:latest";
 pub const BUILTIN_AGENT_SERVICE_PORT: u16 = 3900;
 pub const BUILTIN_AGENT_SERVICE_WORKDIR: &str = "/app/work";
-pub const BUILTIN_OPENCODE_AGENT_SERVICE_IMAGE: &str =
-    "ghcr.io/igniscloud/agents/opencode-agent-service:latest";
+pub const BUILTIN_OPENCODE_AGENT_SERVICE_IMAGE: &str = BUILTIN_AGENT_SERVICE_IMAGE;
 pub const BUILTIN_OPENCODE_AGENT_SERVICE_PORT: u16 = 3900;
 pub const BUILTIN_OPENCODE_AGENT_SERVICE_WORKDIR: &str = "/app/work";
 pub const BUILTIN_OPENAI_API_KEY_SECRET: &str = "openai-api-key";
+pub const BUILTIN_PLAYWRIGHT_WS_ENDPOINT: &str = "ws://igniscloud-playwright-server:3000/";
 
 pub use project_hcl::{
     AgentMemory, AgentRuntime, AgentServiceConfig, BindingKind, BindingSpec, CompiledBindingPlan,
@@ -104,6 +104,14 @@ pub fn builtin_codex_runtime_agent_service_env() -> BTreeMap<String, String> {
             "AGENT_SERVICE_WORKSPACE_DIR".to_owned(),
             BUILTIN_AGENT_SERVICE_WORKDIR.to_owned(),
         ),
+        (
+            "PLAYWRIGHT_WS_ENDPOINT".to_owned(),
+            BUILTIN_PLAYWRIGHT_WS_ENDPOINT.to_owned(),
+        ),
+        (
+            "PW_TEST_CONNECT_WS_ENDPOINT".to_owned(),
+            BUILTIN_PLAYWRIGHT_WS_ENDPOINT.to_owned(),
+        ),
         ("RUST_LOG".to_owned(), "agent_service=info".to_owned()),
     ])
 }
@@ -123,7 +131,7 @@ pub fn builtin_opencode_agent_service_env() -> BTreeMap<String, String> {
         ),
         (
             "AGENT_SERVICE_DATABASE_PATH".to_owned(),
-            "/app/data/opencode-agent-service.sqlite3".to_owned(),
+            "/app/data/agent-service.sqlite3".to_owned(),
         ),
         (
             "AGENT_SERVICE_LISTEN_ADDR".to_owned(),
@@ -141,6 +149,14 @@ pub fn builtin_opencode_agent_service_env() -> BTreeMap<String, String> {
         (
             "OPENCODE_CONFIG".to_owned(),
             "/agent-home/.config/opencode/opencode.json".to_owned(),
+        ),
+        (
+            "PLAYWRIGHT_WS_ENDPOINT".to_owned(),
+            BUILTIN_PLAYWRIGHT_WS_ENDPOINT.to_owned(),
+        ),
+        (
+            "PW_TEST_CONNECT_WS_ENDPOINT".to_owned(),
+            BUILTIN_PLAYWRIGHT_WS_ENDPOINT.to_owned(),
         ),
         ("RUST_LOG".to_owned(), "agent_service=info".to_owned()),
     ])

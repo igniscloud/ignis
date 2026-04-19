@@ -6,22 +6,38 @@ services:
     ports:
       - "127.0.0.1:3900:3900"
     environment:
-      # Required by Codex unless the image is otherwise authenticated.
-      OPENAI_API_KEY: "${OPENAI_API_KEY:?OPENAI_API_KEY is required}"
+      # Optional when Codex auth.json/config.toml are mounted below.
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
 
       AGENT_SERVICE_CONFIG: "/app/config/agent-service.toml"
       AGENT_SERVICE_LISTEN_ADDR: "0.0.0.0:3900"
       AGENT_SERVICE_MCP_URL: "http://127.0.0.1:3900/mcp"
+      PLAYWRIGHT_WS_ENDPOINT: "ws://playwright-server:3000/"
+      PW_TEST_CONNECT_WS_ENDPOINT: "ws://playwright-server:3000/"
       RUST_LOG: "agent_service=info"
     volumes:
       - "./agent-service.toml:/app/config/agent-service.toml:ro"
       - "./data:/app/data"
       - "./work:/app/work"
+      # Optional Codex ChatGPT/API auth files for local testing.
+      # - "~/.codex/auth.json:/agent-home/.codex/auth.json:ro"
+      # - "~/.codex/config.toml:/agent-home/.codex/config.toml:ro"
     networks:
       - default
       - shared
+      - agent-runtime
+
+  playwright-server:
+    image: mcr.microsoft.com/playwright:v1.58.2-noble
+    container_name: agent-service-playwright-server
+    restart: unless-stopped
+    command: ["npx", "playwright", "run-server", "--host", "0.0.0.0", "--port", "3000"]
+    networks:
+      - agent-runtime
 
 networks:
   shared:
     external: true
     name: deploy_shared
+  agent-runtime:
+    name: agent_service_runtime

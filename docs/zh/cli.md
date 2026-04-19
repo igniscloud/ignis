@@ -405,7 +405,7 @@ ignis service new \
 
 - `README.md`
 - `.gitignore`
-- Codex runtime：提示设置 `openai-api-key` secret
+- Codex runtime：提示设置 `openai-api-key` secret，或复制 `~/.codex/auth.json` 和 `~/.codex/config.toml`
 - OpenCode runtime：生成 `opencode.json` 模板
 
 OpenCode 发布前需要把真实配置放到 service 目录：

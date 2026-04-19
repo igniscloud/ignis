@@ -6,11 +6,11 @@ use anyhow::{Context, Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    BUILTIN_AGENT_SERVICE_IMAGE, BUILTIN_OPENCODE_AGENT_SERVICE_IMAGE, FrontendServiceConfig,
-    HttpServiceConfig, INTERNAL_ONLY_MANIFEST_PREFIX_BASE, IgnisLoginConfig, JobSpec,
-    LoadedManifest, LoadedProjectManifest, ProjectAutomationConfig, ProjectConfig, ProjectManifest,
-    ResourceConfig, ScheduleSpec, ServiceKind, ServiceManifest, SqliteConfig,
-    validate_relative_service_path, validate_resource_name, validate_service_prefix_like_path,
+    BUILTIN_AGENT_SERVICE_IMAGE, FrontendServiceConfig, HttpServiceConfig,
+    INTERNAL_ONLY_MANIFEST_PREFIX_BASE, IgnisLoginConfig, JobSpec, LoadedManifest,
+    LoadedProjectManifest, ProjectAutomationConfig, ProjectConfig, ProjectManifest, ResourceConfig,
+    ScheduleSpec, ServiceKind, ServiceManifest, SqliteConfig, validate_relative_service_path,
+    validate_resource_name, validate_service_prefix_like_path,
 };
 
 const DEFAULT_LISTENER_NAME: &str = "public";
@@ -707,13 +707,10 @@ impl AgentServiceConfig {
         if self.image.contains(char::is_whitespace) {
             bail!("agent service `{service_name}` field `agent.image` cannot contain whitespace");
         }
-        let expected_image = match runtime {
-            AgentRuntime::Codex => BUILTIN_AGENT_SERVICE_IMAGE,
-            AgentRuntime::Opencode => BUILTIN_OPENCODE_AGENT_SERVICE_IMAGE,
-        };
-        if self.image != expected_image {
+        if self.image != BUILTIN_AGENT_SERVICE_IMAGE {
             bail!(
-                "agent service `{service_name}` field `agent.image` must be `{expected_image}` for `{}` runtime; custom agent images are not supported yet",
+                "agent service `{service_name}` field `agent.image` must be `{}` for `{}` runtime; custom agent images are not supported yet",
+                BUILTIN_AGENT_SERVICE_IMAGE,
                 runtime.as_str()
             );
         }
@@ -1110,7 +1107,7 @@ mod tests {
             .validate("opencode-agent-service", AgentRuntime::Codex)
             .unwrap_err()
             .to_string();
-        assert!(error.contains("custom agent images are not supported yet"));
+        assert!(error.contains("field `agent.framework` must be `codex`"));
     }
 
     #[test]

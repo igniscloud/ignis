@@ -1014,28 +1014,28 @@ OpenCode 版本使用同样的 internal agent 语义，只需要显式选择 run
 
 ```bash
 ignis service new \
-  --service opencode-agent-service \
+  --service agent-service \
   --kind agent \
   --runtime opencode \
-  --path services/opencode-agent-service
+  --path services/agent-service
 ```
 
 对应的 `ignis.hcl` 为：
 
 ```hcl
 {
-  name = "opencode-agent-service"
+  name = "agent-service"
   kind = "agent"
   agent_runtime = "opencode"
   agent_memory = "none"
   agent_description = "OpenCode agent that completes one structured task and submits JSON output."
-  path = "services/opencode-agent-service"
+  path = "services/agent-service"
 }
 ```
 
 `agent_description` 是 agent service 必填字段。`agent_memory` 和 `agent_description` 都属于 agent-service 配置。部署时 node-agent 会把它们写入托管的 agent-service TOML；业务 HTTP service 可以通过 `GET http://__ignis.svc/v1/services` 发现同 project services，自行过滤 `kind = "agent"`，并用返回的 `description` 构建 TaskPlan coordinator 的 `available_agents`。
 
-`opencode-agent-service` 不需要 `OPENAI_API_KEY` secret。发布时 CLI 会读取 `services/opencode-agent-service/opencode.json`，并把 service 目录下可选的 `skills/` 一起打进 agent bundle。node-agent 启动容器时把 `opencode.json` 只读注入到 `$HOME/.config/opencode/opencode.json`，并把 skills 只读挂载到 `$HOME/.agents/skills`。
+OpenCode runtime 不需要 `OPENAI_API_KEY` secret。发布时 CLI 会读取 `services/agent-service/opencode.json`，并把 service 目录下可选的 `skills/` 一起打进 agent bundle。node-agent 启动容器时把 `opencode.json` 只读注入到 `$HOME/.config/opencode/opencode.json`，并把 skills 只读挂载到 `$HOME/.agents/skills`。Codex runtime 可以使用 `openai-api-key` secret，也可以随 agent bundle 携带 `auth.json` 和 `config.toml`，部署时注入到 `$HOME/.codex/`。
 
 ### 15.2 配置 secrets
 
