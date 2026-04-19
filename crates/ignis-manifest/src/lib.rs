@@ -38,7 +38,7 @@ pub const BUILTIN_OPENCODE_AGENT_SERVICE_WORKDIR: &str = "/app/work";
 pub const BUILTIN_OPENAI_API_KEY_SECRET: &str = "openai-api-key";
 
 pub use project_hcl::{
-    AgentRuntime, AgentServiceConfig, BindingKind, BindingSpec, CompiledBindingPlan,
+    AgentMemory, AgentRuntime, AgentServiceConfig, BindingKind, BindingSpec, CompiledBindingPlan,
     CompiledExposurePlan, CompiledProjectPlan, CompiledServicePlan, ExposeSpec, ListenerProtocol,
     ListenerSpec, ProjectSpec, PublishedBindingPlan, PublishedExposurePlan, PublishedServicePlan,
     ResolvedDependencyGraph, ServiceActivationPlan, ServiceSpec,
@@ -228,6 +228,10 @@ pub struct ServiceManifest {
     pub prefix: String,
     #[serde(default, skip_serializing_if = "AgentRuntime::is_default")]
     pub agent_runtime: AgentRuntime,
+    #[serde(default, skip_serializing_if = "AgentMemory::is_default")]
+    pub agent_memory: AgentMemory,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_description: Option<String>,
     #[serde(default)]
     pub http: Option<HttpServiceConfig>,
     #[serde(default)]
@@ -761,6 +765,20 @@ impl ServiceManifest {
                 self.name
             );
         }
+        if self.kind != ServiceKind::Agent && self.agent_memory != AgentMemory::None {
+            bail!(
+                "{} service `{}` cannot define `agent_memory`",
+                self.kind.as_str(),
+                self.name
+            );
+        }
+        if self.kind != ServiceKind::Agent && self.agent_description.is_some() {
+            bail!(
+                "{} service `{}` cannot define `agent_description`",
+                self.kind.as_str(),
+                self.name
+            );
+        }
         match self.kind {
             ServiceKind::Http => {
                 let http = self.http.as_ref().ok_or_else(|| {
@@ -835,6 +853,18 @@ impl ServiceManifest {
                 frontend.validate(&self.name)?;
             }
             ServiceKind::Agent => {
+                let Some(description) = &self.agent_description else {
+                    bail!(
+                        "agent service `{}` must define `agent_description`",
+                        self.name
+                    );
+                };
+                if description.trim().is_empty() {
+                    bail!(
+                        "agent service `{}` field `agent_description` cannot be empty",
+                        self.name
+                    );
+                }
                 if self.http.is_some() {
                     bail!(
                         "agent service `{}` cannot define `[services.http]`",
@@ -1303,6 +1333,8 @@ memory_limit_bytes = 67108864
                     path: PathBuf::from("services/api"),
                     prefix: "/api".to_owned(),
                     agent_runtime: AgentRuntime::Codex,
+                    agent_memory: AgentMemory::None,
+                    agent_description: None,
                     http: Some(HttpServiceConfig {
                         component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
                         base_path: "/".to_owned(),
@@ -1323,6 +1355,8 @@ memory_limit_bytes = 67108864
                     path: PathBuf::from("services/web"),
                     prefix: "/".to_owned(),
                     agent_runtime: AgentRuntime::Codex,
+                    agent_memory: AgentMemory::None,
+                    agent_description: None,
                     http: None,
                     frontend: Some(FrontendServiceConfig {
                         build_command: vec!["pnpm".to_owned(), "build".to_owned()],
@@ -1361,6 +1395,8 @@ memory_limit_bytes = 67108864
                     path: PathBuf::from("services/api"),
                     prefix: "/api".to_owned(),
                     agent_runtime: AgentRuntime::Codex,
+                    agent_memory: AgentMemory::None,
+                    agent_description: None,
                     http: Some(HttpServiceConfig {
                         component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
                         base_path: "/".to_owned(),
@@ -1379,6 +1415,8 @@ memory_limit_bytes = 67108864
                     path: PathBuf::from("services/web"),
                     prefix: "/api/".to_owned(),
                     agent_runtime: AgentRuntime::Codex,
+                    agent_memory: AgentMemory::None,
+                    agent_description: None,
                     http: None,
                     frontend: Some(FrontendServiceConfig {
                         build_command: vec!["pnpm".to_owned(), "build".to_owned()],
@@ -1408,6 +1446,8 @@ memory_limit_bytes = 67108864
             path: PathBuf::from("services/web"),
             prefix: "/".to_owned(),
             agent_runtime: AgentRuntime::Codex,
+            agent_memory: AgentMemory::None,
+            agent_description: None,
             http: None,
             frontend: Some(FrontendServiceConfig {
                 build_command: vec!["pnpm".to_owned(), "build".to_owned()],
@@ -1433,6 +1473,8 @@ memory_limit_bytes = 67108864
             path: PathBuf::from("services/api"),
             prefix: "api".to_owned(),
             agent_runtime: AgentRuntime::Codex,
+            agent_memory: AgentMemory::None,
+            agent_description: None,
             http: Some(HttpServiceConfig {
                 component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
                 base_path: "/".to_owned(),
@@ -1462,6 +1504,8 @@ memory_limit_bytes = 67108864
                 path: PathBuf::from("services/api"),
                 prefix: "/api".to_owned(),
                 agent_runtime: AgentRuntime::Codex,
+                agent_memory: AgentMemory::None,
+                agent_description: None,
                 http: Some(HttpServiceConfig {
                     component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
                     base_path: "/".to_owned(),
@@ -1496,6 +1540,8 @@ memory_limit_bytes = 67108864
             path: PathBuf::from("services/web"),
             prefix: "/".to_owned(),
             agent_runtime: AgentRuntime::Codex,
+            agent_memory: AgentMemory::None,
+            agent_description: None,
             http: None,
             frontend: Some(FrontendServiceConfig {
                 build_command: vec!["pnpm".to_owned(), "build".to_owned()],
@@ -1525,6 +1571,8 @@ memory_limit_bytes = 67108864
             path: PathBuf::from("services/api"),
             prefix: "/api".to_owned(),
             agent_runtime: AgentRuntime::Codex,
+            agent_memory: AgentMemory::None,
+            agent_description: None,
             http: Some(HttpServiceConfig {
                 component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
                 base_path: "/".to_owned(),
@@ -1556,6 +1604,8 @@ memory_limit_bytes = 67108864
             path: PathBuf::from("services/api"),
             prefix: "/api".to_owned(),
             agent_runtime: AgentRuntime::Codex,
+            agent_memory: AgentMemory::None,
+            agent_description: None,
             http: Some(HttpServiceConfig {
                 component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
                 base_path: "/".to_owned(),
@@ -1587,6 +1637,8 @@ memory_limit_bytes = 67108864
             path: PathBuf::from("services/api"),
             prefix: "/api".to_owned(),
             agent_runtime: AgentRuntime::Codex,
+            agent_memory: AgentMemory::None,
+            agent_description: None,
             http: Some(HttpServiceConfig {
                 component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
                 base_path: "/".to_owned(),
@@ -1615,6 +1667,8 @@ memory_limit_bytes = 67108864
             path: PathBuf::from("services/api"),
             prefix: "/api".to_owned(),
             agent_runtime: AgentRuntime::Codex,
+            agent_memory: AgentMemory::None,
+            agent_description: None,
             http: Some(HttpServiceConfig {
                 component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
                 base_path: "/".to_owned(),
@@ -1648,6 +1702,8 @@ memory_limit_bytes = 67108864
                 path: PathBuf::from("services/api"),
                 prefix: "/api".to_owned(),
                 agent_runtime: AgentRuntime::Codex,
+                agent_memory: AgentMemory::None,
+                agent_description: None,
                 http: Some(HttpServiceConfig {
                     component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
                     base_path: "/".to_owned(),

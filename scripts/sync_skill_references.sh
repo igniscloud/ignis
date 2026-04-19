@@ -45,6 +45,8 @@ copy_file "$ROOT_DIR/docs/ignis-hcl.md" "$ROOT_DIR/skills/ignis/references/ignis
 copy_file "$ROOT_DIR/docs/integration.md" "$ROOT_DIR/skills/ignis/references/integration.md"
 copy_file "$ROOT_DIR/docs/object-store-presign.md" "$ROOT_DIR/skills/ignis/references/object-store-presign.md"
 copy_file "$ROOT_DIR/docs/jobs-and-schedules.md" "$ROOT_DIR/skills/ignis/references/jobs-and-schedules.md"
+copy_file "$ROOT_DIR/docs/taskplan.md" "$ROOT_DIR/skills/ignis/references/taskplan.md"
+copy_file "$ROOT_DIR/docs/system-api.md" "$ROOT_DIR/skills/ignis/references/system-api.md"
 
 reset_dir "$ROOT_DIR/skills/ignis/references/ignis-sdk"
 cp -R "$ROOT_DIR/docs/ignis-sdk/." "$ROOT_DIR/skills/ignis/references/ignis-sdk/"

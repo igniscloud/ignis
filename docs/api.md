@@ -99,7 +99,7 @@ Common `ignis_sdk::object_store` helpers:
 - `presign_upload(filename, content_type, size_bytes, sha256, expires_in_ms)`
 - `presign_download(file_id, expires_in_ms)`
 
-Read [Object Store Presign](./object-store-presign.md) for the platform-managed COS/S3 presign flow and examples.
+Read [Object Store Presign](./object-store-presign.md) for the platform-managed COS/S3 presign flow and examples. Read [System API](./system-api.md) for built-in runtime URLs such as `http://__ignis.svc/v1/services`.
 
 ### 1.3 `ignis-runtime`
 
@@ -172,5 +172,6 @@ The common flow looks like this:
 - [CLI Guide](./cli.md)
 - [ignis.hcl Guide](./ignis-hcl.md)
 - [Ignis Service Link](./ignis-service-link.md)
+- [System API](./system-api.md)
 - [Object Store Presign](./object-store-presign.md)
 - [Jobs and Schedules](./jobs-and-schedules.md)

@@ -1,5 +1,7 @@
 # Agent Service 极简实现方案
 
+> Ownership note: this document records the original minimal `agent-service` design. The reusable TaskPlan framework crate now lives in `ignis/crates/taskplan` because user HTTP services depend on it. The hosted `agent-service` runtime implementation, container images, deployment assets, memory config, and `spawn_task_plan`/TaskPlan-mode tool callback protocol are owned by IgnisCloud.
+
 本文定义一个最小可用的 `agent-service`。
 
 目标不是做复杂任务平台，而是提供一个很薄的服务：
@@ -1000,6 +1002,8 @@ CLI 会在 `ignis.hcl` 中生成一个 internal-only 的 `kind = "agent"` 服务
 {
   name = "agent-service"
   kind = "agent"
+  agent_memory = "none"
+  agent_description = "Codex agent that completes one structured task and submits JSON output."
   path = "services/agent-service"
 }
 ```
@@ -1023,9 +1027,13 @@ ignis service new \
   name = "opencode-agent-service"
   kind = "agent"
   agent_runtime = "opencode"
+  agent_memory = "none"
+  agent_description = "OpenCode agent that completes one structured task and submits JSON output."
   path = "services/opencode-agent-service"
 }
 ```
+
+`agent_description` 是 agent service 必填字段。`agent_memory` 和 `agent_description` 都属于 agent-service 配置。部署时 node-agent 会把它们写入托管的 agent-service TOML；业务 HTTP service 可以通过 `GET http://__ignis.svc/v1/services` 发现同 project services，自行过滤 `kind = "agent"`，并用返回的 `description` 构建 TaskPlan coordinator 的 `available_agents`。
 
 `opencode-agent-service` 不需要 `OPENAI_API_KEY` secret。发布时 CLI 会读取 `services/opencode-agent-service/opencode.json`，并把 service 目录下可选的 `skills/` 一起打进 agent bundle。node-agent 启动容器时把 `opencode.json` 只读注入到 `$HOME/.config/opencode/opencode.json`，并把 skills 只读挂载到 `$HOME/.agents/skills`。
 
@@ -1153,6 +1161,8 @@ ignis service new \
   name = "agent-service"
   kind = "agent"
   agent_runtime = "opencode"
+  agent_memory = "none"
+  agent_description = "OpenCode agent that answers user prompts and submits structured JSON results."
   path = "services/agent-service"
 
   resources {

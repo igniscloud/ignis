@@ -1,0 +1,13 @@
+[package]
+name = "taskplan"
+description = "Reusable TaskPlan model and executor primitives"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+jsonschema.workspace = true
+serde.workspace = true
+serde_json.workspace = true

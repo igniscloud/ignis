@@ -4,8 +4,9 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use ignis_manifest::{
-    AgentRuntime, FrontendServiceConfig, HttpServiceConfig, IGNIS_LOGIN_IGNISCLOUD_ID_BASE_URL_ENV,
-    INTERNAL_ONLY_MANIFEST_PREFIX_BASE, ResourceConfig, ServiceKind, ServiceManifest, SqliteConfig,
+    AgentMemory, AgentRuntime, FrontendServiceConfig, HttpServiceConfig,
+    IGNIS_LOGIN_IGNISCLOUD_ID_BASE_URL_ENV, INTERNAL_ONLY_MANIFEST_PREFIX_BASE, ResourceConfig,
+    ServiceKind, ServiceManifest, SqliteConfig,
 };
 use serde::Serialize;
 
@@ -123,6 +124,8 @@ fn build_new_service_manifest(
                 path: path.to_path_buf(),
                 prefix: format!("/{service_name}"),
                 agent_runtime: AgentRuntime::Codex,
+                agent_memory: AgentMemory::None,
+                agent_description: None,
                 http: Some(HttpServiceConfig {
                     component: PathBuf::from(format!(
                         "target/wasm32-wasip2/release/{package_name}.wasm"
@@ -146,6 +149,8 @@ fn build_new_service_manifest(
             path: path.to_path_buf(),
             prefix: "/".to_owned(),
             agent_runtime: AgentRuntime::Codex,
+            agent_memory: AgentMemory::None,
+            agent_description: None,
             http: None,
             frontend: Some(FrontendServiceConfig {
                 build_command: vec![
@@ -173,6 +178,10 @@ fn build_new_service_manifest(
             path: path.to_path_buf(),
             prefix: format!("{INTERNAL_ONLY_MANIFEST_PREFIX_BASE}/{service_name}"),
             agent_runtime: runtime.map(Into::into).unwrap_or_default(),
+            agent_memory: AgentMemory::None,
+            agent_description: Some(format!(
+                "{service_name} agent service that completes one structured task and submits JSON output."
+            )),
             http: None,
             frontend: None,
             agent: None,
@@ -675,8 +684,8 @@ fn kind_name(kind: ServiceKind) -> &'static str {
 #[cfg(test)]
 mod tests {
     use ignis_manifest::{
-        AgentRuntime, HttpServiceConfig, IgnisLoginConfig, IgnisLoginProvider, ResourceConfig,
-        ServiceKind, ServiceManifest, SqliteConfig,
+        AgentMemory, AgentRuntime, HttpServiceConfig, IgnisLoginConfig, IgnisLoginProvider,
+        ResourceConfig, ServiceKind, ServiceManifest, SqliteConfig,
     };
     use std::path::PathBuf;
 
@@ -689,6 +698,8 @@ mod tests {
             path: PathBuf::from("services/api"),
             prefix: "/api".to_owned(),
             agent_runtime: AgentRuntime::Codex,
+            agent_memory: AgentMemory::None,
+            agent_description: None,
             http: Some(HttpServiceConfig {
                 component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
                 base_path: "/".to_owned(),

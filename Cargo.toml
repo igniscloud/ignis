@@ -7,6 +7,7 @@ members = [
     "crates/ignis-platform-host",
     "crates/ignis-runtime",
     "crates/ignis-sdk",
+    "crates/taskplan",
 ]
 resolver = "2"
 

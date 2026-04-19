@@ -159,6 +159,7 @@ services = [
   {
     name = "agent-service"
     kind = "agent"
+    agent_description = "Handles one structured agent task and returns JSON output."
     path = "services/agent-service"
   }
 ]
@@ -245,16 +246,34 @@ ignis service new \
   --path services/agent-service
 ```
 
-The generated service declaration is:
+After running the command, add agent discovery metadata to the generated service declaration when the agent should be selectable by other services:
 
 ```hcl
 {
   name = "agent-service"
   kind = "agent"
   agent_runtime = "opencode"
+  agent_memory = "none"
+  agent_description = "Researches external information and returns structured evidence."
   path = "services/agent-service"
 }
 ```
+
+`agent_memory` controls agent-service runtime memory and defaults to `none`.
+
+Supported values:
+
+- `none`: every task invocation starts a fresh runtime session.
+- `session`: TaskPlan continuation invocations can reuse a runtime session scoped to the same `(plan_run_id, agent_service_name)`.
+
+`agent_memory` is an agent-service config field, not a task or TaskPlan field. It is not passed through an environment variable. During deploy, IgnisCloud/node-agent writes it into the managed agent-service config file and mounts that file read-only into the container:
+
+```text
+/app/config/agent-service.toml
+/app/config/opencode-agent-service.toml
+```
+
+`agent_description` is required for every `agent` service. It describes the agent for service discovery, `GET /v1/metadata`, and TaskPlan coordinator prompts. During deploy, IgnisCloud/node-agent writes it into the managed agent-service config file, so `GET http://agent-service.svc/v1/metadata` returns the same description.
 
 For OpenCode, provide the runtime config in the service directory before publishing:
 
@@ -324,6 +343,53 @@ Task creation accepts:
 ```
 
 `task_result_json_schema` is the schema for the final `result` passed to `submit_task`. If `callback_url` is omitted, poll `GET /v1/tasks/{task_id}` until `status` is `succeeded` or `failed`.
+
+For multi-agent orchestration, user HTTP services can depend on the Ignis `taskplan` crate and use the agent-service TaskPlan mode. In that mode task creation can also include:
+
+```json
+{
+  "prompt": "...",
+  "tool_callback_url": "http://api.svc/internal/taskplan/tools",
+  "task_result_json_schema": {
+    "type": "object"
+  }
+}
+```
+
+`tool_callback_url` receives `spawn_task_plan` and TaskPlan-mode `submit_task` callbacks from agent-service. The HTTP service owns the actual TaskPlan executor state and should use `taskplan` for validation, dependency readiness, output binding, child plan creation, and parent resume logic.
+
+To discover other services in the same project, a user HTTP service can call the reserved internal platform endpoint:
+
+```text
+GET http://__ignis.svc/v1/services
+```
+
+The response lists services in the caller's project. The caller can filter `kind = "agent"` when it needs TaskPlan agents:
+
+```json
+{
+  "data": [
+    {
+      "service": "api",
+      "kind": "http",
+      "service_url": "http://api.svc"
+    },
+    {
+      "service": "research-agent",
+      "kind": "agent",
+      "service_url": "http://research-agent.svc",
+      "metadata_url": "http://research-agent.svc/v1/metadata",
+      "runtime": "opencode",
+      "memory": "none",
+      "description": "Researches external information and returns structured evidence."
+    }
+  ]
+}
+```
+
+The TaskPlan executor should filter for `kind = "agent"` and use `description` to build `available_agents`. It can also call each `metadata_url` when it needs live runtime metadata. `__ignis.svc` is reserved for platform discovery and should not be used as an application service name. See [`system-api.md`](system-api.md) for built-in platform URLs such as `__ignis.svc`.
+
+See [`taskplan.md`](taskplan.md) for the framework crate, callback payloads, memory boundary, and coordinator-agent guidance.
 
 Current `agent` constraints:
 

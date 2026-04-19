@@ -404,6 +404,7 @@ Ignis 内置的 Codex 任务 agent 镜像为：
 {
   name = "agent-service"
   kind = "agent"
+  agent_description = "Handles one structured agent task and returns JSON output."
   path = "services/agent-service"
 }
 ```
@@ -424,16 +425,34 @@ ignis service new \
   --path services/agent-service
 ```
 
-对应的 `ignis.hcl`：
+如果这个 agent 需要被其他 service 发现和选择，可以在生成的 service declaration 上补充 agent discovery metadata：
 
 ```hcl
 {
   name = "agent-service"
   kind = "agent"
   agent_runtime = "opencode"
+  agent_memory = "none"
+  agent_description = "Researches external information and returns structured evidence."
   path = "services/agent-service"
 }
 ```
+
+`agent_memory` 控制 agent-service runtime 的记忆模式，默认是 `none`。
+
+支持的值：
+
+- `none`：每次 task invocation 都启动新的 runtime session。
+- `session`：TaskPlan continuation invocation 可以复用同一个 `(plan_run_id, agent_service_name)` 作用域下的 runtime session。
+
+`agent_memory` 是 agent-service 配置，不是 task 或 TaskPlan 字段，也不会通过环境变量传递。部署时 IgnisCloud/node-agent 会把它写入托管的 agent-service 配置文件，并以只读方式挂载到容器：
+
+```text
+/app/config/agent-service.toml
+/app/config/opencode-agent-service.toml
+```
+
+`agent_description` 是每个 `agent` service 的必填字段。它用于 service discovery、`GET /v1/metadata` 和 TaskPlan coordinator prompt。部署时 IgnisCloud/node-agent 会把它写入托管的 agent-service 配置文件，所以 `GET http://agent-service.svc/v1/metadata` 会返回同一份 description。
 
 发布前在 service 目录提供 OpenCode 运行配置：
 
@@ -504,6 +523,53 @@ GET  http://agent-service.svc/v1/tasks/{task_id}
 
 `task_result_json_schema` 是 agent 最终通过 `submit_task` 提交的 `result` 的 JSON Schema。如果不传 `callback_url`，调用方通过 `GET /v1/tasks/{task_id}` 轮询，直到 `status` 为 `succeeded` 或 `failed`。
 
+多 agent 协作时，用户的 HTTP service 可以依赖 Ignis 的 `taskplan` crate，并使用 agent-service 的 TaskPlan 模式。此模式下创建 task 可以额外传：
+
+```json
+{
+  "prompt": "...",
+  "tool_callback_url": "http://api.svc/internal/taskplan/tools",
+  "task_result_json_schema": {
+    "type": "object"
+  }
+}
+```
+
+`tool_callback_url` 接收 agent-service 转发的 `spawn_task_plan` 和 TaskPlan-mode `submit_task` 回调。真正的 TaskPlan 状态、依赖、output binding、child plan 创建和父任务恢复逻辑由用户 HTTP service 使用 `taskplan` crate 实现。
+
+用户 HTTP service 如果需要发现同一个 project 内的其他 service，可以调用保留的内部平台 endpoint：
+
+```text
+GET http://__ignis.svc/v1/services
+```
+
+响应会列出调用方 project 内的 service。调用方需要 TaskPlan agents 时，自己过滤 `kind = "agent"`：
+
+```json
+{
+  "data": [
+    {
+      "service": "api",
+      "kind": "http",
+      "service_url": "http://api.svc"
+    },
+    {
+      "service": "research-agent",
+      "kind": "agent",
+      "service_url": "http://research-agent.svc",
+      "metadata_url": "http://research-agent.svc/v1/metadata",
+      "runtime": "opencode",
+      "memory": "none",
+      "description": "Researches external information and returns structured evidence."
+    }
+  ]
+}
+```
+
+TaskPlan executor 应该过滤 `kind = "agent"`，并使用 `description` 构建 `available_agents`。如果需要 runtime 实时 metadata，也可以再调用每个 `metadata_url`。`__ignis.svc` 是平台发现保留名，不应该作为应用 service 名使用。
+
+更多边界和 payload 见 [`taskplan.md`](../taskplan.md)。
+
 当前版本不支持用户自定义 agent 镜像。
 
 `agent` service 对用户暴露的主要字段：
@@ -512,6 +578,7 @@ GET  http://agent-service.svc/v1/tasks/{task_id}
 - `kind`
 - `path`
 - `agent_runtime`
+- `agent_memory`
 - `resources.memory_limit_bytes`
 
 当前不允许为 `agent` service 声明：

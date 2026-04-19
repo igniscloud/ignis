@@ -22,10 +22,11 @@ description: Use for building and operating Ignis projects with ignis-cli, ignis
 3. 如果任务偏 `ignis.hcl` 字段、默认值或示例配置，读 `references/ignis-hcl.md`。
 4. 如果任务偏 `ignis-sdk` API，用 `references/ignis-sdk/index.md` 作为入口，只继续打开当前需要的模块或 item 页面。
 5. 如果任务涉及 async jobs、manual job API、cron schedules、job runs 或 job execution headers，读 `references/jobs-and-schedules.md`。
-6. 如果任务涉及平台托管 COS/S3 presigned URL，读 `references/object-store-presign.md`；需要完整上传例子时读 `references/examples/cos-and-jobs-example/`。
+6. 如果任务涉及运行时内置系统 API、`http://__ignis.svc/v1/services`、平台托管 COS/S3 presigned URL 或 object-store host import，读 `references/system-api.md`；需要完整上传例子时读 `references/object-store-presign.md` 和 `references/examples/cos-and-jobs-example/`。
 7. 如果任务涉及登录或 `[services.ignis_login]`，切到 `ignis-login` skill。
 8. 如果任务涉及 `kind = "agent"`、OpenCode agent-service、任务 schema、`opencode.json` 注入、自定义 agent skills 或前端/后端/agent 端到端，读 `references/ignis-hcl.md` 的 agent service 配置和 `references/examples/opencode-agent-e2e/`。
-9. 如果需要最小 HTTP / SQLite 模板，优先读整个 example 项目：
+9. 如果任务涉及多 agent 协作、TaskPlan、`spawn_task_plan`、`tool_callback_url`、父任务等待子计划或 coordinator agent，读 `references/taskplan.md`。
+10. 如果需要最小 HTTP / SQLite 模板，优先读整个 example 项目：
    `references/examples/hello-fullstack/` 和 `references/examples/sqlite-example/`。
 
 ## 工作规则
@@ -42,7 +43,8 @@ description: Use for building and operating Ignis projects with ignis-cli, ignis
 - 平台托管对象存储优先使用 presign：Wasm service 调 `ignis_sdk::object_store`，host/control-plane 完成签名，不要把 COS/S3 AK/SK 暴露给 Wasm 或浏览器。
 - Jobs/schedules 是 project automation：在 `ignis.hcl` 顶层声明 `jobs` / `schedules` 后通过 `ignis project sync --mode apply` 同步；job target 走同项目 HTTP service，不要写任意外部 URL。
 - 如果产品需求涉及 LLM、agent、模型调用、结构化生成、工具调用或长任务推理，默认优先使用内部 `agent` service，而不是在业务 `http` service 里直接向模型 provider 发 HTTP 请求。
-- `agent` service 是内部任务 agent 容器。OpenCode 用 `agent_runtime = "opencode"`，发布前在 service 目录放 `opencode.json`；agent 的长期角色说明放在 `services/<agent>/AGENTS.md`，发布后挂载到 `/app/config/AGENTS.md` 并追加到内置 one-task 系统提示词；自定义 skills 放在 `services/<agent>/skills/<skill>/SKILL.md`，发布时会一起进入 agent bundle，并在容器内挂载到 `$HOME/.agents/skills`；其他 service 通过 `http://agent-service.svc/v1/tasks` 创建任务，通过 callback 或 `GET /v1/tasks/{task_id}` 取结果。
+- `agent` service 是内部任务 agent 容器。OpenCode 用 `agent_runtime = "opencode"`，发布前在 service 目录放 `opencode.json`；用 `agent_memory` 配置记忆模式，必须用 `agent_description` 描述 agent 能力，供 service discovery、`/v1/metadata` 和 TaskPlan coordinator 使用；agent 的长期角色说明放在 `services/<agent>/AGENTS.md`，发布后挂载到 `/app/config/AGENTS.md` 并追加到内置 one-task 系统提示词；自定义 skills 放在 `services/<agent>/skills/<skill>/SKILL.md`，发布时会一起进入 agent bundle，并在容器内挂载到 `$HOME/.agents/skills`；其他 service 通过 `http://agent-service.svc/v1/tasks` 创建任务，通过 callback 或 `GET /v1/tasks/{task_id}` 取结果。
+- 多 agent 协作不要把编排逻辑写进每个 agent-service。用户 `http` service 依赖 Ignis 的 `taskplan` crate，负责 TaskPlan 状态、依赖、output binding 和 child plan 调度；agent-service 只负责 runtime，并通过 `tool_callback_url` 转发 `spawn_task_plan` 和 TaskPlan-mode `submit_task`。业务 service 通过 `GET http://__ignis.svc/v1/services` 发现同 project services，自行过滤 `kind = "agent"` 后用 `description` 组装 `available_agents`。`memory` 是 agent-service config，不是 TaskPlan/task 字段。
 
 ## 参考资料
 
@@ -52,6 +54,8 @@ description: Use for building and operating Ignis projects with ignis-cli, ignis
 - `ignis-sdk` 生成文档入口：`references/ignis-sdk/index.md`
 - Jobs and schedules：`references/jobs-and-schedules.md`
 - Object-store presign：`references/object-store-presign.md`
+- System API：`references/system-api.md`
+- TaskPlan multi-agent orchestration：`references/taskplan.md`
 - 最小 HTTP 示例项目：`references/examples/hello-fullstack/`
 - SQLite 示例项目：`references/examples/sqlite-example/`
 - COS 上传和jobs，corn使用方式完整示例：`references/examples/cos-and-jobs-example/`

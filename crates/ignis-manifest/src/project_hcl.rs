@@ -55,6 +55,10 @@ pub struct ServiceSpec {
     pub path: PathBuf,
     #[serde(default, skip_serializing_if = "AgentRuntime::is_default")]
     pub agent_runtime: AgentRuntime,
+    #[serde(default, skip_serializing_if = "AgentMemory::is_default")]
+    pub agent_memory: AgentMemory,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_description: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub bindings: Vec<BindingSpec>,
     #[serde(default)]
@@ -113,6 +117,27 @@ impl AgentRuntime {
 
     pub(crate) fn is_default(&self) -> bool {
         *self == Self::Codex
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentMemory {
+    #[default]
+    None,
+    Session,
+}
+
+impl AgentMemory {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Session => "session",
+        }
+    }
+
+    pub(crate) fn is_default(&self) -> bool {
+        *self == Self::None
     }
 }
 
@@ -559,6 +584,8 @@ impl ServiceSpec {
             kind: service.kind,
             path: service.path.clone(),
             agent_runtime: service.agent_runtime,
+            agent_memory: service.agent_memory,
+            agent_description: service.agent_description.clone(),
             bindings: vec![BindingSpec {
                 name: binding_name.to_owned(),
                 kind: service.public_exposure_binding_kind(),
@@ -581,6 +608,8 @@ impl ServiceSpec {
             path: self.path,
             prefix,
             agent_runtime: self.agent_runtime,
+            agent_memory: self.agent_memory,
+            agent_description: self.agent_description,
             http: self.http,
             frontend: self.frontend,
             agent: self.agent,
@@ -901,6 +930,8 @@ mod tests {
                     kind: ServiceKind::Http,
                     path: PathBuf::from("services/api"),
                     agent_runtime: AgentRuntime::Codex,
+                    agent_memory: AgentMemory::None,
+                    agent_description: None,
                     bindings: vec![BindingSpec {
                         name: "http".to_owned(),
                         kind: BindingKind::Http,
@@ -926,6 +957,8 @@ mod tests {
                     kind: ServiceKind::Frontend,
                     path: PathBuf::from("services/web"),
                     agent_runtime: AgentRuntime::Codex,
+                    agent_memory: AgentMemory::None,
+                    agent_description: None,
                     bindings: vec![BindingSpec {
                         name: "frontend".to_owned(),
                         kind: BindingKind::Frontend,
@@ -988,6 +1021,10 @@ mod tests {
                 kind: ServiceKind::Agent,
                 path: PathBuf::from("services/coder"),
                 agent_runtime: AgentRuntime::Codex,
+                agent_memory: AgentMemory::None,
+                agent_description: Some(
+                    "Codes one structured task and reports the result.".to_owned(),
+                ),
                 bindings: Vec::new(),
                 http: None,
                 frontend: None,
@@ -1089,6 +1126,10 @@ mod tests {
                 path: PathBuf::from("services/agent-service"),
                 prefix: "/_ignis_internal/agent-service".to_owned(),
                 agent_runtime: AgentRuntime::Codex,
+                agent_memory: AgentMemory::None,
+                agent_description: Some(
+                    "Codes one structured task and reports the result.".to_owned(),
+                ),
                 http: None,
                 frontend: None,
                 agent: None,
@@ -1129,6 +1170,10 @@ mod tests {
                 path: PathBuf::from("services/opencode-agent-service"),
                 prefix: "/_ignis_internal/opencode-agent-service".to_owned(),
                 agent_runtime: AgentRuntime::Opencode,
+                agent_memory: AgentMemory::None,
+                agent_description: Some(
+                    "Codes one structured task and reports the result.".to_owned(),
+                ),
                 http: None,
                 frontend: None,
                 agent: None,
@@ -1153,6 +1198,44 @@ mod tests {
     }
 
     #[test]
+    fn renders_agent_memory_session() {
+        let manifest = ProjectManifest {
+            project: ProjectConfig {
+                name: "demo".to_owned(),
+                domain: None,
+            },
+            services: vec![ServiceManifest {
+                name: "coordinator-agent".to_owned(),
+                kind: ServiceKind::Agent,
+                path: PathBuf::from("services/coordinator-agent"),
+                prefix: "/_ignis_internal/coordinator-agent".to_owned(),
+                agent_runtime: AgentRuntime::Opencode,
+                agent_memory: AgentMemory::Session,
+                agent_description: Some("Coordinator agent".to_owned()),
+                http: None,
+                frontend: None,
+                agent: None,
+                ignis_login: None,
+                env: BTreeMap::new(),
+                secrets: BTreeMap::new(),
+                sqlite: SqliteConfig::default(),
+                resources: ResourceConfig {
+                    memory_limit_bytes: Some(1024 * 1024 * 1024),
+                },
+            }],
+            jobs: Vec::new(),
+            schedules: Vec::new(),
+        };
+
+        let rendered = manifest.render().unwrap();
+
+        assert!(rendered.contains("agent_memory"));
+        assert!(rendered.contains("session"));
+        assert!(rendered.contains("agent_description"));
+        assert!(rendered.contains("Coordinator agent"));
+    }
+
+    #[test]
     fn allows_service_without_public_exposure() {
         let spec = ProjectSpec {
             project: ProjectConfig {
@@ -1169,6 +1252,8 @@ mod tests {
                 kind: ServiceKind::Http,
                 path: PathBuf::from("services/api"),
                 agent_runtime: AgentRuntime::Codex,
+                agent_memory: AgentMemory::None,
+                agent_description: None,
                 bindings: vec![BindingSpec {
                     name: "http".to_owned(),
                     kind: BindingKind::Http,
@@ -1219,6 +1304,8 @@ mod tests {
                 kind: ServiceKind::Http,
                 path: PathBuf::from("services/api"),
                 agent_runtime: AgentRuntime::Codex,
+                agent_memory: AgentMemory::None,
+                agent_description: None,
                 bindings: vec![BindingSpec {
                     name: "http".to_owned(),
                     kind: BindingKind::Http,
@@ -1282,6 +1369,8 @@ mod tests {
                 kind: ServiceKind::Http,
                 path: PathBuf::from("services/api"),
                 agent_runtime: AgentRuntime::Codex,
+                agent_memory: AgentMemory::None,
+                agent_description: None,
                 bindings: vec![BindingSpec {
                     name: "http".to_owned(),
                     kind: BindingKind::Http,
@@ -1395,6 +1484,8 @@ services = [
                 path: PathBuf::from("services/api"),
                 prefix: "/_ignis_internal/api".to_owned(),
                 agent_runtime: AgentRuntime::Codex,
+                agent_memory: AgentMemory::None,
+                agent_description: None,
                 http: Some(HttpServiceConfig {
                     component: PathBuf::from("target/wasm32-wasip2/release/api.wasm"),
                     base_path: "/".to_owned(),
@@ -1440,6 +1531,8 @@ services = [
                 kind: ServiceKind::Http,
                 path: PathBuf::from("services/api"),
                 agent_runtime: AgentRuntime::Codex,
+                agent_memory: AgentMemory::None,
+                agent_description: None,
                 bindings: vec![BindingSpec {
                     name: "http".to_owned(),
                     kind: BindingKind::Http,

@@ -71,6 +71,7 @@ services = [
     "name" = "agent-service"
     "kind" = "agent"
     "agent_runtime" = "opencode"
+    "agent_description" = "OpenCode agent that answers user prompts and submits structured JSON results."
     "path" = "services/agent-service"
     "resources" = {
       "memory_limit_bytes" = 536870912

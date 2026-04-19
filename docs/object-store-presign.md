@@ -48,6 +48,8 @@ let download = object_store::presign_download(&upload.file_id, Some(15 * 60 * 10
 
 The current implementation targets platform-managed storage first. User-owned COS/S3 credentials can be added later as a separate host/control-plane signing mode.
 
+For the broader list of built-in runtime/system APIs, including the reserved `http://__ignis.svc/v1/services` discovery endpoint, read [System API](./system-api.md).
+
 ## Examples
 
 `cos-and-jobs-example` is a fullstack example:

@@ -80,9 +80,11 @@
 
 ### 1.2 `ignis-sdk`
 
-`ignis-sdk` 是 guest 侧 Rust SDK，当前主要分为 `http` 和 `sqlite` 两块。
+`ignis-sdk` 是 guest 侧 Rust SDK，当前主要分为 `http`、`sqlite` 和 `object_store`。
 
 完整自动生成参考见 [ignis-sdk Markdown 文档](./ignis-sdk/index.md)。
+
+内置运行时 URL，例如 `http://__ignis.svc/v1/services`，见 [System API](./system-api.md)。对象存储上传/下载签名流程见 [Object Store Presign](./object-store-presign.md)。
 
 #### `ignis_sdk::http`
 
