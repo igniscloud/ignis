@@ -84,7 +84,7 @@ All formats include the required `references/` documents for each skill.
 
 - [hello-fullstack](./examples/hello-fullstack)
 - [sqlite-example](./examples/sqlite-example)
-- [费马大定理高中生解法 multi-agent workflow](./examples/opencode-agent-e2e)
+- [Math Proof Lab multi-agent theorem proof workflow](./examples/math-proof-lab)
 
 ## Docs
 

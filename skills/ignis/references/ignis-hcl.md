@@ -228,13 +228,13 @@ Shared fields:
 - `frontend.output_dir`
 - `frontend.spa_fallback`
 
-An `agent` service runs a built-in task agent container on the node-agent. Podman is an implementation detail; the manifest exposes only the internal agent service abstraction. The default runtime is Codex. To use OpenCode, set `agent_runtime = "opencode"` and place an `opencode.json` file in the service directory.
+An `agent` service runs the built-in `agent-service` container on the node-agent. The same container image supports Codex and OpenCode; Podman is an implementation detail. The default runtime is Codex. To use OpenCode, set `agent_runtime = "opencode"` and place an `opencode.json` file in the service directory.
 
 When a product requirement needs LLM or agent behavior, prefer an internal `agent` service and the task API over making direct model-provider HTTP requests from an `http` service. This keeps provider credentials, runtime setup, MCP tools, result validation, callback handling, and polling behind the platform-managed agent boundary.
 
 Ignis injects the fixed image, port, workdir, MCP URL, database path, workspace path, and callback host allowlist. Users do not configure those fields.
 
-The built-in image exposes `POST /v1/tasks`, starts one agent runtime process per task, and stores the schema-validated result. If the task includes `callback_url`, the result is posted there; otherwise callers can poll `GET /v1/tasks/:task_id`.
+The built-in image exposes `POST /v1/tasks`, starts one agent runtime process per task, and stores the schema-validated result. Agent containers use Playwright client libraries and connect to the shared node-level Playwright server. If the task includes `callback_url`, the result is posted there; otherwise callers can poll `GET /v1/tasks/:task_id`.
 
 Create an OpenCode agent service with:
 
@@ -270,7 +270,6 @@ Supported values:
 
 ```text
 /app/config/agent-service.toml
-/app/config/opencode-agent-service.toml
 ```
 
 `agent_description` is required for every `agent` service. It describes the agent for service discovery, `GET /v1/metadata`, and TaskPlan coordinator prompts. During deploy, IgnisCloud/node-agent writes it into the managed agent-service config file, so `GET http://agent-service.svc/v1/metadata` returns the same description.
@@ -286,6 +285,19 @@ chmod 600 services/agent-service/opencode.json
 
 ```text
 /agent-home/.config/opencode/opencode.json
+```
+
+For Codex, you may continue using the `openai-api-key` service secret, or place both local Codex auth files in the service directory before publishing:
+
+```bash
+cp ~/.codex/auth.json ~/.codex/config.toml services/agent-service/
+chmod 600 services/agent-service/auth.json services/agent-service/config.toml
+```
+
+When both files are present, Ignis bundles them and node-agent mounts them into:
+
+```text
+/agent-home/.codex/
 ```
 
 Agent standing instructions can live next to the config in `AGENTS.md`:

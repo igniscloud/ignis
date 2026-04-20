@@ -50,15 +50,15 @@ A fullstack Google login, COS upload, and scheduled cleanup example showing:
 - a 10MB per-user quota keyed by the Google user subject
 - a cron-triggered job that releases quota for expired pending uploads
 
-## 费马大定理高中生解法 multi-agent workflow
+## Math Proof Lab multi-agent theorem proof workflow
 
-`opencode-agent-e2e` is now a fullstack OpenCode TaskPlan example showing:
+`math-proof-lab` is a fullstack OpenCode agent architecture example showing:
 
-- one Vue frontend service that starts a Fermat's Last Theorem guide workflow
-- one `http` API service that persists TaskPlan state in SQLite
-- one `coordinator-agent` that calls `spawn_task_plan`
-- five specialist OpenCode child agents for elementary number theory, Frey/Ribet, modularity/Wiles, teacher rewriting, and rigor review
-- workflow polling through `POST /api/workflows` and `GET /api/workflows/:run_id`
+- one Vue frontend service that starts a strict theorem-proof workflow for a chosen audience level
+- one `http` API service that stores workflow state and dispatches TaskPlan child tasks
+- one `orchestrator-agent` that dynamically chooses which specialist agents are needed
+- five specialist OpenCode agents for literature and knowledge graph retrieval, formal verification, curriculum mapping, pedagogy, and rigor review
+- an explicit rule that audience-friendly explanations must preserve proof status and named black boxes
 
 ## Validation
 
@@ -70,5 +70,5 @@ cargo check --manifest-path examples/sqlite-example/services/api/Cargo.toml
 cargo check --manifest-path examples/ignis-login-example/services/api/Cargo.toml
 cargo check --manifest-path examples/dual-frontend-login-example/services/api/Cargo.toml
 cargo check --manifest-path examples/cos-and-jobs-example/services/api/Cargo.toml --target wasm32-wasip2
-cargo check --manifest-path examples/opencode-agent-e2e/services/api/Cargo.toml --target wasm32-wasip2
+cargo check --manifest-path examples/math-proof-lab/services/api/Cargo.toml --target wasm32-wasip2
 ```

@@ -24,7 +24,7 @@ description: Use for building and operating Ignis projects with ignis-cli, ignis
 5. 如果任务涉及 async jobs、manual job API、cron schedules、job runs 或 job execution headers，读 `references/jobs-and-schedules.md`。
 6. 如果任务涉及运行时内置系统 API、`http://__ignis.svc/v1/services`、平台托管 COS/S3 presigned URL 或 object-store host import，读 `references/system-api.md`；需要完整上传例子时读 `references/object-store-presign.md` 和 `references/examples/cos-and-jobs-example/`。
 7. 如果任务涉及登录或 `[services.ignis_login]`，切到 `ignis-login` skill。
-8. 如果任务涉及 `kind = "agent"`、OpenCode agent-service、TaskPlan 多 agent workflow、任务 schema、`opencode.json` 注入、自定义 agent skills 或前端/后端/agent 端到端，读 `references/ignis-hcl.md` 的 agent service 配置和 `references/examples/opencode-agent-e2e/`。
+8. 如果任务涉及 `kind = "agent"`、OpenCode agent-service、TaskPlan 多 agent workflow、任务 schema、`opencode.json` 注入、自定义 agent skills 或前端/后端/agent 端到端，读 `references/ignis-hcl.md` 的 agent service 配置和 `references/examples/math-proof-lab/`。
 9. 如果任务涉及多 agent 协作、TaskPlan、`spawn_task_plan`、`tool_callback_url`、父任务等待子计划或 coordinator agent，读 `references/taskplan.md`。
 10. 如果需要最小 HTTP / SQLite 模板，优先读整个 example 项目：
    `references/examples/hello-fullstack/` 和 `references/examples/sqlite-example/`。
@@ -59,5 +59,5 @@ description: Use for building and operating Ignis projects with ignis-cli, ignis
 - 最小 HTTP 示例项目：`references/examples/hello-fullstack/`
 - SQLite 示例项目：`references/examples/sqlite-example/`
 - COS 上传和jobs，corn使用方式完整示例：`references/examples/cos-and-jobs-example/`
-- OpenCode 费马大定理高中生解法 multi-agent workflow 示例：`references/examples/opencode-agent-e2e/`
+- OpenCode Math Proof Lab multi-agent theorem proof workflow 示例：`references/examples/math-proof-lab/`
 - 文档索引：`references/doc_index.md`

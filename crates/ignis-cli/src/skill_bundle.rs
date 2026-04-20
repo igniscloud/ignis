@@ -88,99 +88,99 @@ const IGNIS_FILES: &[BundledFile] = &[
         contents: include_str!("../../../examples/sqlite-example/services/web/src/index.html"),
     },
     BundledFile {
-        path: "references/examples/opencode-agent-e2e/README.md",
-        contents: include_str!("../../../examples/opencode-agent-e2e/README.md"),
+        path: "references/examples/math-proof-lab/README.md",
+        contents: include_str!("../../../examples/math-proof-lab/README.md"),
     },
     BundledFile {
-        path: "references/examples/opencode-agent-e2e/ignis.hcl",
-        contents: include_str!("../../../examples/opencode-agent-e2e/ignis.hcl"),
+        path: "references/examples/math-proof-lab/ignis.hcl",
+        contents: include_str!("../../../examples/math-proof-lab/ignis.hcl"),
     },
     BundledFile {
-        path: "references/examples/opencode-agent-e2e/services/api/Cargo.toml",
-        contents: include_str!("../../../examples/opencode-agent-e2e/services/api/Cargo.toml"),
+        path: "references/examples/math-proof-lab/services/api/Cargo.toml",
+        contents: include_str!("../../../examples/math-proof-lab/services/api/Cargo.toml"),
     },
     BundledFile {
-        path: "references/examples/opencode-agent-e2e/services/api/src/lib.rs",
-        contents: include_str!("../../../examples/opencode-agent-e2e/services/api/src/lib.rs"),
+        path: "references/examples/math-proof-lab/services/api/src/lib.rs",
+        contents: include_str!("../../../examples/math-proof-lab/services/api/src/lib.rs"),
     },
     BundledFile {
-        path: "references/examples/opencode-agent-e2e/services/api/wit/world.wit",
-        contents: include_str!("../../../examples/opencode-agent-e2e/services/api/wit/world.wit"),
+        path: "references/examples/math-proof-lab/services/api/wit/world.wit",
+        contents: include_str!("../../../examples/math-proof-lab/services/api/wit/world.wit"),
     },
     BundledFile {
-        path: "references/examples/opencode-agent-e2e/services/web/src/index.html",
-        contents: include_str!("../../../examples/opencode-agent-e2e/services/web/src/index.html"),
+        path: "references/examples/math-proof-lab/services/web/src/index.html",
+        contents: include_str!("../../../examples/math-proof-lab/services/web/src/index.html"),
     },
     BundledFile {
-        path: "references/examples/opencode-agent-e2e/services/coordinator-agent/AGENTS.md",
+        path: "references/examples/math-proof-lab/services/orchestrator-agent/AGENTS.md",
         contents: include_str!(
-            "../../../examples/opencode-agent-e2e/services/coordinator-agent/AGENTS.md"
+            "../../../examples/math-proof-lab/services/orchestrator-agent/AGENTS.md"
         ),
     },
     BundledFile {
-        path: "references/examples/opencode-agent-e2e/services/coordinator-agent/opencode.json.example",
+        path: "references/examples/math-proof-lab/services/orchestrator-agent/opencode.json.example",
         contents: include_str!(
-            "../../../examples/opencode-agent-e2e/services/coordinator-agent/opencode.json.example"
+            "../../../examples/math-proof-lab/services/orchestrator-agent/opencode.json.example"
         ),
     },
     BundledFile {
-        path: "references/examples/opencode-agent-e2e/services/elementary-agent/AGENTS.md",
+        path: "references/examples/math-proof-lab/services/literature-agent/AGENTS.md",
         contents: include_str!(
-            "../../../examples/opencode-agent-e2e/services/elementary-agent/AGENTS.md"
+            "../../../examples/math-proof-lab/services/literature-agent/AGENTS.md"
         ),
     },
     BundledFile {
-        path: "references/examples/opencode-agent-e2e/services/elementary-agent/opencode.json.example",
+        path: "references/examples/math-proof-lab/services/literature-agent/opencode.json.example",
         contents: include_str!(
-            "../../../examples/opencode-agent-e2e/services/elementary-agent/opencode.json.example"
+            "../../../examples/math-proof-lab/services/literature-agent/opencode.json.example"
         ),
     },
     BundledFile {
-        path: "references/examples/opencode-agent-e2e/services/bridge-agent/AGENTS.md",
+        path: "references/examples/math-proof-lab/services/curriculum-agent/AGENTS.md",
         contents: include_str!(
-            "../../../examples/opencode-agent-e2e/services/bridge-agent/AGENTS.md"
+            "../../../examples/math-proof-lab/services/curriculum-agent/AGENTS.md"
         ),
     },
     BundledFile {
-        path: "references/examples/opencode-agent-e2e/services/bridge-agent/opencode.json.example",
+        path: "references/examples/math-proof-lab/services/curriculum-agent/opencode.json.example",
         contents: include_str!(
-            "../../../examples/opencode-agent-e2e/services/bridge-agent/opencode.json.example"
+            "../../../examples/math-proof-lab/services/curriculum-agent/opencode.json.example"
         ),
     },
     BundledFile {
-        path: "references/examples/opencode-agent-e2e/services/modularity-agent/AGENTS.md",
+        path: "references/examples/math-proof-lab/services/formal-verifier-agent/AGENTS.md",
         contents: include_str!(
-            "../../../examples/opencode-agent-e2e/services/modularity-agent/AGENTS.md"
+            "../../../examples/math-proof-lab/services/formal-verifier-agent/AGENTS.md"
         ),
     },
     BundledFile {
-        path: "references/examples/opencode-agent-e2e/services/modularity-agent/opencode.json.example",
+        path: "references/examples/math-proof-lab/services/formal-verifier-agent/opencode.json.example",
         contents: include_str!(
-            "../../../examples/opencode-agent-e2e/services/modularity-agent/opencode.json.example"
+            "../../../examples/math-proof-lab/services/formal-verifier-agent/opencode.json.example"
         ),
     },
     BundledFile {
-        path: "references/examples/opencode-agent-e2e/services/teacher-agent/AGENTS.md",
+        path: "references/examples/math-proof-lab/services/pedagogy-agent/AGENTS.md",
         contents: include_str!(
-            "../../../examples/opencode-agent-e2e/services/teacher-agent/AGENTS.md"
+            "../../../examples/math-proof-lab/services/pedagogy-agent/AGENTS.md"
         ),
     },
     BundledFile {
-        path: "references/examples/opencode-agent-e2e/services/teacher-agent/opencode.json.example",
+        path: "references/examples/math-proof-lab/services/pedagogy-agent/opencode.json.example",
         contents: include_str!(
-            "../../../examples/opencode-agent-e2e/services/teacher-agent/opencode.json.example"
+            "../../../examples/math-proof-lab/services/pedagogy-agent/opencode.json.example"
         ),
     },
     BundledFile {
-        path: "references/examples/opencode-agent-e2e/services/rigor-agent/AGENTS.md",
+        path: "references/examples/math-proof-lab/services/rigor-critic-agent/AGENTS.md",
         contents: include_str!(
-            "../../../examples/opencode-agent-e2e/services/rigor-agent/AGENTS.md"
+            "../../../examples/math-proof-lab/services/rigor-critic-agent/AGENTS.md"
         ),
     },
     BundledFile {
-        path: "references/examples/opencode-agent-e2e/services/rigor-agent/opencode.json.example",
+        path: "references/examples/math-proof-lab/services/rigor-critic-agent/opencode.json.example",
         contents: include_str!(
-            "../../../examples/opencode-agent-e2e/services/rigor-agent/opencode.json.example"
+            "../../../examples/math-proof-lab/services/rigor-critic-agent/opencode.json.example"
         ),
     },
     BundledFile {

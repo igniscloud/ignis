@@ -22,5 +22,5 @@
   完整 `sqlite-example` 项目，包含 `README.md`、`ignis.hcl`、SQLite 后端源码、前端源码和 `wit`
 - `examples/cos-and-jobs-example/`
   Google 登录 + 每用户 10MB 配额 + 浏览器直传 COS/S3 + 定时清理 job 的完整示例
-- `examples/opencode-agent-e2e/`
-  费马大定理高中生解法 multi-agent workflow 示例：前端 -> API TaskPlan executor -> coordinator-agent -> 多个 OpenCode 子 agent -> 最终导览
+- `examples/math-proof-lab/`
+  Math Proof Lab multi-agent theorem proof workflow 示例：前端 -> API proof plan -> orchestrator-agent -> 多个严格性与教学子 agent -> 分层证明合同

@@ -1250,7 +1250,7 @@ ignis service deploy --service agent-service <version>
 后端和前端按普通 `http` / `frontend` service 发布部署。完整示例见：
 
 ```text
-examples/opencode-agent-e2e
+examples/math-proof-lab
 ```
 
 ### 15.6 线上 node-agent 注意事项
@@ -1261,7 +1261,8 @@ examples/opencode-agent-e2e
 environment:
   CONTAINER_HOST: unix:///run/podman/podman.sock
   IGNISCLOUD_AGENT_PORT_BIND_HOST: 10.89.2.1
-  IGNISCLOUD_AGENT_ENDPOINT_HOST: host.containers.internal
+  IGNISCLOUD_AGENT_INTERNAL_DISPATCH_HOST: igniscloud-node-agent
+  IGNISCLOUD_AGENT_PODMAN_NETWORK: ignis_agent_runtime
 ```
 
 并挂载宿主 Podman socket：
@@ -1277,4 +1278,4 @@ volumes:
 10.89.2.1:<host_port> -> 3900/tcp
 ```
 
-WASI 后端访问 `http://agent-service.svc` 时，node-agent 内部代理会转发到 `http://host.containers.internal:<host_port>`。
+同时 node-agent 会把 agent endpoint 记录成共享网络内的容器地址，例如 `http://ignis-agent-<hash>:3900`。WASI 后端访问 `http://agent-service.svc` 时，node-agent 内部代理会通过该容器地址转发请求。

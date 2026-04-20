@@ -1,0 +1,141 @@
+<section style="box-sizing:border-box;margin:0 auto;padding:0;max-width:680px;color:#202124;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif;line-height:1.78;font-size:16px;background:#ffffff;">
+  <section style="box-sizing:border-box;padding:30px 22px 18px;border-bottom:1px solid #e8e5de;background:#fbfaf7;">
+    <p style="margin:0 0 12px;color:#7a5b22;font-size:13px;letter-spacing:0.5px;font-weight:700;">math-proof-lab</p>
+    <h1 style="margin:0;color:#111827;font-size:30px;line-height:1.22;font-weight:800;letter-spacing:0;">为什么我们需要多 Agent？</h1>
+    <p style="margin:16px 0 0;color:#4b5563;font-size:17px;line-height:1.7;">最近我做了一个小网站，叫 math-proof-lab。它表面上是在解数学题，但我真正想试的是另一件事：复杂一点的 AI 任务，真的能只靠一个模型从头干到尾吗？</p>
+  </section>
+
+  <section style="box-sizing:border-box;padding:24px 22px 8px;">
+    <p style="margin:0 0 16px;">我的感觉是：很多时候不行。</p>
+    <p style="margin:0 0 16px;">不是因为模型不够聪明，而是因为一件复杂任务里，混了太多种活。它可能要查资料、做推理、写解释、照顾用户水平，最后还要检查自己有没有错。</p>
+    <p style="margin:0 0 16px;">这些事情全部塞给一个模型，它当然也能硬写。但写出来以后，你很难知道：它哪一步是查来的，哪一步是推出来的，哪一步只是顺着语气猜的。</p>
+    <p style="margin:0 0 16px;">体验地址：</p>
+    <p style="margin:0 0 18px;padding:12px 14px;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;color:#111827;font-size:15px;word-break:break-all;">https://math-proof-lab.igniscloud.app/</p>
+  </section>
+
+  <section style="box-sizing:border-box;margin:10px 22px 26px;padding:18px 18px;border-left:4px solid #b45309;background:#fff8ed;">
+    <p style="margin:0;color:#3f2a0a;font-size:16px;"><strong>一句话说：</strong>多 Agent 不是让几个“角色”热闹聊天，而是把一件复杂的事拆开做。每个 Agent 只管自己那一摊，最后由主 Agent 汇总。</p>
+  </section>
+
+  <section style="box-sizing:border-box;padding:0 22px 8px;">
+    <h2 style="margin:0 0 12px;color:#111827;font-size:22px;line-height:1.35;font-weight:800;">一个模型从头干到尾，会遇到什么问题？</h2>
+    <p style="margin:0 0 16px;">我以前也很自然地觉得：模型越强，事情就越简单。直接把需求丢进去，让它一次性解决，不就好了？</p>
+    <p style="margin:0 0 16px;">但复杂任务一多，几个问题会反复出现。</p>
+    <section style="box-sizing:border-box;margin:0 0 18px;padding:15px 16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;">
+      <p style="margin:0 0 8px;"><strong style="color:#111827;">第一，上下文不够用。</strong>资料、背景、草稿、推理过程都要放进去，一个上下文很快就满了。</p>
+      <p style="margin:0 0 8px;"><strong style="color:#111827;">第二，上下文会变脏。</strong>查到的资料、还没验证的想法、用户偏好、审查意见混在一起，模型很容易被带偏。</p>
+      <p style="margin:0 0 8px;"><strong style="color:#111827;">第三，自己很难审自己。</strong>刚写完答案，又让它挑自己的错，它很容易顺着原来的思路继续圆。</p>
+      <p style="margin:0 0 8px;"><strong style="color:#111827;">第四，过程看不见。</strong>最后只给一段答案，你不知道它查了什么、信了什么、哪里可能有问题。</p>
+      <p style="margin:0;"><strong style="color:#111827;">第五，成本不好控。</strong>简单问题不该跑一大套流程，复杂问题也不该靠一个超长 prompt 硬扛。</p>
+    </section>
+    <p style="margin:0 0 16px;">所以，多 Agent 的出发点其实很朴素：别让一个模型同时干所有事。把大问题拆成小问题，每个 Agent 拿自己需要的上下文，做自己该做的那部分。</p>
+  </section>
+
+  <section style="box-sizing:border-box;padding:8px 22px 8px;">
+    <h2 style="margin:0 0 12px;color:#111827;font-size:22px;line-height:1.35;font-weight:800;">说白了，就是分工</h2>
+    <p style="margin:0 0 16px;">多 Agent 这件事，如果不用很技术的词来讲，就是分工。</p>
+    <p style="margin:0 0 18px;padding:16px 18px;background:#111827;border-radius:8px;color:#ffffff;font-size:18px;line-height:1.65;font-weight:700;">主 Agent 不应该一上来就写答案。它应该先想：这件事要不要查资料？要不要验证？要不要解释给某类用户听？要不要找另一个 Agent 专门挑错？</p>
+    <p style="margin:0 0 16px;">这样一来，系统里就不只有“用户输入”和“最终回答”了。中间过程也能被看见。</p>
+    <p style="margin:0 0 16px;">你可以看到它的 task plan，可以看到它为什么调用这些 Agent，也可以看到每个 Agent 产出了什么。最后答案如果有问题，也更容易定位到底是哪一步出了问题。</p>
+  </section>
+
+  <section style="box-sizing:border-box;padding:8px 22px 8px;">
+    <h2 style="margin:0 0 12px;color:#111827;font-size:22px;line-height:1.35;font-weight:800;">这不是固定流水线</h2>
+    <p style="margin:0 0 16px;">很多多 Agent Demo 看起来像多 Agent，但其实只是固定流水线：不管用户问什么，都依次调用 A、B、C、D。</p>
+    <p style="margin:0 0 16px;">这种方式当然也能跑，但它不够真实。因为真实任务里，不是每个问题都需要所有 Agent。</p>
+    <p style="margin:0 0 16px;">math-proof-lab 里，我希望主 Agent 先生成 task plan，再决定要调用谁。</p>
+    <section style="box-sizing:border-box;margin:0 0 18px;padding:15px 16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;">
+      <p style="margin:0 0 8px;">简单问题，可能只需要推理 Agent 和解释 Agent。</p>
+      <p style="margin:0 0 8px;">复杂问题，可能需要检索、验证、用户水平判断和审查。</p>
+      <p style="margin:0;">开放问题，可能还需要多轮资料追踪和反复检查。</p>
+    </section>
+    <p style="margin:0 0 16px;">也就是说，workflow 不是写死的，而是由主 Agent 根据任务现场生成。</p>
+  </section>
+
+  <section style="box-sizing:border-box;padding:8px 22px 8px;">
+    <h2 style="margin:0 0 14px;color:#111827;font-size:22px;line-height:1.35;font-weight:800;">这套系统里有哪几个 Agent？</h2>
+
+    <section style="box-sizing:border-box;margin:0 0 12px;padding:15px 16px;border:1px solid #e5e7eb;border-radius:8px;background:#ffffff;">
+      <h3 style="margin:0 0 8px;color:#111827;font-size:18px;line-height:1.35;font-weight:800;">1. 主控 Agent</h3>
+      <p style="margin:0;color:#4b5563;">它像一个项目负责人。先看用户到底想要什么，再拆任务、排顺序、决定要叫哪些 Agent，最后把大家的结果合在一起。</p>
+    </section>
+
+    <section style="box-sizing:border-box;margin:0 0 12px;padding:15px 16px;border:1px solid #e5e7eb;border-radius:8px;background:#ffffff;">
+      <h3 style="margin:0 0 8px;color:#111827;font-size:18px;line-height:1.35;font-weight:800;">2. 文献与知识图谱搜索 Agent</h3>
+      <p style="margin:0;color:#4b5563;">它负责查资料。这样主 Agent 不需要把一大堆资料都塞进自己的上下文里，也能减少资料和推理混在一起带来的干扰。</p>
+    </section>
+
+    <section style="box-sizing:border-box;margin:0 0 12px;padding:15px 16px;border:1px solid #e5e7eb;border-radius:8px;background:#ffffff;">
+      <h3 style="margin:0 0 8px;color:#111827;font-size:18px;line-height:1.35;font-weight:800;">3. 形式化逻辑推理 Agent</h3>
+      <p style="margin:0;color:#4b5563;">它负责较真的部分：推理对不对，步骤能不能站住。它不追求写得漂亮，而是尽量把关键逻辑检查清楚。</p>
+    </section>
+
+    <section style="box-sizing:border-box;margin:0 0 12px;padding:15px 16px;border:1px solid #e5e7eb;border-radius:8px;background:#ffffff;">
+      <h3 style="margin:0 0 8px;color:#111827;font-size:18px;line-height:1.35;font-weight:800;">4. 认知水位映射 Agent</h3>
+      <p style="margin:0;color:#4b5563;">它负责判断“这段内容要讲给谁听”。同一个问题，讲给初中生、高中生、大学生、研究生，完全不是一种讲法。</p>
+    </section>
+
+    <section style="box-sizing:border-box;margin:0 0 12px;padding:15px 16px;border:1px solid #e5e7eb;border-radius:8px;background:#ffffff;">
+      <h3 style="margin:0 0 8px;color:#111827;font-size:18px;line-height:1.35;font-weight:800;">5. 降维推演与翻译 Agent</h3>
+      <p style="margin:0;color:#4b5563;">它负责把前面那些结构化结果，讲成人能读懂的话。不是把内容讲“水”，而是把顺序、例子、铺垫和解释补好。</p>
+    </section>
+
+    <section style="box-sizing:border-box;margin:0 0 18px;padding:15px 16px;border:1px solid #e5e7eb;border-radius:8px;background:#ffffff;">
+      <h3 style="margin:0 0 8px;color:#111827;font-size:18px;line-height:1.35;font-weight:800;">6. 严谨性审查 Agent</h3>
+      <p style="margin:0;color:#4b5563;">它专门挑错。一个 Agent 写，另一个 Agent 挑问题，这比让同一个模型自己夸自己、自己审自己要靠谱得多。</p>
+    </section>
+  </section>
+
+  <section style="box-sizing:border-box;padding:8px 22px 8px;">
+    <h2 style="margin:0 0 12px;color:#111827;font-size:22px;line-height:1.35;font-weight:800;">数学只是一个测试场景</h2>
+    <p style="margin:0 0 16px;">这个网站现在用数学问题来做实验，但重点不是数学本身。</p>
+    <p style="margin:0 0 16px;">我选数学，是因为数学很适合暴露问题。它对推理很敏感，对表达也很敏感。一个答案写得很顺，不代表它真的对；一个证明看起来很高级，也不代表用户真的看懂了。</p>
+    <p style="margin:0 0 16px;">比如用户问一个很简单的问题：</p>
+    <p style="margin:0 0 18px;padding:14px 16px;background:#f3f4f6;border-radius:8px;color:#111827;">证明：如果 n 是偶数，那么 n<sup>2</sup> 也是偶数。请用高中生能看懂的方式说明。</p>
+    <p style="margin:0 0 16px;">这个问题不需要查论文，也不需要调用所有 Agent。主 Agent 应该判断：这就是一个基础证明题，可能只需要推理检查和教学解释。</p>
+    <p style="margin:0 0 16px;">但如果问题变得很复杂，比如要求解释一个深层定理，那就可能需要更多 Agent：查资料、判断前置知识、检查逻辑、审查最终表述。</p>
+    <p style="margin:0 0 16px;">同一个系统，根据问题难度生成不同 workflow，这才是我想要的多 Agent。</p>
+  </section>
+
+  <section style="box-sizing:border-box;padding:8px 22px 8px;">
+    <h2 style="margin:0 0 12px;color:#111827;font-size:22px;line-height:1.35;font-weight:800;">为什么要展示每个 Agent 的结果？</h2>
+    <p style="margin:0 0 16px;">如果多 Agent 最后只展示一段最终答案，其实用户感受不到它的价值。</p>
+    <p style="margin:0 0 16px;">真正有价值的是过程：这次到底用了哪些 Agent？主 Agent 的计划是什么？每个子 Agent 产出了什么？最终答案有没有吸收这些中间结论？</p>
+    <section style="box-sizing:border-box;margin:0 0 18px;padding:15px 16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;">
+      <p style="margin:0 0 8px;">所以我在结果页里放了 Agent Header。</p>
+      <p style="margin:0 0 8px;">默认展示主 Agent 的最终结果。</p>
+      <p style="margin:0 0 8px;">也可以切换看每个子 Agent 的输出。</p>
+      <p style="margin:0;">历史记录里还能回看之前跑过的任务。</p>
+    </section>
+    <p style="margin:0 0 16px;">这些输出会用 Markdown 和 LaTeX 展示。因为数学只是这个实验的入口，所以公式渲染也需要做好。</p>
+  </section>
+
+  <section style="box-sizing:border-box;padding:8px 22px 8px;">
+    <h2 style="margin:0 0 12px;color:#111827;font-size:22px;line-height:1.35;font-weight:800;">它真正解决的，不只是数学</h2>
+    <p style="margin:0 0 16px;">我觉得这套思路不只适合数学。</p>
+    <p style="margin:0 0 16px;">写代码、做研究、写报告、分析产品、处理复杂文档，其实都有类似问题：信息多、步骤多、角色多，还需要最后有人检查。</p>
+    <p style="margin:0 0 16px;">单 Agent 很容易把所有东西混在一起。多 Agent 的好处，是把它们拆开。</p>
+    <section style="box-sizing:border-box;margin:0 0 18px;padding:16px 18px;background:#111827;border-radius:8px;color:#ffffff;">
+      <p style="margin:0 0 9px;">该查资料的去查资料。</p>
+      <p style="margin:0 0 9px;">该推理的去推理。</p>
+      <p style="margin:0 0 9px;">该解释的去解释。</p>
+      <p style="margin:0;">该挑错的去挑错。</p>
+    </section>
+    <p style="margin:0 0 16px;">这听起来很普通，但在复杂 AI 应用里，这种“普通的分工”反而很重要。</p>
+  </section>
+
+  <section style="box-sizing:border-box;margin:10px 22px 26px;padding:18px 18px;background:#fff8ed;border:1px solid #f0d9b5;border-radius:8px;">
+    <h2 style="margin:0 0 10px;color:#7a3e00;font-size:21px;line-height:1.35;font-weight:800;">我真正想验证的东西</h2>
+    <p style="margin:0 0 12px;color:#3f2a0a;">math-proof-lab 不是想证明“数学一定要多 Agent”。</p>
+    <p style="margin:0 0 12px;color:#3f2a0a;">我真正想验证的是：多 Agent 能不能把复杂任务，从“一个模型的一次回答”，变成“一个可以规划、可以分工、可以检查、可以回看的执行过程”。</p>
+    <p style="margin:0;color:#3f2a0a;">数学只是我选的第一个场景。它足够严格，也足够容易暴露问题。</p>
+  </section>
+
+  <section style="box-sizing:border-box;padding:0 22px 28px;">
+    <h2 style="margin:0 0 12px;color:#111827;font-size:22px;line-height:1.35;font-weight:800;">最后</h2>
+    <p style="margin:0 0 16px;">我现在越来越觉得，下一阶段的 AI 应用，不只是换一个更强的模型。</p>
+    <p style="margin:0 0 16px;">更重要的是：怎么把模型组织起来，怎么让它们分工，怎么让过程可见，怎么让答案可以被检查。</p>
+    <p style="margin:0 0 18px;padding:16px 18px;background:#f3f4f6;border-radius:8px;color:#111827;font-size:18px;line-height:1.65;font-weight:700;">数学只是入口，真正想展示的是：多 Agent 怎样把复杂问题拆开、隔离、执行，再合成一个可信一点的结果。</p>
+    <p style="margin:0;color:#4b5563;font-size:15px;">体验地址：<span style="word-break:break-all;color:#111827;">https://math-proof-lab.igniscloud.app/</span></p>
+  </section>
+</section>
