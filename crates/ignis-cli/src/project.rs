@@ -61,21 +61,33 @@ struct ManifestFieldDiff {
     remote: Value,
 }
 
-pub async fn handle(command: ProjectCommands, token: Option<String>) -> Result<()> {
+pub async fn handle(
+    command: ProjectCommands,
+    token: Option<String>,
+    region: Option<config::Region>,
+) -> Result<()> {
     match command {
         ProjectCommands::Create { name, dir, force } => {
-            create_project(name, dir, force, token).await
+            create_project(name, dir, force, token, region).await
         }
         ProjectCommands::Sync { mode } => sync_project(mode, token).await,
-        ProjectCommands::List => list_projects(token).await,
-        ProjectCommands::Status { project } => project_status(&project, token).await,
-        ProjectCommands::Delete { project } => delete_project(&project, token).await,
-        ProjectCommands::Token { command } => project_token_command(command, token).await,
+        ProjectCommands::List => list_projects(token, region).await,
+        ProjectCommands::Status { project } => project_status(&project, token, region).await,
+        ProjectCommands::Delete { project } => delete_project(&project, token, region).await,
+        ProjectCommands::Token { command } => project_token_command(command, token, region).await,
     }
 }
 
-async fn project_token_command(command: ProjectTokenCommands, token: Option<String>) -> Result<()> {
-    let client = ApiClient::new(config::CliConfig::resolve(token)?);
+async fn project_token_command(
+    command: ProjectTokenCommands,
+    token: Option<String>,
+    region: Option<config::Region>,
+) -> Result<()> {
+    let client = ApiClient::new(config::CliConfig::resolve_required_region(
+        token,
+        region,
+        "project token",
+    )?);
     let response = match command {
         ProjectTokenCommands::Create {
             project,
@@ -97,8 +109,9 @@ async fn create_project(
     dir: Option<PathBuf>,
     force: bool,
     token: Option<String>,
+    region: Option<config::Region>,
 ) -> Result<()> {
-    let cli_config = config::CliConfig::resolve(token)?;
+    let cli_config = config::CliConfig::resolve_required_region(token, region, "project create")?;
     let client = ApiClient::new(cli_config.clone());
     let response = client.create_project(&name).await?;
     let project_state =
@@ -170,20 +183,40 @@ fn ensure_project_dir_ready(path: &Path, force: bool) -> Result<()> {
     Ok(())
 }
 
-async fn list_projects(token: Option<String>) -> Result<()> {
-    let client = ApiClient::new(config::CliConfig::resolve(token)?);
+async fn list_projects(token: Option<String>, region: Option<config::Region>) -> Result<()> {
+    let client = ApiClient::new(config::CliConfig::resolve_required_region(
+        token,
+        region,
+        "project list",
+    )?);
     let response = client.projects().await?;
     output::success(response)
 }
 
-async fn project_status(project: &str, token: Option<String>) -> Result<()> {
-    let client = ApiClient::new(config::CliConfig::resolve(token)?);
+async fn project_status(
+    project: &str,
+    token: Option<String>,
+    region: Option<config::Region>,
+) -> Result<()> {
+    let client = ApiClient::new(config::CliConfig::resolve_required_region(
+        token,
+        region,
+        "project status",
+    )?);
     let response = client.project_status(project).await?;
     output::success(response)
 }
 
-async fn delete_project(project: &str, token: Option<String>) -> Result<()> {
-    let client = ApiClient::new(config::CliConfig::resolve(token)?);
+async fn delete_project(
+    project: &str,
+    token: Option<String>,
+    region: Option<config::Region>,
+) -> Result<()> {
+    let client = ApiClient::new(config::CliConfig::resolve_required_region(
+        token,
+        region,
+        "project delete",
+    )?);
     let response = client.delete_project(project).await?;
     output::success(response)
 }

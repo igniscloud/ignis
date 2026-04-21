@@ -136,8 +136,10 @@ pub fn logout() -> Result<()> {
     }
 }
 
-pub async fn whoami(token: Option<String>) -> Result<()> {
-    let client = ApiClient::new(config::CliConfig::resolve(token)?);
+pub async fn whoami(token: Option<String>, region: Option<config::Region>) -> Result<()> {
+    let client = ApiClient::new(config::CliConfig::resolve_required_region(
+        token, region, "whoami",
+    )?);
     let response = client.whoami().await?;
     output::success(response)
 }

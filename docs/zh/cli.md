@@ -52,9 +52,9 @@ ignis --help
 登录：
 
 ```bash
-ignis login --region cn
-ignis login --region global
-ignis whoami
+ignis --region cn login
+ignis --region global login
+ignis --region cn whoami
 ```
 
 CLI 会：
@@ -66,7 +66,7 @@ CLI 会：
 - 创建或同步 project 时，把 region 写入 `.ignis/project.json`
 - 在 project 目录内执行 `publish`、`deploy`、`env`、`secrets`、`sqlite` 等远端 service 操作时，使用 `.ignis/project.json` 记录的 region 选择对应账号
 
-如果不传 `--region`，`ignis login` 会提示选择 `cn` 或 `global`，默认选择 `cn`。
+`--region <cn|global>` 是全局参数；`login`、`whoami`、`project list`、`project create`、`domain` 等非 project-local 远端命令必须显式设置。project-local 的 service 操作会使用 `.ignis/project.json` 记录的 region。
 
 退出登录：
 
@@ -77,8 +77,8 @@ ignis logout
 也可以显式传 token：
 
 ```bash
-ignis --token <token> whoami
-IGNIS_TOKEN=<token> ignis whoami
+ignis --region cn --token <token> whoami
+IGNIS_TOKEN=<token> ignis --region cn whoami
 ```
 
 CLI 会读取：
@@ -127,7 +127,7 @@ ignis.hcl
 一个最小 `http` service 工作流：
 
 ```bash
-ignis login --region cn
+ignis --region cn login
 ignis project create hello-project
 cd hello-project
 ignis service new --service api --kind http --path services/api

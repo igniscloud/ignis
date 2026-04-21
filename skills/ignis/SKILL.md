@@ -34,7 +34,7 @@ description: Use for building and operating Ignis projects with ignis-cli, ignis
 - 把 `ignis.hcl` 文档和 `ignis-sdk` 生成文档当作配置/API 的事实来源。
 - 不要猜测 `ignis.hcl` 字段、CLI 命令名、`ignis-sdk` 方法或 secret 约定。
 - 当前推荐工作流是：`ignis login -> ignis project create -> ignis service new -> ignis service build -> ignis service publish -> ignis service deploy`。
-- CLI 支持 `cn` 和 `global` 两个独立 region：`ignis login --region cn` 与 `ignis login --region global` 可以同时保存两套账号；创建或 sync project 时 `.ignis/project.json` 会记录 region，后续 `publish` / `deploy` / `env` / `secrets` / `sqlite` 等 project-local 远端操作必须按该 region 自动选择对应账号。CN region API 是 `https://api.transairobot.com/api`，登录页走 `https://id.transairobot.com`，当前 CN 控制台 app 使用普通 password 登录，不使用 Google 或 test_password。
+- CLI 支持 `cn` 和 `global` 两个独立 region：`ignis --region cn login` 与 `ignis --region global login` 可以同时保存两套账号；创建或 sync project 时 `.ignis/project.json` 会记录 region，后续 `publish` / `deploy` / `env` / `secrets` / `sqlite` 等 project-local 远端操作必须按该 region 自动选择对应账号。CN region API 是 `https://api.transairobot.com/api`，登录页走 `https://id.transairobot.com`，当前 CN 控制台 app 使用普通 password 登录，不使用 Google 或 test_password。
 - 当前 CLI 不再把本地 `dev` 作为主工作流；默认以构建、发布、部署为准。
 - 简单 handler 可以直接用 `wstd::http`，但多路由、中间件、统一响应、SQLite 通常优先用 `ignis-sdk`。
 - 需要查 SDK 细节时，优先读 `mddoc` 生成的单页，不要只靠摘要文档推断。

@@ -12,16 +12,20 @@ pub struct Cli {
         help = "Project token, login token, or API token for igniscloud; also supports IGNIS_TOKEN or IGNISCLOUD_TOKEN"
     )]
     pub token: Option<String>,
+    #[arg(
+        long,
+        global = true,
+        value_enum,
+        help = "Ignis control-plane region for non-project commands; project-local service commands use .ignis/project.json"
+    )]
+    pub region: Option<CliRegion>,
     #[command(subcommand)]
     pub command: Commands,
 }
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
-    Login {
-        #[arg(long, value_enum)]
-        region: Option<CliRegion>,
-    },
+    Login,
     Logout,
     Whoami,
     GenSkill {

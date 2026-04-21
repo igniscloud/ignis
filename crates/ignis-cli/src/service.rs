@@ -29,7 +29,11 @@ pub struct ServiceCheckFinding {
     message: String,
 }
 
-pub async fn handle(command: ServiceCommands, token: Option<String>) -> Result<()> {
+pub async fn handle(
+    command: ServiceCommands,
+    token: Option<String>,
+    _region: Option<config::Region>,
+) -> Result<()> {
     let context = ProjectContext::load()?;
     match command {
         ServiceCommands::New {

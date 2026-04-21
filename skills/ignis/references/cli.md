@@ -52,9 +52,9 @@ ignis --help
 Sign in:
 
 ```bash
-ignis login --region cn
-ignis login --region global
-ignis whoami
+ignis --region cn login
+ignis --region global login
+ignis --region cn whoami
 ```
 
 The CLI:
@@ -66,7 +66,7 @@ The CLI:
 - records the region in `.ignis/project.json` when a project is created or synced
 - uses the project region for project-local service operations such as `publish`, `deploy`, `env`, `secrets`, and `sqlite`
 
-If `--region` is omitted, `ignis login` prompts for `cn` or `global` and defaults to `cn`.
+`--region <cn|global>` is a global option and must be set explicitly for non-project remote commands such as `login`, `whoami`, `project list`, `project create`, and `domain`. Project-local service operations use the region recorded in `.ignis/project.json`.
 
 Log out:
 
@@ -77,8 +77,8 @@ ignis logout
 You can also pass a token explicitly:
 
 ```bash
-ignis --token <token> whoami
-IGNIS_TOKEN=<token> ignis whoami
+ignis --region cn --token <token> whoami
+IGNIS_TOKEN=<token> ignis --region cn whoami
 ```
 
 The CLI reads tokens from:

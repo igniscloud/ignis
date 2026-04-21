@@ -8,8 +8,14 @@ use crate::context::ProjectContext;
 use crate::output;
 use crate::project_domain::effective_project_domain_from_response;
 
-pub async fn handle(command: DomainCommands, token: Option<String>) -> Result<()> {
-    let client = ApiClient::new(config::CliConfig::resolve(token)?);
+pub async fn handle(
+    command: DomainCommands,
+    token: Option<String>,
+    region: Option<config::Region>,
+) -> Result<()> {
+    let client = ApiClient::new(config::CliConfig::resolve_required_region(
+        token, region, "domain",
+    )?);
     match command {
         DomainCommands::List { project } => {
             output::success(client.project_domains(&project).await?)

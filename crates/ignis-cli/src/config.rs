@@ -80,8 +80,15 @@ pub struct RegionAccount {
 }
 
 impl CliConfig {
-    pub fn resolve(token_override: Option<String>) -> Result<Self> {
-        Self::resolve_for_region(token_override, None)
+    pub fn resolve_required_region(
+        token_override: Option<String>,
+        region: Option<Region>,
+        command: &str,
+    ) -> Result<Self> {
+        let Some(region) = region else {
+            bail!("`ignis {command}` requires explicit `--region <cn|global>`");
+        };
+        Self::resolve_for_region(token_override, Some(region))
     }
 
     pub fn resolve_for_region(

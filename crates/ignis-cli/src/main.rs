@@ -39,19 +39,24 @@ async fn main() {
 }
 
 async fn run() -> Result<()> {
-    let Cli { token, command } = Cli::parse();
+    let Cli {
+        token,
+        region,
+        command,
+    } = Cli::parse();
+    let region = region.map(Into::into);
     match command {
-        Commands::Login { region } => auth::login(token, region.map(Into::into)).await,
+        Commands::Login => auth::login(token, region).await,
         Commands::Logout => auth::logout(),
-        Commands::Whoami => auth::whoami(token).await,
+        Commands::Whoami => auth::whoami(token, region).await,
         Commands::GenSkill {
             format,
             path,
             force,
         } => skill::generate(format, path.as_deref(), force),
-        Commands::Project { command } => project::handle(command, token).await,
-        Commands::Domain { command } => domain::handle(command, token).await,
-        Commands::Service { command } => service::handle(command, token).await,
+        Commands::Project { command } => project::handle(command, token, region).await,
+        Commands::Domain { command } => domain::handle(command, token, region).await,
+        Commands::Service { command } => service::handle(command, token, region).await,
         Commands::Internal { command } => build::handle_internal(command).await,
     }
 }
