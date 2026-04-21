@@ -59,6 +59,10 @@ impl ProjectContext {
         self.state.as_ref().and_then(ProjectState::project_id)
     }
 
+    pub fn region(&self) -> Option<crate::config::Region> {
+        self.state.as_ref().and_then(ProjectState::region)
+    }
+
     pub fn manifest_path(&self) -> &Path {
         &self.loaded.manifest_path
     }

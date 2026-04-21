@@ -8,9 +8,9 @@ use serde::{Deserialize, Serialize};
 use crate::{
     BUILTIN_AGENT_SERVICE_IMAGE, FrontendServiceConfig, HttpServiceConfig,
     INTERNAL_ONLY_MANIFEST_PREFIX_BASE, IgnisLoginConfig, JobSpec, LoadedManifest,
-    LoadedProjectManifest, ProjectAutomationConfig, ProjectConfig, ProjectManifest, ResourceConfig,
-    ScheduleSpec, ServiceKind, ServiceManifest, SqliteConfig, validate_relative_service_path,
-    validate_resource_name, validate_service_prefix_like_path,
+    LoadedProjectManifest, PostgresConfig, ProjectAutomationConfig, ProjectConfig, ProjectManifest,
+    ResourceConfig, ScheduleSpec, ServiceKind, ServiceManifest, SqliteConfig,
+    validate_relative_service_path, validate_resource_name, validate_service_prefix_like_path,
 };
 
 const DEFAULT_LISTENER_NAME: &str = "public";
@@ -75,6 +75,8 @@ pub struct ServiceSpec {
     pub secrets: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "SqliteConfig::is_default")]
     pub sqlite: SqliteConfig,
+    #[serde(default, skip_serializing_if = "PostgresConfig::is_default")]
+    pub postgres: PostgresConfig,
     #[serde(default, skip_serializing_if = "ResourceConfig::is_default")]
     pub resources: ResourceConfig,
 }
@@ -597,6 +599,7 @@ impl ServiceSpec {
             env: service.env.clone(),
             secrets: service.secrets.clone(),
             sqlite: service.sqlite.clone(),
+            postgres: service.postgres.clone(),
             resources: service.resources.clone(),
         }
     }
@@ -617,6 +620,7 @@ impl ServiceSpec {
             env: self.env,
             secrets: self.secrets,
             sqlite: self.sqlite,
+            postgres: self.postgres,
             resources: self.resources,
         }
     }
@@ -766,6 +770,12 @@ fn validate_agent_token(value: &str, field_name: &str) -> Result<()> {
 }
 
 impl SqliteConfig {
+    pub(crate) fn is_default(&self) -> bool {
+        !self.enabled
+    }
+}
+
+impl PostgresConfig {
     pub(crate) fn is_default(&self) -> bool {
         !self.enabled
     }
@@ -947,6 +957,7 @@ mod tests {
                     env: BTreeMap::new(),
                     secrets: BTreeMap::new(),
                     sqlite: SqliteConfig::default(),
+                    postgres: PostgresConfig::default(),
                     resources: ResourceConfig::default(),
                 },
                 ServiceSpec {
@@ -971,6 +982,7 @@ mod tests {
                     env: BTreeMap::new(),
                     secrets: BTreeMap::new(),
                     sqlite: SqliteConfig::default(),
+                    postgres: PostgresConfig::default(),
                     resources: ResourceConfig::default(),
                 },
             ],
@@ -1040,6 +1052,7 @@ mod tests {
                     "secret://openai".to_owned(),
                 )]),
                 sqlite: SqliteConfig::default(),
+                postgres: PostgresConfig::default(),
                 resources: ResourceConfig {
                     memory_limit_bytes: Some(1024 * 1024 * 1024),
                 },
@@ -1134,6 +1147,7 @@ mod tests {
                 env: BTreeMap::new(),
                 secrets: BTreeMap::new(),
                 sqlite: SqliteConfig::default(),
+                postgres: PostgresConfig::default(),
                 resources: ResourceConfig {
                     memory_limit_bytes: Some(1024 * 1024 * 1024),
                 },
@@ -1178,6 +1192,7 @@ mod tests {
                 env: BTreeMap::new(),
                 secrets: BTreeMap::new(),
                 sqlite: SqliteConfig::default(),
+                postgres: PostgresConfig::default(),
                 resources: ResourceConfig {
                     memory_limit_bytes: Some(1024 * 1024 * 1024),
                 },
@@ -1216,6 +1231,7 @@ mod tests {
                 env: BTreeMap::new(),
                 secrets: BTreeMap::new(),
                 sqlite: SqliteConfig::default(),
+                postgres: PostgresConfig::default(),
                 resources: ResourceConfig {
                     memory_limit_bytes: Some(1024 * 1024 * 1024),
                 },
@@ -1265,6 +1281,7 @@ mod tests {
                 env: BTreeMap::new(),
                 secrets: BTreeMap::new(),
                 sqlite: SqliteConfig::default(),
+                postgres: PostgresConfig::default(),
                 resources: ResourceConfig::default(),
             }],
             jobs: Vec::new(),
@@ -1317,6 +1334,7 @@ mod tests {
                 env: BTreeMap::new(),
                 secrets: BTreeMap::new(),
                 sqlite: SqliteConfig::default(),
+                postgres: PostgresConfig::default(),
                 resources: ResourceConfig::default(),
             }],
             jobs: Vec::new(),
@@ -1382,6 +1400,7 @@ mod tests {
                 env: BTreeMap::new(),
                 secrets: BTreeMap::new(),
                 sqlite: SqliteConfig::default(),
+                postgres: PostgresConfig::default(),
                 resources: ResourceConfig::default(),
             }],
             jobs: Vec::new(),
@@ -1493,6 +1512,7 @@ services = [
                 env: BTreeMap::new(),
                 secrets: BTreeMap::new(),
                 sqlite: SqliteConfig::default(),
+                postgres: PostgresConfig::default(),
                 resources: ResourceConfig::default(),
             }],
             jobs: Vec::new(),
@@ -1544,6 +1564,7 @@ services = [
                 env: BTreeMap::new(),
                 secrets: BTreeMap::new(),
                 sqlite: SqliteConfig::default(),
+                postgres: PostgresConfig::default(),
                 resources: ResourceConfig::default(),
             }],
             jobs: vec![JobSpec {

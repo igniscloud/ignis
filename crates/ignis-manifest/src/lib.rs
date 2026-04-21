@@ -189,6 +189,8 @@ pub struct WorkerManifest {
     #[serde(default)]
     pub sqlite: SqliteConfig,
     #[serde(default)]
+    pub postgres: PostgresConfig,
+    #[serde(default)]
     pub resources: ResourceConfig,
     #[serde(default, skip_serializing_if = "IgnisCloudConfig::is_empty")]
     pub igniscloud: IgnisCloudConfig,
@@ -262,6 +264,8 @@ pub struct ServiceManifest {
     pub secrets: BTreeMap<String, String>,
     #[serde(default)]
     pub sqlite: SqliteConfig,
+    #[serde(default)]
+    pub postgres: PostgresConfig,
     #[serde(default)]
     pub resources: ResourceConfig,
 }
@@ -398,6 +402,12 @@ pub struct FrontendServiceConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct SqliteConfig {
+    #[serde(default)]
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct PostgresConfig {
     #[serde(default)]
     pub enabled: bool,
 }
@@ -860,6 +870,9 @@ impl ServiceManifest {
                 if self.sqlite.enabled {
                     bail!("frontend service `{}` cannot enable sqlite", self.name);
                 }
+                if self.postgres.enabled {
+                    bail!("frontend service `{}` cannot enable postgres", self.name);
+                }
                 if self.resources != ResourceConfig::default() {
                     bail!(
                         "frontend service `{}` cannot define `[services.resources]`",
@@ -902,6 +915,9 @@ impl ServiceManifest {
                 if self.sqlite.enabled {
                     bail!("agent service `{}` cannot enable sqlite", self.name);
                 }
+                if self.postgres.enabled {
+                    bail!("agent service `{}` cannot enable postgres", self.name);
+                }
                 if let Some(agent) = &self.agent {
                     agent.validate(&self.name, self.agent_runtime)?;
                 }
@@ -928,6 +944,7 @@ impl ServiceManifest {
             env: self.env.clone(),
             secrets: self.secrets.clone(),
             sqlite: self.sqlite.clone(),
+            postgres: self.postgres.clone(),
             resources: self.resources.clone(),
             igniscloud: IgnisCloudConfig::default(),
         })
@@ -1243,6 +1260,7 @@ mod tests {
             env: BTreeMap::from([(String::from("LOG_LEVEL"), String::from("debug"))]),
             secrets: BTreeMap::from([(String::from("API_KEY"), String::from("secret://api-key"))]),
             sqlite: SqliteConfig { enabled: true },
+            postgres: PostgresConfig::default(),
             resources: ResourceConfig {
                 memory_limit_bytes: Some(64 * 1024 * 1024),
             },
@@ -1290,6 +1308,7 @@ memory_limit_bytes = 67108864
             env: BTreeMap::new(),
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),
+            postgres: PostgresConfig::default(),
             resources: ResourceConfig::default(),
             igniscloud: IgnisCloudConfig::default(),
         };
@@ -1306,6 +1325,7 @@ memory_limit_bytes = 67108864
             env: BTreeMap::new(),
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),
+            postgres: PostgresConfig::default(),
             resources: ResourceConfig::default(),
             igniscloud: IgnisCloudConfig {
                 service: Some("a".repeat(MAX_RESOURCE_NAME_LEN + 1)),
@@ -1361,6 +1381,7 @@ memory_limit_bytes = 67108864
                     env: BTreeMap::from([(String::from("APP_ENV"), String::from("production"))]),
                     secrets: BTreeMap::new(),
                     sqlite: SqliteConfig { enabled: true },
+                    postgres: PostgresConfig::default(),
                     resources: ResourceConfig {
                         memory_limit_bytes: Some(64 * 1024 * 1024),
                     },
@@ -1384,6 +1405,7 @@ memory_limit_bytes = 67108864
                     env: BTreeMap::new(),
                     secrets: BTreeMap::new(),
                     sqlite: SqliteConfig::default(),
+                    postgres: PostgresConfig::default(),
                     resources: ResourceConfig::default(),
                 },
             ],
@@ -1423,6 +1445,7 @@ memory_limit_bytes = 67108864
                     env: BTreeMap::new(),
                     secrets: BTreeMap::new(),
                     sqlite: SqliteConfig::default(),
+                    postgres: PostgresConfig::default(),
                     resources: ResourceConfig::default(),
                 },
                 ServiceManifest {
@@ -1444,6 +1467,7 @@ memory_limit_bytes = 67108864
                     env: BTreeMap::new(),
                     secrets: BTreeMap::new(),
                     sqlite: SqliteConfig::default(),
+                    postgres: PostgresConfig::default(),
                     resources: ResourceConfig::default(),
                 },
             ],
@@ -1475,6 +1499,7 @@ memory_limit_bytes = 67108864
             env: BTreeMap::from([(String::from("APP_ENV"), String::from("production"))]),
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),
+            postgres: PostgresConfig::default(),
             resources: ResourceConfig::default(),
         };
 
@@ -1501,6 +1526,7 @@ memory_limit_bytes = 67108864
             env: BTreeMap::new(),
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),
+            postgres: PostgresConfig::default(),
             resources: ResourceConfig::default(),
         };
 
@@ -1536,6 +1562,7 @@ memory_limit_bytes = 67108864
                 env: BTreeMap::new(),
                 secrets: BTreeMap::new(),
                 sqlite: SqliteConfig::default(),
+                postgres: PostgresConfig::default(),
                 resources: ResourceConfig::default(),
             }],
             jobs: Vec::new(),
@@ -1573,6 +1600,7 @@ memory_limit_bytes = 67108864
             env: BTreeMap::new(),
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),
+            postgres: PostgresConfig::default(),
             resources: ResourceConfig::default(),
         };
 
@@ -1606,6 +1634,7 @@ memory_limit_bytes = 67108864
                 String::from("manual-client-id"),
             )]),
             sqlite: SqliteConfig::default(),
+            postgres: PostgresConfig::default(),
             resources: ResourceConfig::default(),
         };
 
@@ -1639,6 +1668,7 @@ memory_limit_bytes = 67108864
             )]),
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),
+            postgres: PostgresConfig::default(),
             resources: ResourceConfig::default(),
         };
 
@@ -1669,6 +1699,7 @@ memory_limit_bytes = 67108864
             env: BTreeMap::new(),
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),
+            postgres: PostgresConfig::default(),
             resources: ResourceConfig::default(),
         };
 
@@ -1699,6 +1730,7 @@ memory_limit_bytes = 67108864
             env: BTreeMap::new(),
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),
+            postgres: PostgresConfig::default(),
             resources: ResourceConfig::default(),
         };
 
@@ -1730,6 +1762,7 @@ memory_limit_bytes = 67108864
                 env: BTreeMap::new(),
                 secrets: BTreeMap::new(),
                 sqlite: SqliteConfig::default(),
+                postgres: PostgresConfig::default(),
                 resources: ResourceConfig::default(),
             }],
             jobs: vec![JobSpec {

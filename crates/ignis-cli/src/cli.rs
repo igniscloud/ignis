@@ -18,7 +18,10 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
-    Login,
+    Login {
+        #[arg(long, value_enum)]
+        region: Option<CliRegion>,
+    },
     Logout,
     Whoami,
     GenSkill {
@@ -46,6 +49,21 @@ pub enum Commands {
         #[command(subcommand)]
         command: InternalCommands,
     },
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
+pub enum CliRegion {
+    Cn,
+    Global,
+}
+
+impl From<CliRegion> for crate::config::Region {
+    fn from(value: CliRegion) -> Self {
+        match value {
+            CliRegion::Cn => Self::Cn,
+            CliRegion::Global => Self::Global,
+        }
+    }
 }
 
 #[derive(Debug, Subcommand)]

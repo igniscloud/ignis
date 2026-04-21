@@ -40,7 +40,7 @@ The TaskPlan executor is not automatically built into every HTTP service. Only s
 For generated or user-owned HTTP services, depend on the crate from the Ignis repository:
 
 ```toml
-taskplan = { git = "https://github.com/igniscloud/ignis.git", package = "taskplan", tag = "v0.1.3" }
+taskplan = { git = "https://github.com/igniscloud/ignis.git", package = "taskplan" }
 ```
 
 When developing against a local Ignis checkout, use an explicit path dependency instead:

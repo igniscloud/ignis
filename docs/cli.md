@@ -52,16 +52,21 @@ ignis --help
 Sign in:
 
 ```bash
-ignis login
+ignis login --region cn
+ignis login --region global
 ignis whoami
 ```
 
 The CLI:
 
 - starts a temporary localhost callback
-- opens the browser to the igniscloud sign-in flow
+- opens the browser to the selected region sign-in flow
 - prints the sign-in URL to the terminal as a fallback
-- stores the resulting token locally
+- stores tokens per region in `$XDG_CONFIG_HOME/ignis/config.toml`
+- records the region in `.ignis/project.json` when a project is created or synced
+- uses the project region for project-local service operations such as `publish`, `deploy`, `env`, `secrets`, and `sqlite`
+
+If `--region` is omitted, `ignis login` prompts for `cn` or `global` and defaults to `cn`.
 
 Log out:
 
@@ -98,9 +103,9 @@ Ignis also writes local state:
 .ignis/project.json
 ```
 
-This file stores the remote `project_id` returned by the control plane. Remote writes are bound to that `project_id`, not to `project.name`.
+This file stores the remote `project_id` returned by the control plane and the project `region` (`cn` or `global`). Remote writes are bound to that `project_id` and use the recorded region, not `project.name`.
 
-`ignis.hcl` also stores the current public host in `project.domain`.
+`ignis.hcl` also stores the current public host in `project.domain`. Project-local remote service operations use the `.ignis/project.json` region to choose the matching saved account, so a `cn` project publishes and deploys with the `cn` token while a `global` project uses the `global` token.
 
 Read the full manifest model in [the ignis.hcl guide](./ignis-hcl.md).
 

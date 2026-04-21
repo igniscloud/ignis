@@ -41,7 +41,7 @@ async fn main() {
 async fn run() -> Result<()> {
     let Cli { token, command } = Cli::parse();
     match command {
-        Commands::Login => auth::login(token).await,
+        Commands::Login { region } => auth::login(token, region.map(Into::into)).await,
         Commands::Logout => auth::logout(),
         Commands::Whoami => auth::whoami(token).await,
         Commands::GenSkill {

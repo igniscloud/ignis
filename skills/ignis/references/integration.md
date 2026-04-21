@@ -183,13 +183,13 @@ services = [
 
 ```toml
 [dependencies]
-ignis-sdk = { git = "https://github.com/igniscloud/ignis.git", package = "ignis-sdk", tag = "v0.1.3" }
+ignis-sdk = { git = "https://github.com/igniscloud/ignis.git", package = "ignis-sdk" }
 http-body-util = "0.1.3"
 wstd = "0.6"
 ```
 
-默认使用固定的 GitHub `git` 依赖，不要直接猜测 crates.io 版本号，也不要使用浮动 branch。
-如果你需要对齐某个未发布提交，改成固定 `rev`。
+默认使用 GitHub `git` 依赖并跟随仓库默认分支的最新版本，不要直接猜测 crates.io 版本号。
+如果你需要可复现构建或对齐某个已验证提交，再显式加固定 `rev`。
 只有在本地联调 Ignis 仓库时，才改用 `path` 依赖，例如 `ignis-sdk = { path = "../../../../crates/ignis-sdk" }`。
 
 一个最小 Router 写法：

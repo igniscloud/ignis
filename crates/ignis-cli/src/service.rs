@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use ignis_manifest::{
     AgentMemory, AgentRuntime, FrontendServiceConfig, HttpServiceConfig,
-    IGNIS_LOGIN_IGNISCLOUD_ID_BASE_URL_ENV, INTERNAL_ONLY_MANIFEST_PREFIX_BASE, ResourceConfig,
-    ServiceKind, ServiceManifest, SqliteConfig,
+    IGNIS_LOGIN_IGNISCLOUD_ID_BASE_URL_ENV, INTERNAL_ONLY_MANIFEST_PREFIX_BASE, PostgresConfig,
+    ResourceConfig, ServiceKind, ServiceManifest, SqliteConfig,
 };
 use serde::Serialize;
 
@@ -68,6 +68,13 @@ pub async fn handle(command: ServiceCommands, token: Option<String>) -> Result<(
     }
 }
 
+fn client_for_context(context: &ProjectContext, token: Option<String>) -> Result<ApiClient> {
+    Ok(ApiClient::new(config::CliConfig::resolve_for_region(
+        token,
+        context.region(),
+    )?))
+}
+
 async fn new_service(
     context: &ProjectContext,
     service_name: &str,
@@ -91,7 +98,7 @@ async fn new_service(
     context.ensure_new_service_path_available(&service)?;
     let project_id = linked_project_id(context)?;
 
-    let client = ApiClient::new(config::CliConfig::resolve(token)?);
+    let client = client_for_context(context, token)?;
     let response = client.create_service(project_id, &service).await?;
 
     let mut manifest = context.manifest().clone();
@@ -138,6 +145,7 @@ fn build_new_service_manifest(
                 env: BTreeMap::new(),
                 secrets: BTreeMap::new(),
                 sqlite: SqliteConfig { enabled: true },
+                postgres: PostgresConfig::default(),
                 resources: ResourceConfig {
                     memory_limit_bytes: Some(128 * 1024 * 1024),
                 },
@@ -170,6 +178,7 @@ fn build_new_service_manifest(
             env: BTreeMap::new(),
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),
+            postgres: PostgresConfig::default(),
             resources: ResourceConfig::default(),
         },
         CliServiceKind::Agent => ServiceManifest {
@@ -189,6 +198,7 @@ fn build_new_service_manifest(
             env: BTreeMap::new(),
             secrets: BTreeMap::new(),
             sqlite: SqliteConfig::default(),
+            postgres: PostgresConfig::default(),
             resources: ResourceConfig {
                 memory_limit_bytes: Some(1024 * 1024 * 1024),
             },
@@ -317,7 +327,7 @@ async fn service_status(
     token: Option<String>,
 ) -> Result<()> {
     let service = context.service(service_name)?;
-    let client = ApiClient::new(config::CliConfig::resolve(token)?);
+    let client = client_for_context(context, token)?;
     let project_id = linked_project_id(context)?;
     let response = client.service_status(project_id, service.name()).await?;
     output::success(response)
@@ -417,7 +427,7 @@ async fn delete_service(
 ) -> Result<()> {
     let service = context.service(service_name)?;
     let project_id = linked_project_id(context)?;
-    let client = ApiClient::new(config::CliConfig::resolve(token)?);
+    let client = client_for_context(context, token)?;
     let response = client.delete_service(project_id, service.name()).await?;
 
     let mut manifest = context.manifest().clone();
@@ -453,7 +463,7 @@ async fn publish_service(
     ensure_service_check_passes(service.manifest())?;
     let project_id = linked_project_id(context)?;
 
-    let client = ApiClient::new(config::CliConfig::resolve(token)?);
+    let client = client_for_context(context, token)?;
     let publish_artifact = build::prepare_publish_artifact(&service).await?;
     let response = match &publish_artifact.kind {
         build::PublishArtifactKind::Http {
@@ -511,7 +521,7 @@ async fn deploy_service(
 ) -> Result<()> {
     let service = context.service(service_name)?;
     let project_id = linked_project_id(context)?;
-    let client = ApiClient::new(config::CliConfig::resolve(token)?);
+    let client = client_for_context(context, token)?;
     let response = client
         .deploy_service(project_id, service.name(), version)
         .await?;
@@ -526,7 +536,7 @@ async fn deployments(
 ) -> Result<()> {
     let service = context.service(service_name)?;
     let project_id = linked_project_id(context)?;
-    let client = ApiClient::new(config::CliConfig::resolve(token)?);
+    let client = client_for_context(context, token)?;
     let response = client
         .deployments(project_id, service.name(), limit)
         .await?;
@@ -541,7 +551,7 @@ async fn events(
 ) -> Result<()> {
     let service = context.service(service_name)?;
     let project_id = linked_project_id(context)?;
-    let client = ApiClient::new(config::CliConfig::resolve(token)?);
+    let client = client_for_context(context, token)?;
     let response = client.events(project_id, service.name(), limit).await?;
     output::success(response)
 }
@@ -554,7 +564,7 @@ async fn logs(
 ) -> Result<()> {
     let service = context.service(service_name)?;
     let project_id = linked_project_id(context)?;
-    let client = ApiClient::new(config::CliConfig::resolve(token)?);
+    let client = client_for_context(context, token)?;
     let response = client.logs(project_id, service.name(), limit).await?;
     output::success(response)
 }
@@ -567,7 +577,7 @@ async fn rollback(
 ) -> Result<()> {
     let service = context.service(service_name)?;
     let project_id = linked_project_id(context)?;
-    let client = ApiClient::new(config::CliConfig::resolve(token)?);
+    let client = client_for_context(context, token)?;
     let response = client.rollback(project_id, service.name(), version).await?;
     output::success(response)
 }
@@ -580,7 +590,7 @@ async fn delete_version(
 ) -> Result<()> {
     let service = context.service(service_name)?;
     let project_id = linked_project_id(context)?;
-    let client = ApiClient::new(config::CliConfig::resolve(token)?);
+    let client = client_for_context(context, token)?;
     let response = client
         .delete_version(project_id, service.name(), version)
         .await?;
@@ -592,7 +602,7 @@ async fn env_command(
     command: ServiceEnvCommands,
     token: Option<String>,
 ) -> Result<()> {
-    let client = ApiClient::new(config::CliConfig::resolve(token)?);
+    let client = client_for_context(context, token)?;
     let project_id = linked_project_id(context)?;
     let response = match command {
         ServiceEnvCommands::List { service } => {
@@ -622,7 +632,7 @@ async fn secret_command(
     command: ServiceSecretCommands,
     token: Option<String>,
 ) -> Result<()> {
-    let client = ApiClient::new(config::CliConfig::resolve(token)?);
+    let client = client_for_context(context, token)?;
     let project_id = linked_project_id(context)?;
     let response = match command {
         ServiceSecretCommands::List { service } => {
@@ -654,7 +664,7 @@ async fn sqlite_command(
     command: ServiceSqliteCommands,
     token: Option<String>,
 ) -> Result<()> {
-    let client = ApiClient::new(config::CliConfig::resolve(token)?);
+    let client = client_for_context(context, token)?;
     let project_id = linked_project_id(context)?;
     match command {
         ServiceSqliteCommands::Backup { service, out } => {
@@ -720,6 +730,7 @@ mod tests {
             env: Default::default(),
             secrets: Default::default(),
             sqlite: SqliteConfig::default(),
+            postgres: PostgresConfig::default(),
             resources: ResourceConfig::default(),
         }
     }

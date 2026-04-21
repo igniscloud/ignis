@@ -39,6 +39,35 @@ interface sqlite {
     query-typed: func(sql: string, params: list<string>) -> result<typed-query-result, string>;
 }
 
+interface postgres {
+    variant postgres-value {
+        null,
+        integer(s64),
+        float(f64),
+        boolean(bool),
+        text(string),
+        bytes(list<u8>),
+    }
+
+    record statement {
+        sql: string,
+        params: list<postgres-value>,
+    }
+
+    record row {
+        values: list<postgres-value>,
+    }
+
+    record query-result {
+        columns: list<string>,
+        rows: list<row>,
+    }
+
+    execute: func(sql: string, params: list<postgres-value>) -> result<u64, string>;
+    query: func(sql: string, params: list<postgres-value>) -> result<query-result, string>;
+    transaction: func(statements: list<statement>) -> result<u64, string>;
+}
+
 interface object-store {
     record header {
         name: string,
@@ -51,6 +80,7 @@ interface object-store {
         size-bytes: u64,
         sha256: option<string>,
         expires-in-ms: option<u64>,
+        visibility: option<string>,
     }
 
     record presigned-url {
@@ -59,6 +89,7 @@ interface object-store {
         method: string,
         headers: list<header>,
         expires-at-ms: option<u64>,
+        public-url: option<string>,
     }
 
     presign-upload: func(request: presign-upload-request) -> result<presigned-url, string>;
@@ -67,5 +98,6 @@ interface object-store {
 
 world imports {
     import sqlite;
+    import postgres;
     import object-store;
 }

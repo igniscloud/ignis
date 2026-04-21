@@ -3,6 +3,7 @@
 //! The crate currently provides:
 //! - `http`: lightweight routing, middleware, and response helpers
 //! - `sqlite`: guest wrappers around the shared host ABI
+//! - `postgres`: guest wrappers around platform-managed Postgres databases
 
 mod bindings {
     wit_bindgen::generate!({
@@ -131,6 +132,33 @@ pub mod sqlite {
             }
             Ok(applied_now)
         }
+    }
+}
+
+/// Postgres bindings exposed to guest workers.
+///
+/// These APIs forward to the host ABI generated from WIT. The platform owns the
+/// service database connection and the guest never receives database credentials.
+pub mod postgres {
+    /// Re-exported low-level Postgres result and statement types generated from
+    /// the host ABI.
+    pub use crate::bindings::ignis::platform::postgres::{
+        PostgresValue, QueryResult, Row, Statement,
+    };
+
+    /// Executes a single SQL statement and returns the number of affected rows.
+    pub fn execute(sql: &str, params: &[PostgresValue]) -> Result<u64, String> {
+        crate::bindings::ignis::platform::postgres::execute(sql, params)
+    }
+
+    /// Executes a query and returns rows in the host ABI format.
+    pub fn query(sql: &str, params: &[PostgresValue]) -> Result<QueryResult, String> {
+        crate::bindings::ignis::platform::postgres::query(sql, params)
+    }
+
+    /// Executes multiple statements inside a single transaction.
+    pub fn transaction(statements: &[Statement]) -> Result<u64, String> {
+        crate::bindings::ignis::platform::postgres::transaction(statements)
     }
 }
 
@@ -693,6 +721,28 @@ pub mod object_store {
             size_bytes,
             sha256: sha256.map(str::to_owned),
             expires_in_ms,
+            visibility: None,
+        })
+    }
+
+    /// Requests a presigned upload URL for a new public project file.
+    ///
+    /// The returned [`PresignedUrl`] includes `public_url` when the platform has
+    /// a public object-store base URL configured.
+    pub fn presign_public_upload(
+        filename: &str,
+        content_type: &str,
+        size_bytes: u64,
+        sha256: Option<&str>,
+        expires_in_ms: Option<u64>,
+    ) -> Result<PresignedUrl, String> {
+        crate::bindings::ignis::platform::object_store::presign_upload(&PresignUploadRequest {
+            filename: filename.to_owned(),
+            content_type: content_type.to_owned(),
+            size_bytes,
+            sha256: sha256.map(str::to_owned),
+            expires_in_ms,
+            visibility: Some("public".to_owned()),
         })
     }
 

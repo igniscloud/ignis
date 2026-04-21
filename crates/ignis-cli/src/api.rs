@@ -25,6 +25,10 @@ impl ApiClient {
         }
     }
 
+    pub fn region(&self) -> crate::config::Region {
+        self.config.region
+    }
+
     pub async fn whoami(&self) -> Result<Value> {
         self.request(
             self.http

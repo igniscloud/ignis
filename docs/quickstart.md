@@ -33,11 +33,11 @@ ignis --help
 ## 2. Sign in
 
 ```bash
-ignis login
+ignis login --region cn
 ignis whoami
 ```
 
-The CLI opens a browser-based sign-in flow and stores the resulting token locally.
+The CLI opens a browser-based sign-in flow and stores the resulting token locally. You can also log in to `global`; tokens are stored per region, and project-local service operations use the region recorded in `.ignis/project.json`.
 
 ## 3. Create a project
 

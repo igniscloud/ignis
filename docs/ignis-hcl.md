@@ -142,6 +142,9 @@ services = [
     sqlite = {
       enabled = true
     }
+    postgres = {
+      enabled = true
+    }
     resources = {
       memory_limit_bytes = 134217728
     }
@@ -215,12 +218,18 @@ Shared fields:
 - `env`
 - `secrets`
 - `sqlite`
+- `postgres`
 - `resources`
 
 `http` services use:
 
 - `http.component`
 - `http.base_path`
+
+`postgres.enabled = true` asks a compatible IgnisCloud control plane to create
+a service-scoped Postgres database and inject it into the worker host. Guest
+code should use `ignis_sdk::postgres`; the database URL is consumed by the host
+import and is not exposed to guest code.
 
 `frontend` services use:
 

@@ -98,9 +98,11 @@ async fn create_project(
     force: bool,
     token: Option<String>,
 ) -> Result<()> {
-    let client = ApiClient::new(config::CliConfig::resolve(token)?);
+    let cli_config = config::CliConfig::resolve(token)?;
+    let client = ApiClient::new(cli_config.clone());
     let response = client.create_project(&name).await?;
-    let project_state = project_state_from_response(&response, &name);
+    let project_state =
+        project_state_from_response(&response, &name).with_region(cli_config.region);
     let project_domain = load_remote_project_domain(
         &client,
         project_state
@@ -192,7 +194,10 @@ async fn sync_project(mode: ProjectSyncMode, token: Option<String>) -> Result<()
         service::ensure_service_check_passes(service)?;
     }
 
-    let client = ApiClient::new(config::CliConfig::resolve(token)?);
+    let client = ApiClient::new(config::CliConfig::resolve_for_region(
+        token,
+        context.region(),
+    )?);
     let project_name = context.project_name().to_owned();
     let project_id = context.project_id().map(str::to_owned);
     let project_missing = match project_id.as_deref() {
@@ -509,7 +514,8 @@ async fn apply_sync_plan(
         match action.kind {
             "create_project" => {
                 let response = client.create_project(&plan.project).await?;
-                let project_state = project_state_from_response(&response, &plan.project);
+                let project_state = project_state_from_response(&response, &plan.project)
+                    .with_region(client.region());
                 project_state_path = project_state.save(context.project_dir())?;
                 remote_project_id = project_state.project_id().map(str::to_owned);
                 if context.project_domain().is_some() {

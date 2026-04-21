@@ -38,6 +38,7 @@ struct LoopbackCallbackState {
 
 #[derive(Debug, Serialize)]
 struct LoginResult {
+    region: config::Region,
     server: String,
     saved_config_path: std::path::PathBuf,
     user_sub: Option<String>,
@@ -45,16 +46,20 @@ struct LoginResult {
     user_display_name: Option<String>,
 }
 
-pub async fn login(token: Option<String>) -> Result<()> {
+pub async fn login(token: Option<String>, region: Option<config::Region>) -> Result<()> {
     if token.is_some() {
         bail!("`ignis login` now uses browser sign-in; do not pass `--token`");
     }
 
+    let region = select_login_region(region)?;
     let state = new_login_state();
     let (redirect_uri, receiver, handle) = start_loopback_login_listener(state.clone()).await?;
-    let login_url = build_browser_login_url(&redirect_uri, &state)?;
+    let login_url = build_browser_login_url(region, &redirect_uri, &state)?;
 
-    eprintln!("Opening browser for igniscloud login...");
+    eprintln!(
+        "Opening browser for igniscloud {} login...",
+        region.as_str()
+    );
     eprintln!("Login URL:\n{login_url}");
     if !open_browser(&login_url) {
         eprintln!("Browser launch failed. Open this URL in your browser.");
@@ -81,20 +86,25 @@ pub async fn login(token: Option<String>) -> Result<()> {
     let payload = payload_result?;
 
     let mut config = config::CliConfig::load()?.unwrap_or(config::CliConfig {
-        server: config::DEFAULT_SERVER.to_owned(),
+        region,
+        server: region.server().to_owned(),
         token: String::new(),
         user_sub: None,
         user_aud: None,
         user_display_name: None,
+        accounts: Default::default(),
     });
-    config.server = config::DEFAULT_SERVER.to_owned();
-    config.token = payload.token;
-    config.user_sub = payload.user_sub;
-    config.user_aud = payload.user_aud;
-    config.user_display_name = payload.user_display_name;
+    config.set_account(
+        region,
+        payload.token,
+        payload.user_sub,
+        payload.user_aud,
+        payload.user_display_name,
+    );
     let path = config.save()?;
 
     output::success(LoginResult {
+        region: config.region,
         server: config.server,
         saved_config_path: path,
         user_sub: config.user_sub,
@@ -132,10 +142,43 @@ pub async fn whoami(token: Option<String>) -> Result<()> {
     output::success(response)
 }
 
-fn build_browser_login_url(redirect_uri: &str, state: &str) -> Result<String> {
+fn select_login_region(region: Option<config::Region>) -> Result<config::Region> {
+    if let Some(region) = region {
+        return Ok(region);
+    }
+    if let Ok(value) = std::env::var("IGNIS_REGION") {
+        let value = value.trim();
+        if !value.is_empty() {
+            return config::Region::parse(value);
+        }
+    }
+    eprintln!("Select Ignis region:");
+    eprintln!("  1) cn     https://api.transairobot.com/api");
+    eprintln!("  2) global https://igniscloud.dev/api");
+    eprint!("Region [cn]: ");
+    let _ = std::io::Write::flush(&mut std::io::stderr());
+    let mut input = String::new();
+    std::io::stdin()
+        .read_line(&mut input)
+        .context("reading region from stdin failed")?;
+    let value = input.trim();
+    if value.is_empty() || value == "1" {
+        Ok(config::Region::Cn)
+    } else if value == "2" {
+        Ok(config::Region::Global)
+    } else {
+        config::Region::parse(value)
+    }
+}
+
+fn build_browser_login_url(
+    region: config::Region,
+    redirect_uri: &str,
+    state: &str,
+) -> Result<String> {
     let mut url = reqwest::Url::parse(&format!(
         "{}/v1/cli/auth/start",
-        config::DEFAULT_SERVER.trim_end_matches('/')
+        region.server().trim_end_matches('/')
     ))?;
     url.query_pairs_mut()
         .append_pair("redirect_uri", redirect_uri)

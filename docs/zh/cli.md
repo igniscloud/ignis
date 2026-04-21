@@ -52,16 +52,21 @@ ignis --help
 登录：
 
 ```bash
-ignis login
+ignis login --region cn
+ignis login --region global
 ignis whoami
 ```
 
 CLI 会：
 
 - 在本机启动临时 localhost 回调
-- 打开浏览器跳到 igniscloud 登录页
+- 打开浏览器跳到所选 region 的 igniscloud 登录页
 - 同时在终端输出登录 URL，方便手动复制打开
-- 授权完成后把 token 保存到本地配置
+- 按 region 把 token 保存到 `$XDG_CONFIG_HOME/ignis/config.toml`
+- 创建或同步 project 时，把 region 写入 `.ignis/project.json`
+- 在 project 目录内执行 `publish`、`deploy`、`env`、`secrets`、`sqlite` 等远端 service 操作时，使用 `.ignis/project.json` 记录的 region 选择对应账号
+
+如果不传 `--region`，`ignis login` 会提示选择 `cn` 或 `global`，默认选择 `cn`。
 
 退出登录：
 
@@ -98,7 +103,7 @@ ignis.hcl
 .ignis/project.json
 ```
 
-这个文件保存 control-plane 返回的 `project_id`，用于把本地 project 绑定到远端唯一标识。`project.name` 继续保留为展示名，不再作为远端写操作的默认覆盖键。
+这个文件保存 control-plane 返回的 `project_id`，用于把本地 project 绑定到远端唯一标识。它也会记录 project 所属的 `region`，例如 `cn` 或 `global`。`project.name` 继续保留为展示名，不再作为远端写操作的默认覆盖键。
 
 同时，`ignis.hcl` 里的 `project.domain` 会保存当前线上访问域名：
 
@@ -113,7 +118,7 @@ ignis.hcl
 - `project_id`
   由 control-plane 在创建远端 project 时分配，并写入 `.ignis/project.json`
 
-当前 CLI 的 `ignis service new`、`publish`、`deploy`、`env`、`secrets`、`sqlite` 等远端 service 操作，都会使用 `.ignis/project.json` 里的 `project_id`，不再按 `project.name` 猜测或回退命中远端项目。
+当前 CLI 的 `ignis service new`、`publish`、`deploy`、`env`、`secrets`、`sqlite` 等远端 service 操作，都会使用 `.ignis/project.json` 里的 `project_id` 和 `region`，不再按 `project.name` 猜测或回退命中远端项目，也不需要手动切换 cn/global 账号。
 
 完整配置说明见 [ignis.hcl 文档](./ignis-hcl.md)。
 
@@ -122,7 +127,7 @@ ignis.hcl
 一个最小 `http` service 工作流：
 
 ```bash
-ignis login
+ignis login --region cn
 ignis project create hello-project
 cd hello-project
 ignis service new --service api --kind http --path services/api

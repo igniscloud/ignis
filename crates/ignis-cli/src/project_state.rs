@@ -5,6 +5,8 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::config::Region;
+
 const PROJECT_STATE_DIR: &str = ".ignis";
 const PROJECT_STATE_FILE: &str = "project.json";
 
@@ -13,6 +15,8 @@ pub struct ProjectState {
     pub project_name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub region: Option<Region>,
 }
 
 impl ProjectState {
@@ -20,7 +24,13 @@ impl ProjectState {
         Self {
             project_name: project_name.into(),
             project_id: project_id.and_then(|value| normalized_optional_string(&value)),
+            region: None,
         }
+    }
+
+    pub fn with_region(mut self, region: Region) -> Self {
+        self.region = Some(region);
+        self
     }
 
     pub fn load_optional(project_dir: &Path) -> Result<Option<Self>> {
@@ -52,6 +62,10 @@ impl ProjectState {
             .as_deref()
             .map(str::trim)
             .filter(|value| !value.is_empty())
+    }
+
+    pub fn region(&self) -> Option<Region> {
+        self.region
     }
 }
 

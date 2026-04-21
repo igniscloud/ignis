@@ -60,6 +60,7 @@ For the full manifest model behind `ignis.hcl`, read [the ignis.hcl guide](./ign
 
 - `ignis_sdk::http`
 - `ignis_sdk::sqlite`
+- `ignis_sdk::postgres`
 - `ignis_sdk::object_store`
 
 The generated SDK reference remains the source of truth for that API surface:
@@ -93,6 +94,17 @@ Common `ignis_sdk::sqlite` helpers:
 - `transaction(statements)`
 - `query_typed(sql, params)`
 - `sqlite::migrations::apply(migrations)`
+
+Common `ignis_sdk::postgres` helpers:
+
+- `execute(sql, params)`
+- `query(sql, params)`
+- `transaction(statements)`
+
+`postgres` calls use a platform host import. When `postgres.enabled = true` in
+`ignis.hcl`, a compatible IgnisCloud control plane provisions a service-scoped
+database and injects the connection into the runtime host; guest code does not
+receive the database password directly.
 
 Common `ignis_sdk::object_store` helpers:
 

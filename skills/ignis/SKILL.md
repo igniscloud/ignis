@@ -39,8 +39,8 @@ description: Use for building and operating Ignis projects with ignis-cli, ignis
 - 需要查 SDK 细节时，优先读 `mddoc` 生成的单页，不要只靠摘要文档推断。
 - 当前公网路由模型是一个 project host 下按 path prefix 暴露 services，例如前端走 `/`，API 走 `/api`，不要再假设 `api.<project-host>` 这类子域。
 - 当前 `http` service 统一使用标准 `wasm32-wasip2` 构建路径，不要再按 `cargo-component` 工作流推断 CLI 行为。
-- `ignis-sdk` 依赖来源不要猜测；默认给用户 GitHub Cargo 依赖写法，例如 `ignis-sdk = { git = "https://github.com/igniscloud/ignis.git", package = "ignis-sdk", tag = "v0.1.3" }`。只有在本地联调 Ignis 仓库时再改用明确的 `path`。
-- 平台托管对象存储优先使用 presign：Wasm service 调 `ignis_sdk::object_store`，host/control-plane 完成签名，不要把 COS/S3 AK/SK 暴露给 Wasm 或浏览器。
+- `ignis-sdk` 依赖来源不要猜测；默认给用户 GitHub Cargo 依赖写法，例如 `ignis-sdk = { git = "https://github.com/igniscloud/ignis.git", package = "ignis-sdk" }`。只有在本地联调 Ignis 仓库时再改用明确的 `path`。
+- 平台托管对象存储优先使用 presign：Wasm service 调 `ignis_sdk::object_store`，host/control-plane 完成签名，不要把 COS/S3 AK/SK 暴露给 Wasm 或浏览器。公开 feed 图片、头像、公开封面等使用 `presign_public_upload`，保存返回的稳定 `public_url`；私有文件、草稿、需鉴权附件继续用 `presign_upload` + `presign_download`。平台需要配置 `[object_storage] public_bucket` 和 `public_base_url` 后 public URL 才可用。
 - Jobs/schedules 是 project automation：在 `ignis.hcl` 顶层声明 `jobs` / `schedules` 后通过 `ignis project sync --mode apply` 同步；job target 走同项目 HTTP service，不要写任意外部 URL。
 - 如果产品需求涉及 LLM、agent、模型调用、结构化生成、工具调用或长任务推理，默认优先使用内部 `agent` service，而不是在业务 `http` service 里直接向模型 provider 发 HTTP 请求。
 - `agent` service 是内部任务 agent 容器。OpenCode 用 `agent_runtime = "opencode"`，发布前在 service 目录放 `opencode.json`；用 `agent_memory` 配置记忆模式，必须用 `agent_description` 描述 agent 能力，供 service discovery、`/v1/metadata` 和 TaskPlan coordinator 使用；agent 的长期角色说明放在 `services/<agent>/AGENTS.md`，发布后挂载到 `/app/config/AGENTS.md` 并追加到内置 one-task 系统提示词；自定义 skills 放在 `services/<agent>/skills/<skill>/SKILL.md`，发布时会一起进入 agent bundle，并在容器内挂载到 `$HOME/.agents/skills`；其他 service 通过 `http://agent-service.svc/v1/tasks` 创建任务，通过 callback 或 `GET /v1/tasks/{task_id}` 取结果。
