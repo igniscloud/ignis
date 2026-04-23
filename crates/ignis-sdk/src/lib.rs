@@ -4,6 +4,7 @@
 //! - `http`: lightweight routing, middleware, and response helpers
 //! - `sqlite`: guest wrappers around the shared host ABI
 //! - `postgres`: guest wrappers around platform-managed Postgres databases
+//! - `mysql`: guest wrappers around pooled host-side MySQL connections
 
 mod bindings {
     wit_bindgen::generate!({
@@ -159,6 +160,32 @@ pub mod postgres {
     /// Executes multiple statements inside a single transaction.
     pub fn transaction(statements: &[Statement]) -> Result<u64, String> {
         crate::bindings::ignis::platform::postgres::transaction(statements)
+    }
+}
+
+/// MySQL bindings exposed to guest workers.
+///
+/// These APIs forward to a host-side connection pool. Configure the worker with
+/// an `IGNIS_MYSQL_URL` secret or env value such as
+/// `mysql://user:password@host:3306/database`.
+pub mod mysql {
+    /// Re-exported low-level MySQL result and statement types generated from
+    /// the host ABI.
+    pub use crate::bindings::ignis::platform::mysql::{MysqlValue, QueryResult, Row, Statement};
+
+    /// Executes a single SQL statement and returns the number of affected rows.
+    pub fn execute(sql: &str, params: &[MysqlValue]) -> Result<u64, String> {
+        crate::bindings::ignis::platform::mysql::execute(sql, params)
+    }
+
+    /// Executes a query and returns rows in the host ABI format.
+    pub fn query(sql: &str, params: &[MysqlValue]) -> Result<QueryResult, String> {
+        crate::bindings::ignis::platform::mysql::query(sql, params)
+    }
+
+    /// Executes multiple statements inside a single transaction.
+    pub fn transaction(statements: &[Statement]) -> Result<u64, String> {
+        crate::bindings::ignis::platform::mysql::transaction(statements)
     }
 }
 

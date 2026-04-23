@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Database Example</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f5f7f4;
+        --surface: #ffffff;
+        --ink: #17211b;
+        --muted: #5f6f65;
+        --line: #d9e2db;
+        --accent: #0f766e;
+        --accent-strong: #115e59;
+        --danger: #b42318;
+        font-family: Inter, "Avenir Next", "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--ink);
+        background: var(--bg);
+      }
+
+      .shell {
+        width: min(920px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 48px 0;
+      }
+
+      header {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 24px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(2rem, 5vw, 3.75rem);
+        line-height: 1;
+      }
+
+      .status {
+        min-width: 140px;
+        padding: 10px 14px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--accent-strong);
+        font-weight: 700;
+        text-align: center;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .tile,
+      .console,
+      .toolbar {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+      }
+
+      .tile {
+        min-height: 132px;
+        padding: 18px;
+      }
+
+      .label {
+        margin: 0 0 10px;
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .value {
+        margin: 0;
+        font-size: 2.25rem;
+        font-weight: 800;
+        line-height: 1;
+        word-break: break-word;
+      }
+
+      .small {
+        font-size: 1.05rem;
+        line-height: 1.45;
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 14px;
+        padding: 14px;
+      }
+
+      .modebar {
+        margin-bottom: 14px;
+      }
+
+      button {
+        min-height: 44px;
+        border: 1px solid var(--accent);
+        border-radius: 8px;
+        padding: 0 16px;
+        background: var(--accent);
+        color: #ffffff;
+        font: inherit;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      button.secondary {
+        background: #ffffff;
+        color: var(--accent-strong);
+      }
+
+      button.active {
+        background: #123b36;
+        border-color: #123b36;
+      }
+
+      button:disabled {
+        cursor: progress;
+        opacity: 0.62;
+      }
+
+      .console {
+        margin-top: 14px;
+        padding: 18px;
+      }
+
+      pre {
+        min-height: 168px;
+        margin: 0;
+        overflow: auto;
+        white-space: pre-wrap;
+        color: var(--ink);
+        font: 0.95rem/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+
+      .error {
+        color: var(--danger);
+      }
+
+      @media (max-width: 720px) {
+        header {
+          display: block;
+        }
+
+        .status {
+          width: max-content;
+          margin-top: 16px;
+        }
+
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app" class="shell">
+      <header>
+        <h1>Database Example</h1>
+        <div class="status">{{ busy ? "Running" : status }}</div>
+      </header>
+
+      <main>
+        <section class="toolbar modebar">
+          <button
+            type="button"
+            :class="{ active: database === 'postgres' }"
+            @click="selectDatabase('postgres')"
+            :disabled="busy"
+          >
+            Postgres
+          </button>
+          <button
+            type="button"
+            :class="{ active: database === 'mysql' }"
+            @click="selectDatabase('mysql')"
+            :disabled="busy"
+          >
+            MySQL
+          </button>
+        </section>
+
+        <section class="grid">
+          <article class="tile">
+            <p class="label">Database</p>
+            <p class="value small">{{ database }}</p>
+          </article>
+          <article class="tile">
+            <p class="label">Counter</p>
+            <p class="value">{{ parsed.counter }}</p>
+          </article>
+          <article class="tile">
+            <p class="label">Events</p>
+            <p class="value">{{ parsed.events }}</p>
+          </article>
+          <article class="tile">
+            <p class="label">Last Event</p>
+            <p class="value small">{{ parsed.last_event }}</p>
+          </article>
+        </section>
+
+        <section class="toolbar">
+          <button type="button" @click="load" :disabled="busy">Refresh</button>
+          <button type="button" @click="post('/increment')" :disabled="busy">
+            Increment
+          </button>
+          <button type="button" @click="post('/transaction-smoke')" :disabled="busy">
+            Transaction Smoke
+          </button>
+          <button
+            v-if="database === 'mysql'"
+            type="button"
+            @click="post('/bulk-smoke')"
+            :disabled="busy"
+          >
+            Bulk Smoke
+          </button>
+          <button type="button" class="secondary" @click="post('/reset')" :disabled="busy">
+            Reset
+          </button>
+        </section>
+
+        <section class="console">
+          <pre :class="{ error }">{{ output }}</pre>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      const apiBase = () => {
+        if (
+          window.location.hostname === "127.0.0.1" ||
+          window.location.hostname === "localhost"
+        ) {
+          return "http://127.0.0.1:3001";
+        }
+        return `${window.location.origin}/api`;
+      };
+
+      const parse = (text) =>
+        Object.fromEntries(
+          text
+            .trim()
+            .split("\n")
+            .map((line) => line.split(/=(.*)/s).slice(0, 2))
+        );
+
+      Vue.createApp({
+        data() {
+          return {
+            busy: false,
+            status: "Idle",
+            output: "",
+            error: false,
+            database: "postgres",
+            parsed: {
+              counter: "-",
+              events: "-",
+              last_event: "-",
+            },
+          };
+        },
+        methods: {
+          apiPath(path) {
+            if (this.database === "mysql") {
+              return `/mysql${path}`;
+            }
+            return path === "" ? "/postgres" : path;
+          },
+          selectDatabase(database) {
+            this.database = database;
+            this.parsed = {
+              counter: "-",
+              events: "-",
+              last_event: "-",
+            };
+            return this.load();
+          },
+          async request(path, options = {}) {
+            this.busy = true;
+            this.error = false;
+            try {
+              const response = await fetch(`${apiBase()}${this.apiPath(path)}`, options);
+              const text = await response.text();
+              this.output = text;
+              this.error = !response.ok;
+              this.status = response.ok ? "OK" : `HTTP ${response.status}`;
+              if (response.ok) {
+                this.parsed = { ...this.parsed, ...parse(text) };
+              }
+            } catch (error) {
+              this.error = true;
+              this.status = "Error";
+              this.output = error instanceof Error ? error.message : String(error);
+            } finally {
+              this.busy = false;
+            }
+          },
+          load() {
+            return this.request("");
+          },
+          post(path) {
+            return this.request(path, { method: "POST" });
+          },
+        },
+        mounted() {
+          this.load();
+        },
+      }).mount("#app");
+    </script>
+  </body>
+</html>

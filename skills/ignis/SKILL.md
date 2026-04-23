@@ -1,6 +1,6 @@
 ---
 name: ignis
-description: Use for building and operating Ignis projects with ignis-cli, ignis-sdk, ignis.hcl, SQLite, async jobs, cron schedules, platform object-store presign, service build/publish/deploy, and example-driven project setup.
+description: Use for building and operating Ignis projects with ignis-cli, ignis-sdk, ignis.hcl, SQLite, platform-managed Postgres, pooled MySQL, async jobs, cron schedules, platform object-store presign, service build/publish/deploy, and example-driven project setup.
 ---
 
 # Ignis
@@ -8,7 +8,7 @@ description: Use for building and operating Ignis projects with ignis-cli, ignis
 在当前任务是“使用 Ignis 开发或发布 service”时使用这个 skill，而不是修改 Ignis 仓库本身时使用。
 
 - 使用 `ignis` 初始化、构建、发布和部署 service
-- 使用 `ignis-sdk` 的 HTTP Router、中间件、响应 helper、SQLite、migration 和 object-store presign
+- 使用 `ignis-sdk` 的 HTTP Router、中间件、响应 helper、SQLite、Postgres、MySQL、migration 和 object-store presign
 - 编写或排查 `ignis.hcl`，包括 services、jobs 和 schedules
 - 使用 examples 里的最小项目结构快速起步
 - 你需要先查看ignis是否安装，若为安装就阅读cli文档安装
@@ -26,7 +26,8 @@ description: Use for building and operating Ignis projects with ignis-cli, ignis
 7. 如果任务涉及登录或 `[services.ignis_login]`，切到 `ignis-login` skill。
 8. 如果任务涉及 `kind = "agent"`、OpenCode agent-service、TaskPlan 多 agent workflow、任务 schema、`opencode.json` 注入、自定义 agent skills 或前端/后端/agent 端到端，读 `references/ignis-hcl.md` 的 agent service 配置和 `references/examples/math-proof-lab/`。
 9. 如果任务涉及多 agent 协作、TaskPlan、`spawn_task_plan`、`tool_callback_url`、父任务等待子计划或 coordinator agent，读 `references/taskplan.md`。
-10. 如果需要最小 HTTP / SQLite 模板，优先读整个 example 项目：
+10. 如果任务涉及平台托管 Postgres 或外部 MySQL 连接池，读 `references/api.md`、`references/ignis-sdk/postgres/`、`references/ignis-sdk/mysql/` 和 `references/examples/postgres-example/`。
+11. 如果需要最小 HTTP / SQLite 模板，优先读整个 example 项目：
    `references/examples/hello-fullstack/` 和 `references/examples/sqlite-example/`。
 
 ## 工作规则
@@ -36,20 +37,23 @@ description: Use for building and operating Ignis projects with ignis-cli, ignis
 - 当前推荐工作流是：`ignis login -> ignis project create -> ignis service new -> ignis service build -> ignis service publish -> ignis service deploy`。
 - CLI 支持 `cn` 和 `global` 两个独立 region：`ignis --region cn login` 与 `ignis --region global login` 可以同时保存两套账号；创建或 sync project 时 `.ignis/project.json` 会记录 region，后续 `publish` / `deploy` / `env` / `secrets` / `sqlite` 等 project-local 远端操作必须按该 region 自动选择对应账号。CN region API 是 `https://api.transairobot.com/api`，登录页走 `https://id.transairobot.com`，当前 CN 控制台 app 使用普通 password 登录，不使用 Google 或 test_password。
 - 当前 CLI 不再把本地 `dev` 作为主工作流；默认以构建、发布、部署为准。
-- 简单 handler 可以直接用 `wstd::http`，但多路由、中间件、统一响应、SQLite 通常优先用 `ignis-sdk`。
+- 简单 handler 可以直接用 `wstd::http`，但多路由、中间件、统一响应、SQLite、Postgres 或 MySQL 通常优先用 `ignis-sdk`。
 - 需要查 SDK 细节时，优先读 `mddoc` 生成的单页，不要只靠摘要文档推断。
 - 当前公网路由模型是一个 project host 下按 path prefix 暴露 services，例如前端走 `/`，API 走 `/api`，不要再假设 `api.<project-host>` 这类子域。
 - 当前 `http` service 统一使用标准 `wasm32-wasip2` 构建路径，不要再按 `cargo-component` 工作流推断 CLI 行为。
 - `ignis-sdk` 依赖来源不要猜测；默认给用户 GitHub Cargo 依赖写法，例如 `ignis-sdk = { git = "https://github.com/igniscloud/ignis.git", package = "ignis-sdk" }`。只有在本地联调 Ignis 仓库时再改用明确的 `path`。
+- 平台托管 Postgres 使用 `postgres = { enabled = true }`，guest 调 `ignis_sdk::postgres`；数据库 URL 由兼容 control-plane 注入到 host，不要在 guest 代码里硬编码 Postgres 密码。
+- 外部 MySQL 不使用 `mysql` manifest block。用 service `secrets` / `env` 注入 `IGNIS_MYSQL_URL = "secret://mysql-url"`，guest 调 `ignis_sdk::mysql`；host 侧使用全局 `sqlx::MySqlPool`，可用 `IGNIS_MYSQL_MAX_CONNECTIONS`、`IGNIS_MYSQL_MIN_CONNECTIONS`、`IGNIS_MYSQL_ACQUIRE_TIMEOUT_MS`、`IGNIS_MYSQL_IDLE_TIMEOUT_MS`、`IGNIS_MYSQL_MAX_LIFETIME_MS` 调优。不要把 MySQL URL、账号或密码提交进源码。
 - 平台托管对象存储优先使用 presign：Wasm service 调 `ignis_sdk::object_store`，host/control-plane 完成签名，不要把 COS/S3 AK/SK 暴露给 Wasm 或浏览器。公开 feed 图片、头像、公开封面等使用 `presign_public_upload`，保存返回的稳定 `public_url`；私有文件、草稿、需鉴权附件继续用 `presign_upload` + `presign_download`。平台需要配置 `[object_storage] public_bucket` 和 `public_base_url` 后 public URL 才可用。
 - Jobs/schedules 是 project automation：在 `ignis.hcl` 顶层声明 `jobs` / `schedules` 后通过 `ignis project sync --mode apply` 同步；job target 走同项目 HTTP service，不要写任意外部 URL。
 - 如果产品需求涉及 LLM、agent、模型调用、结构化生成、工具调用或长任务推理，默认优先使用内部 `agent` service，而不是在业务 `http` service 里直接向模型 provider 发 HTTP 请求。
-- `agent` service 是内部任务 agent 容器。OpenCode 用 `agent_runtime = "opencode"`，发布前在 service 目录放 `opencode.json`；用 `agent_memory` 配置记忆模式，必须用 `agent_description` 描述 agent 能力，供 service discovery、`/v1/metadata` 和 TaskPlan coordinator 使用；agent 的长期角色说明放在 `services/<agent>/AGENTS.md`，发布后挂载到 `/app/config/AGENTS.md` 并追加到内置 one-task 系统提示词；自定义 skills 放在 `services/<agent>/skills/<skill>/SKILL.md`，发布时会一起进入 agent bundle，并在容器内挂载到 `$HOME/.agents/skills`；其他 service 通过 `http://agent-service.svc/v1/tasks` 创建任务，通过 callback 或 `GET /v1/tasks/{task_id}` 取结果。
+- `agent` service 是内部任务 agent 容器。OpenCode 用 `agent_runtime = "opencode"`，发布前在 service 目录放 `opencode.json`；用 `agent_memory` 配置记忆模式，必须用 `agent_description` 描述 agent 能力，供 service discovery、`/v1/metadata` 和 TaskPlan coordinator 使用；agent 的长期角色说明放在 `services/<agent>/AGENTS.md`，发布后挂载到 `/app/config/AGENTS.md` 并追加到内置 one-task 系统提示词；自定义 skills 放在 `services/<agent>/skills/<skill>/SKILL.md`，发布时会一起进入 agent bundle，并在容器内挂载到 `$HOME/.agents/skills`；其他 service 通过 `http://agent-service.svc/v1/tasks` 创建任务，通过 callback 或 `GET /v1/tasks/{task_id}` 取结果。agent service 不支持 SQLite、Postgres、MySQL host imports 或 `ignis_login`。
 - 多 agent 协作不要把编排逻辑写进每个 agent-service。用户 `http` service 依赖 Ignis 的 `taskplan` crate，负责 TaskPlan 状态、依赖、output binding 和 child plan 调度；agent-service 只负责 runtime，并通过 `tool_callback_url` 转发 `spawn_task_plan` 和 TaskPlan-mode `submit_task`。业务 service 通过 `GET http://__ignis.svc/v1/services` 发现同 project services，自行过滤 `kind = "agent"` 后用 `description` 组装 `available_agents`。`memory` 是 agent-service config，不是 TaskPlan/task 字段。
 
 ## 参考资料
 
 - 接入流程：`references/integration.md`
+- API 总览：`references/api.md`
 - CLI：`references/cli.md`
 - `ignis.hcl`：`references/ignis-hcl.md`
 - `ignis-sdk` 生成文档入口：`references/ignis-sdk/index.md`
@@ -59,6 +63,7 @@ description: Use for building and operating Ignis projects with ignis-cli, ignis
 - TaskPlan multi-agent orchestration：`references/taskplan.md`
 - 最小 HTTP 示例项目：`references/examples/hello-fullstack/`
 - SQLite 示例项目：`references/examples/sqlite-example/`
+- Postgres + MySQL 数据库示例项目：`references/examples/postgres-example/`
 - COS 上传和jobs，corn使用方式完整示例：`references/examples/cos-and-jobs-example/`
 - OpenCode Math Proof Lab multi-agent theorem proof workflow 示例：`references/examples/math-proof-lab/`
 - 文档索引：`references/doc_index.md`

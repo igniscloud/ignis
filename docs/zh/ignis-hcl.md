@@ -352,6 +352,33 @@ services = [
 - 类型：`bool`
 - 默认值：`false`
 
+#### `services[].postgres.enabled`
+
+- 作用：是否请求兼容 IgnisCloud control-plane 为该 `http` service 创建 service-scoped Postgres database。
+- 类型：`bool`
+- 默认值：`false`
+- guest 代码使用 `ignis_sdk::postgres`。
+- 数据库 URL 由平台注入给 host，guest 不直接接触数据库密码。
+
+#### MySQL
+
+MySQL 不使用 `services[].mysql` manifest block。外部 MySQL 通过普通
+`env` / `secrets` 注入：
+
+```hcl
+env = {
+  IGNIS_MYSQL_MAX_CONNECTIONS = "64"
+  IGNIS_MYSQL_MIN_CONNECTIONS = "4"
+}
+secrets = {
+  IGNIS_MYSQL_URL = "secret://mysql-url"
+}
+```
+
+guest 代码使用 `ignis_sdk::mysql`。host 侧维护全局 `sqlx::MySqlPool`，
+可通过 `IGNIS_MYSQL_ACQUIRE_TIMEOUT_MS`、`IGNIS_MYSQL_IDLE_TIMEOUT_MS` 和
+`IGNIS_MYSQL_MAX_LIFETIME_MS` 继续调优。
+
 #### `services[].resources.memory_limit_bytes`
 
 - 类型：`integer`
@@ -599,6 +626,8 @@ TaskPlan executor 应该过滤 `kind = "agent"`，并使用 `description` 构建
 - `frontend`
 - `ignis_login`
 - `sqlite`
+- `postgres`
+- MySQL host imports
 - `agent`
 - `env`
 - `secrets`

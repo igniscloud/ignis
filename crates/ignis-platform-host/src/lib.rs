@@ -5,10 +5,15 @@
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+use std::str::FromStr;
+use std::sync::{LazyLock, Mutex};
+use std::time::Duration;
 
 use anyhow::Result;
 use ignis_manifest::LoadedManifest;
 use serde::de::DeserializeOwned;
+use sqlx::mysql::{MySqlArguments, MySqlConnectOptions, MySqlPool, MySqlPoolOptions, MySqlRow};
+use sqlx::{Arguments, Column, Row as SqlxRow, TypeInfo};
 use tokio_postgres::types::{ToSql, Type};
 use wasmtime::component::Linker;
 
@@ -20,6 +25,9 @@ mod platform_bindings {
     });
 }
 
+pub use platform_bindings::ignis::platform::mysql::{
+    MysqlValue, QueryResult as MysqlQueryResult, Row as MysqlRow, Statement as MysqlStatement,
+};
 pub use platform_bindings::ignis::platform::object_store::{
     Header, PresignUploadRequest, PresignedUrl,
 };
@@ -30,6 +38,9 @@ pub use platform_bindings::ignis::platform::postgres::{
 pub use platform_bindings::ignis::platform::sqlite::{
     QueryResult, Row, SqliteValue, Statement, TypedQueryResult, TypedRow,
 };
+
+static MYSQL_POOLS: LazyLock<Mutex<BTreeMap<String, MySqlPool>>> =
+    LazyLock::new(|| Mutex::new(BTreeMap::new()));
 
 #[derive(Debug, Clone, Default)]
 pub struct HostRuntimeConfig {
@@ -46,6 +57,7 @@ pub struct ObjectStoreHostConfig {
 pub struct PlatformHost {
     sqlite: SqliteHost,
     postgres: PostgresHost,
+    mysql: MysqlHost,
     object_store: ObjectStoreHost,
 }
 
@@ -58,6 +70,20 @@ pub struct SqliteHost {
 pub struct PostgresHost {
     enabled: bool,
     database_url: Option<String>,
+}
+
+#[derive(Clone)]
+pub struct MysqlHost {
+    pool: Option<MySqlPool>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct MysqlPoolConfig {
+    max_connections: u32,
+    min_connections: u32,
+    acquire_timeout_ms: u64,
+    idle_timeout_ms: u64,
+    max_lifetime_ms: u64,
 }
 
 enum PostgresParam {
@@ -194,6 +220,172 @@ fn postgres_column_value(
         .map_err(|error| format!("reading postgres text column {index} failed: {error}"))
 }
 
+impl MysqlPoolConfig {
+    fn from_env(env: &BTreeMap<String, String>) -> Self {
+        let max_connections = env_u32(env, "IGNIS_MYSQL_MAX_CONNECTIONS", 64, 1, 512);
+        let min_connections = env_u32(env, "IGNIS_MYSQL_MIN_CONNECTIONS", 4, 0, max_connections);
+        Self {
+            max_connections,
+            min_connections,
+            acquire_timeout_ms: env_u64(env, "IGNIS_MYSQL_ACQUIRE_TIMEOUT_MS", 5_000, 100, 60_000),
+            idle_timeout_ms: env_u64(
+                env,
+                "IGNIS_MYSQL_IDLE_TIMEOUT_MS",
+                30_000,
+                1_000,
+                86_400_000,
+            ),
+            max_lifetime_ms: env_u64(
+                env,
+                "IGNIS_MYSQL_MAX_LIFETIME_MS",
+                600_000,
+                10_000,
+                86_400_000,
+            ),
+        }
+    }
+
+    fn cache_key(&self, database_url: &str) -> String {
+        format!(
+            "{database_url}|max={}|min={}|acquire={}|idle={}|life={}",
+            self.max_connections,
+            self.min_connections,
+            self.acquire_timeout_ms,
+            self.idle_timeout_ms,
+            self.max_lifetime_ms
+        )
+    }
+}
+
+fn env_u32(env: &BTreeMap<String, String>, name: &str, default: u32, min: u32, max: u32) -> u32 {
+    env.get(name)
+        .and_then(|value| value.trim().parse::<u32>().ok())
+        .unwrap_or(default)
+        .clamp(min, max)
+}
+
+fn env_u64(env: &BTreeMap<String, String>, name: &str, default: u64, min: u64, max: u64) -> u64 {
+    env.get(name)
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .unwrap_or(default)
+        .clamp(min, max)
+}
+
+fn mysql_database_url(env: &BTreeMap<String, String>) -> Option<String> {
+    env.get("IGNIS_MYSQL_URL")
+        .or_else(|| env.get("MYSQL_URL"))
+        .or_else(|| {
+            env.get("DATABASE_URL")
+                .filter(|value| is_mysql_database_url(value))
+        })
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+}
+
+fn is_mysql_database_url(value: &str) -> bool {
+    let trimmed = value.trim();
+    trimmed.starts_with("mysql://") || trimmed.starts_with("mariadb://")
+}
+
+fn mysql_pool_for(
+    database_url: &str,
+    config: MysqlPoolConfig,
+) -> std::result::Result<MySqlPool, String> {
+    let cache_key = config.cache_key(database_url);
+    {
+        let pools = MYSQL_POOLS
+            .lock()
+            .map_err(|_| "mysql pool cache lock poisoned".to_owned())?;
+        if let Some(pool) = pools.get(&cache_key) {
+            return Ok(pool.clone());
+        }
+    }
+
+    let connect_options = MySqlConnectOptions::from_str(database_url)
+        .map_err(|error| format!("parsing mysql URL failed: {error}"))?;
+    let pool = MySqlPoolOptions::new()
+        .max_connections(config.max_connections)
+        .min_connections(config.min_connections)
+        .acquire_timeout(Duration::from_millis(config.acquire_timeout_ms))
+        .idle_timeout(Duration::from_millis(config.idle_timeout_ms))
+        .max_lifetime(Duration::from_millis(config.max_lifetime_ms))
+        .test_before_acquire(false)
+        .connect_lazy_with(connect_options);
+
+    let mut pools = MYSQL_POOLS
+        .lock()
+        .map_err(|_| "mysql pool cache lock poisoned".to_owned())?;
+    Ok(pools.entry(cache_key).or_insert_with(|| pool).clone())
+}
+
+fn mysql_arguments(params: Vec<MysqlValue>) -> std::result::Result<MySqlArguments, String> {
+    let mut args = MySqlArguments::default();
+    for param in params {
+        match param {
+            MysqlValue::Null => args.add(Option::<String>::None),
+            MysqlValue::Integer(value) => args.add(value),
+            MysqlValue::Float(value) => args.add(value),
+            MysqlValue::Boolean(value) => args.add(value),
+            MysqlValue::Text(value) => args.add(value),
+            MysqlValue::Bytes(value) => args.add(value),
+        }
+        .map_err(|error| format!("binding mysql parameter failed: {error}"))?;
+    }
+    Ok(args)
+}
+
+fn mysql_row_values(row: &MySqlRow) -> std::result::Result<Vec<MysqlValue>, String> {
+    let mut values = Vec::new();
+    for (index, column) in row.columns().iter().enumerate() {
+        values.push(mysql_column_value(row, index, column.type_info().name())?);
+    }
+    Ok(values)
+}
+
+fn mysql_column_value(
+    row: &MySqlRow,
+    index: usize,
+    type_name: &str,
+) -> std::result::Result<MysqlValue, String> {
+    let normalized = type_name.to_ascii_uppercase();
+    if normalized.contains("BOOL") || normalized == "TINYINT" {
+        if let Ok(value) = row.try_get::<Option<bool>, _>(index) {
+            return Ok(value.map(MysqlValue::Boolean).unwrap_or(MysqlValue::Null));
+        }
+    }
+    if normalized.contains("INT") {
+        if let Ok(value) = row.try_get::<Option<i64>, _>(index) {
+            return Ok(value.map(MysqlValue::Integer).unwrap_or(MysqlValue::Null));
+        }
+        if let Ok(value) = row.try_get::<Option<u64>, _>(index) {
+            return value
+                .map(|value| {
+                    i64::try_from(value).map(MysqlValue::Integer).map_err(|_| {
+                        format!("mysql unsigned integer column {index} overflowed i64")
+                    })
+                })
+                .transpose()
+                .map(|value| value.unwrap_or(MysqlValue::Null));
+        }
+    }
+    if normalized.contains("FLOAT") || normalized.contains("DOUBLE") || normalized.contains("REAL")
+    {
+        return row
+            .try_get::<Option<f64>, _>(index)
+            .map(|value| value.map(MysqlValue::Float).unwrap_or(MysqlValue::Null))
+            .map_err(|error| format!("reading mysql float column {index} failed: {error}"));
+    }
+    if normalized.contains("BLOB") || normalized.contains("BINARY") {
+        return row
+            .try_get::<Option<Vec<u8>>, _>(index)
+            .map(|value| value.map(MysqlValue::Bytes).unwrap_or(MysqlValue::Null))
+            .map_err(|error| format!("reading mysql bytes column {index} failed: {error}"));
+    }
+    row.try_get::<Option<String>, _>(index)
+        .map(|value| value.map(MysqlValue::Text).unwrap_or(MysqlValue::Null))
+        .map_err(|error| format!("reading mysql text column {index} failed: {error}"))
+}
+
 #[derive(Clone)]
 struct ObjectStoreHost {
     config: Option<ObjectStoreHostConfig>,
@@ -222,6 +414,7 @@ impl PlatformHost {
         Ok(Self {
             sqlite: SqliteHost::new(manifest)?,
             postgres: PostgresHost::new(manifest),
+            mysql: MysqlHost::new(manifest)?,
             object_store: ObjectStoreHost::new(config.object_store.clone()),
         })
     }
@@ -243,6 +436,9 @@ impl HostBindings for PlatformHost {
             linker, get,
         )?;
         platform_bindings::ignis::platform::postgres::add_to_linker::<T, PlatformImports>(
+            linker, get,
+        )?;
+        platform_bindings::ignis::platform::mysql::add_to_linker::<T, PlatformImports>(
             linker, get,
         )?;
         platform_bindings::ignis::platform::object_store::add_to_linker::<T, PlatformImports>(
@@ -351,6 +547,98 @@ impl PostgresHost {
             });
         }
         Ok(PostgresQueryResult {
+            columns,
+            rows: output_rows,
+        })
+    }
+}
+
+impl MysqlHost {
+    fn new(manifest: &LoadedManifest) -> Result<Self> {
+        let env = &manifest.manifest.env;
+        let Some(database_url) = mysql_database_url(env) else {
+            return Ok(Self { pool: None });
+        };
+        let config = MysqlPoolConfig::from_env(env);
+        let pool = mysql_pool_for(&database_url, config).map_err(anyhow::Error::msg)?;
+        Ok(Self { pool: Some(pool) })
+    }
+
+    fn pool(&self) -> std::result::Result<MySqlPool, String> {
+        self.pool.clone().ok_or_else(|| {
+            "mysql URL is missing; set IGNIS_MYSQL_URL, MYSQL_URL, or a mysql:// DATABASE_URL"
+                .to_owned()
+        })
+    }
+
+    async fn execute(
+        &self,
+        sql: String,
+        params: Vec<MysqlValue>,
+    ) -> std::result::Result<u64, String> {
+        let pool = self.pool()?;
+        let args = mysql_arguments(params)?;
+        sqlx::query_with(sql.as_str(), args)
+            .execute(&pool)
+            .await
+            .map(|result| result.rows_affected())
+            .map_err(|error| format!("mysql execute failed: {error}"))
+    }
+
+    async fn transaction(
+        &self,
+        statements: Vec<MysqlStatement>,
+    ) -> std::result::Result<u64, String> {
+        let pool = self.pool()?;
+        let mut transaction = pool
+            .begin()
+            .await
+            .map_err(|error| format!("mysql begin transaction failed: {error}"))?;
+        let mut changed = 0u64;
+        for statement in statements {
+            let args = mysql_arguments(statement.params)?;
+            changed = changed.saturating_add(
+                sqlx::query_with(statement.sql.as_str(), args)
+                    .execute(&mut *transaction)
+                    .await
+                    .map_err(|error| format!("mysql transaction execute failed: {error}"))?
+                    .rows_affected(),
+            );
+        }
+        transaction
+            .commit()
+            .await
+            .map_err(|error| format!("mysql commit failed: {error}"))?;
+        Ok(changed)
+    }
+
+    async fn query(
+        &self,
+        sql: String,
+        params: Vec<MysqlValue>,
+    ) -> std::result::Result<MysqlQueryResult, String> {
+        let pool = self.pool()?;
+        let args = mysql_arguments(params)?;
+        let rows = sqlx::query_with(sql.as_str(), args)
+            .fetch_all(&pool)
+            .await
+            .map_err(|error| format!("mysql query failed: {error}"))?;
+        let columns = rows
+            .first()
+            .map(|row| {
+                row.columns()
+                    .iter()
+                    .map(|column| column.name().to_owned())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let mut output_rows = Vec::new();
+        for row in rows {
+            output_rows.push(MysqlRow {
+                values: mysql_row_values(&row)?,
+            });
+        }
+        Ok(MysqlQueryResult {
             columns,
             rows: output_rows,
         })
@@ -634,6 +922,35 @@ impl platform_bindings::ignis::platform::postgres::Host for PlatformHost {
     {
         let postgres = self.postgres.clone();
         async move { postgres.query(sql, params).await }
+    }
+}
+
+impl platform_bindings::ignis::platform::mysql::Host for PlatformHost {
+    fn execute(
+        &mut self,
+        sql: String,
+        params: Vec<MysqlValue>,
+    ) -> impl std::future::Future<Output = std::result::Result<u64, String>> + Send {
+        let mysql = self.mysql.clone();
+        async move { mysql.execute(sql, params).await }
+    }
+
+    fn transaction(
+        &mut self,
+        statements: Vec<MysqlStatement>,
+    ) -> impl std::future::Future<Output = std::result::Result<u64, String>> + Send {
+        let mysql = self.mysql.clone();
+        async move { mysql.transaction(statements).await }
+    }
+
+    fn query(
+        &mut self,
+        sql: String,
+        params: Vec<MysqlValue>,
+    ) -> impl std::future::Future<Output = std::result::Result<MysqlQueryResult, String>> + Send
+    {
+        let mysql = self.mysql.clone();
+        async move { mysql.query(sql, params).await }
     }
 }
 

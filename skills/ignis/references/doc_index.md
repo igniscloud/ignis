@@ -2,6 +2,8 @@
 
 - `integration.md`
   从 service 开发者和平台开发者两个角度说明如何接入 Ignis
+- `api.md`
+  Rust crate API、SDK 模块、host imports 和兼容 control-plane HTTP API 总览
 - `ignis-hcl.md`
   独立说明 `ignis.hcl` 的配置项、默认值、校验规则和示例配置
 - `ignis-sdk/`
@@ -20,6 +22,8 @@
   完整 `hello-fullstack` example 项目，包含 `README.md`、`ignis.hcl`、后端源码、前端源码和 `wit`
 - `examples/sqlite-example/`
   完整 `sqlite-example` 项目，包含 `README.md`、`ignis.hcl`、SQLite 后端源码、前端源码和 `wit`
+- `examples/postgres-example/`
+  完整 Postgres + MySQL database smoke 示例，包含平台托管 Postgres、外部 MySQL secret、host-side MySQL pool、后端源码、前端源码和 `wit`
 - `examples/cos-and-jobs-example/`
   Google 登录 + 每用户 10MB 配额 + 浏览器直传 COS/S3 + 定时清理 job 的完整示例
 - `examples/math-proof-lab/`

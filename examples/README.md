@@ -21,6 +21,18 @@ A minimal project-style SQLite example showing:
 - a persistent counter exposed through `GET /api` and `POST /api/increment`
 - a single `ignis.hcl` project with `web=/` and `api=/api`
 
+## `postgres-example`
+
+A minimal project-style Postgres + MySQL example showing:
+
+- one `http` service backed by the platform-managed Postgres host API
+- one `http` service that also uses pooled host-side MySQL connections
+- one frontend service that runs health, increment, transaction, bulk, and reset checks
+- `postgres.enabled = true` provisioning through IgnisCloud
+- external MySQL URL injection through `IGNIS_MYSQL_URL`
+- parameter binding and basic scalar type roundtrips through `ignis_sdk::postgres` and `ignis_sdk::mysql`
+- a single `ignis.hcl` project with `web=/` and `api=/api`
+
 ## `ignis-login-example`
 
 A minimal `ignis_login` example showing:
@@ -67,6 +79,7 @@ git clone https://github.com/igniscloud/ignis.git
 cd ignis
 cargo check --manifest-path examples/hello-fullstack/services/api/Cargo.toml
 cargo check --manifest-path examples/sqlite-example/services/api/Cargo.toml
+cargo check --manifest-path examples/postgres-example/services/api/Cargo.toml
 cargo check --manifest-path examples/ignis-login-example/services/api/Cargo.toml
 cargo check --manifest-path examples/dual-frontend-login-example/services/api/Cargo.toml
 cargo check --manifest-path examples/cos-and-jobs-example/services/api/Cargo.toml --target wasm32-wasip2

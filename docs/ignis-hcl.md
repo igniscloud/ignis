@@ -231,6 +231,24 @@ a service-scoped Postgres database and inject it into the worker host. Guest
 code should use `ignis_sdk::postgres`; the database URL is consumed by the host
 import and is not exposed to guest code.
 
+External MySQL uses the regular `env` / `secrets` mechanism rather than a
+`mysql` manifest block. Configure `IGNIS_MYSQL_URL` as a service secret and use
+`ignis_sdk::mysql` from guest code. The runtime host keeps a pooled
+`sqlx::MySqlPool` keyed by the URL and pool settings:
+
+```hcl
+env = {
+  IGNIS_MYSQL_MAX_CONNECTIONS = "64"
+  IGNIS_MYSQL_MIN_CONNECTIONS = "4"
+  IGNIS_MYSQL_ACQUIRE_TIMEOUT_MS = "5000"
+  IGNIS_MYSQL_IDLE_TIMEOUT_MS = "30000"
+  IGNIS_MYSQL_MAX_LIFETIME_MS = "600000"
+}
+secrets = {
+  IGNIS_MYSQL_URL = "secret://mysql-url"
+}
+```
+
 `frontend` services use:
 
 - `frontend.build_command`
@@ -418,7 +436,7 @@ Current `agent` constraints:
 - Agent services are internal-only by default when they have no public exposure.
 - Codex requires the `OPENAI_API_KEY` service secret.
 - OpenCode requires `opencode.json`; Ignis injects it into `$HOME/.config/opencode/opencode.json` when the container starts.
-- `sqlite` and `ignis_login` are not supported for agent services.
+- `sqlite`, `postgres`, MySQL host imports, and `ignis_login` are not supported for agent services.
 
 ### 3.5 `jobs`
 

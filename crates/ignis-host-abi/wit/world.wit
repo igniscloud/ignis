@@ -68,6 +68,35 @@ interface postgres {
     transaction: func(statements: list<statement>) -> result<u64, string>;
 }
 
+interface mysql {
+    variant mysql-value {
+        null,
+        integer(s64),
+        float(f64),
+        boolean(bool),
+        text(string),
+        bytes(list<u8>),
+    }
+
+    record statement {
+        sql: string,
+        params: list<mysql-value>,
+    }
+
+    record row {
+        values: list<mysql-value>,
+    }
+
+    record query-result {
+        columns: list<string>,
+        rows: list<row>,
+    }
+
+    execute: func(sql: string, params: list<mysql-value>) -> result<u64, string>;
+    query: func(sql: string, params: list<mysql-value>) -> result<query-result, string>;
+    transaction: func(statements: list<statement>) -> result<u64, string>;
+}
+
 interface object-store {
     record header {
         name: string,
@@ -99,5 +128,6 @@ interface object-store {
 world imports {
     import sqlite;
     import postgres;
+    import mysql;
     import object-store;
 }

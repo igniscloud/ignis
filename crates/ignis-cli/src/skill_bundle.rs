@@ -28,6 +28,10 @@ const IGNIS_FILES: &[BundledFile] = &[
         contents: include_str!("../../../docs/cli.md"),
     },
     BundledFile {
+        path: "references/api.md",
+        contents: include_str!("../../../docs/api.md"),
+    },
+    BundledFile {
         path: "references/doc_index.md",
         contents: include_str!("../../../skills/ignis/references/doc_index.md"),
     },
@@ -86,6 +90,30 @@ const IGNIS_FILES: &[BundledFile] = &[
     BundledFile {
         path: "references/examples/sqlite-example/services/web/src/index.html",
         contents: include_str!("../../../examples/sqlite-example/services/web/src/index.html"),
+    },
+    BundledFile {
+        path: "references/examples/postgres-example/README.md",
+        contents: include_str!("../../../examples/postgres-example/README.md"),
+    },
+    BundledFile {
+        path: "references/examples/postgres-example/ignis.hcl",
+        contents: include_str!("../../../examples/postgres-example/ignis.hcl"),
+    },
+    BundledFile {
+        path: "references/examples/postgres-example/services/api/Cargo.toml",
+        contents: include_str!("../../../examples/postgres-example/services/api/Cargo.toml"),
+    },
+    BundledFile {
+        path: "references/examples/postgres-example/services/api/src/lib.rs",
+        contents: include_str!("../../../examples/postgres-example/services/api/src/lib.rs"),
+    },
+    BundledFile {
+        path: "references/examples/postgres-example/services/api/wit/world.wit",
+        contents: include_str!("../../../examples/postgres-example/services/api/wit/world.wit"),
+    },
+    BundledFile {
+        path: "references/examples/postgres-example/services/web/src/index.html",
+        contents: include_str!("../../../examples/postgres-example/services/web/src/index.html"),
     },
     BundledFile {
         path: "references/examples/math-proof-lab/README.md",
@@ -266,6 +294,38 @@ const IGNIS_FILES: &[BundledFile] = &[
     BundledFile {
         path: "references/ignis-sdk/sqlite/transaction.md",
         contents: include_str!("../../../docs/ignis-sdk/sqlite/transaction.md"),
+    },
+    BundledFile {
+        path: "references/ignis-sdk/postgres/index.md",
+        contents: include_str!("../../../docs/ignis-sdk/postgres/index.md"),
+    },
+    BundledFile {
+        path: "references/ignis-sdk/postgres/execute.md",
+        contents: include_str!("../../../docs/ignis-sdk/postgres/execute.md"),
+    },
+    BundledFile {
+        path: "references/ignis-sdk/postgres/query.md",
+        contents: include_str!("../../../docs/ignis-sdk/postgres/query.md"),
+    },
+    BundledFile {
+        path: "references/ignis-sdk/postgres/transaction.md",
+        contents: include_str!("../../../docs/ignis-sdk/postgres/transaction.md"),
+    },
+    BundledFile {
+        path: "references/ignis-sdk/mysql/index.md",
+        contents: include_str!("../../../docs/ignis-sdk/mysql/index.md"),
+    },
+    BundledFile {
+        path: "references/ignis-sdk/mysql/execute.md",
+        contents: include_str!("../../../docs/ignis-sdk/mysql/execute.md"),
+    },
+    BundledFile {
+        path: "references/ignis-sdk/mysql/query.md",
+        contents: include_str!("../../../docs/ignis-sdk/mysql/query.md"),
+    },
+    BundledFile {
+        path: "references/ignis-sdk/mysql/transaction.md",
+        contents: include_str!("../../../docs/ignis-sdk/mysql/transaction.md"),
     },
 ];
 

@@ -14,7 +14,7 @@
 - 写一个运行在 Wasm 里的 HTTP service
 - 在本地快速调试 `wasi:http` worker
 - 在你自己的平台里嵌入 Wasm 运行时
-- 复用 `ignis.hcl`、签名、SQLite host import、路由 SDK
+- 复用 `ignis.hcl`、签名、SQLite/Postgres/MySQL host imports、路由 SDK
 
 那么 `ignis` 已经可以作为基础。
 
@@ -34,11 +34,11 @@
 - `ignis-manifest`
   负责 `ignis.hcl` / 派生 worker manifest 的解析、校验、渲染和组件签名
 - `ignis-sdk`
-  提供 guest 侧 Rust SDK，包括 HTTP Router 和 SQLite helper
+  提供 guest 侧 Rust SDK，包括 HTTP Router、SQLite、Postgres、MySQL 和 object-store helper
 - `ignis-runtime`
   提供基于 Wasmtime 的运行时，用于装载和执行 `wasi:http` 组件
 - `ignis-platform-host`
-  提供第一个平台宿主实现，目前是 SQLite host import
+  提供平台宿主实现，包括 SQLite、平台托管 Postgres、外部 MySQL 连接池和 object-store presign host imports
 
 ## 3. 作为 worker 开发者接入
 
@@ -400,16 +400,18 @@ runtime.warm().await?;
 
 `ignis-platform-host` 当前暴露了：
 
-- `SqliteHost`
+- `PlatformHost`
 - `HostBindings`
 
-`HostBindings` 是运行时与平台宿主之间的桥接点。默认 `WorkerRuntime` 使用 `SqliteHost`，如果你后续要接入更多平台能力，可以沿这个方向扩展新的宿主类型。
+`HostBindings` 是运行时与平台宿主之间的桥接点。默认 `WorkerRuntime` 使用 `PlatformHost`，如果你后续要接入更多平台能力，可以沿这个方向扩展新的宿主类型。
 
-当前 SQLite host 的行为是：
+当前数据库 host imports 的行为是：
 
 - `ignis.hcl` 中目标 `http` service 的 `sqlite.enabled = true` 时允许访问数据库
 - 数据库默认落在该 service 目录下的 `.ignis/sqlite/default.sqlite3`
-- 宿主会把 WIT 中定义的 SQLite imports 链接到 Wasmtime 组件里
+- `postgres.enabled = true` 由兼容 IgnisCloud control-plane 创建 service-scoped Postgres database，并通过 `IGNIS_POSTGRES_URL` secret 注入给 host
+- 外部 MySQL 通过 `IGNIS_MYSQL_URL` secret/env 注入，host 侧维护 `sqlx::MySqlPool`，guest 使用 `ignis_sdk::mysql`
+- 宿主会把 WIT 中定义的 SQLite、Postgres、MySQL imports 链接到 Wasmtime 组件里
 
 ### 4.6 平台需要自己负责的部分
 

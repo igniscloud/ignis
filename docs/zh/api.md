@@ -80,7 +80,7 @@
 
 ### 1.2 `ignis-sdk`
 
-`ignis-sdk` 是 guest 侧 Rust SDK，当前主要分为 `http`、`sqlite` 和 `object_store`。
+`ignis-sdk` 是 guest 侧 Rust SDK，当前主要分为 `http`、`sqlite`、`postgres`、`mysql` 和 `object_store`。
 
 完整自动生成参考见 [ignis-sdk Markdown 文档](./ignis-sdk/index.md)。
 
@@ -210,6 +210,41 @@ fn read_counter() -> Result<i64, String> {
 }
 ```
 
+#### `ignis_sdk::postgres`
+
+主要函数：
+
+- `execute(sql, params)`
+- `query(sql, params)`
+- `transaction(statements)`
+
+`postgres.enabled = true` 时，兼容的 IgnisCloud control-plane 会为 `http`
+service 创建 service-scoped Postgres database，并把连接信息注入给 host。guest
+只使用 `ignis_sdk::postgres`，不会直接拿到数据库密码。
+
+#### `ignis_sdk::mysql`
+
+主要函数：
+
+- `execute(sql, params)`
+- `query(sql, params)`
+- `transaction(statements)`
+
+MySQL 通过普通 service secret/env 配置，不使用 `mysql` manifest block。推荐把
+`IGNIS_MYSQL_URL` 配成 `secret://mysql-url`，URL 形如：
+
+```text
+mysql://user:password@host:3306/database
+```
+
+host 侧使用全局 `sqlx::MySqlPool`，可通过这些 env 调整连接池：
+
+- `IGNIS_MYSQL_MAX_CONNECTIONS`
+- `IGNIS_MYSQL_MIN_CONNECTIONS`
+- `IGNIS_MYSQL_ACQUIRE_TIMEOUT_MS`
+- `IGNIS_MYSQL_IDLE_TIMEOUT_MS`
+- `IGNIS_MYSQL_MAX_LIFETIME_MS`
+
 ### 1.3 `ignis-runtime`
 
 `ignis-runtime` 负责组件装载、WASI / `wasi:http` 链接、请求分发、资源限制和出站网络控制。
@@ -218,7 +253,7 @@ fn read_counter() -> Result<i64, String> {
 
 - `DevServerConfig`
 - `WorkerRuntimeOptions`
-- `WorkerRuntime<H = SqliteHost>`
+- `WorkerRuntime<H = PlatformHost>`
 
 主要函数和方法：
 
@@ -238,10 +273,11 @@ fn read_counter() -> Result<i64, String> {
 
 ### 1.4 `ignis-platform-host`
 
-`ignis-platform-host` 是平台侧宿主扩展层。当前只包含 SQLite 实现。
+`ignis-platform-host` 是平台侧宿主扩展层。当前包含 SQLite、Postgres、MySQL 和 object-store host imports。
 
 主要类型：
 
+- `PlatformHost`
 - `SqliteHost`
 - `HostBindings`
 
@@ -250,11 +286,13 @@ fn read_counter() -> Result<i64, String> {
 - 从 `LoadedManifest` 构造平台宿主状态
 - 把平台宿主 imports 挂到 Wasmtime linker 上
 
-`SqliteHost` 负责：
+数据库 host 负责：
 
 - 打开 worker 对应的 SQLite 数据库
-- 实现 WIT 中约定的 SQLite host functions
-- 把 SQLite 功能按 manifest 配置暴露给 guest
+- 为平台托管 Postgres 读取 `IGNIS_POSTGRES_URL`
+- 为外部 MySQL 读取 `IGNIS_MYSQL_URL` 并维护 host-side connection pool
+- 实现 WIT 中约定的 SQLite / Postgres / MySQL host functions
+- 把数据库功能按 manifest、env 和 secrets 配置暴露给 guest
 
 ## 2. `ignis-cli` 兼容控制面 HTTP API
 
